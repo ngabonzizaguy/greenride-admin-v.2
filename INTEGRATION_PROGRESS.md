@@ -82,11 +82,11 @@
 
 | Task | Status | Notes |
 |------|--------|-------|
-| 6.1 Rides list with `/orders/search` | ⏳ Pending | |
-| 6.2 Ride detail with `/orders/detail` | ⏳ Pending | |
-| 6.3 Ride cancellation | ⏳ Pending | |
-| 6.4 Status filters | ⏳ Pending | |
-| 6.5 Build & Test | ⏳ Pending | |
+| 6.1 Rides list with `/orders/search` | ✅ Done | Full pagination |
+| 6.2 Ride detail with `/orders/detail` | ⏳ Pending | Uses mock data |
+| 6.3 Ride cancellation | ✅ Done | Connected to API |
+| 6.4 Status filters | ✅ Done | All statuses |
+| 6.5 Build & Test | ✅ Done | Build passed |
 
 ---
 
