@@ -67,13 +67,13 @@
 
 | Task | Status | Notes |
 |------|--------|-------|
-| 5.1 Drivers list with `/users/search` | ⏳ Pending | |
-| 5.2 Users list with `/users/search` | ⏳ Pending | |
-| 5.3 Driver detail with `/users/detail` | ⏳ Pending | |
-| 5.4 User detail with `/users/detail` | ⏳ Pending | |
-| 5.5 Status updates (suspend/activate) | ⏳ Pending | |
+| 5.1 Drivers list with `/users/search` | ✅ Done | Full pagination/search |
+| 5.2 Users list with `/users/search` | ✅ Done | Full pagination/search |
+| 5.3 Driver detail with `/users/detail` | ⏳ Pending | Uses mock data |
+| 5.4 User detail with `/users/detail` | ⏳ Pending | Uses mock data |
+| 5.5 Status updates (suspend/activate) | ✅ Done | Connected to API |
 | 5.6 Driver rides with `/users/rides` | ⏳ Pending | |
-| 5.7 Build & Test | ⏳ Pending | |
+| 5.7 Build & Test | ✅ Done | Build passed |
 
 ---
 
