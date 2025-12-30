@@ -8,6 +8,47 @@
 // API Base URL - defaults to development server
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://18.143.118.157:8611';
 
+// Demo mode - returns mock data instead of real API calls
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+
+// ============================================
+// MOCK DATA FOR DEMO MODE
+// ============================================
+const MOCK_DASHBOARD_STATS = {
+  active_rides: 23,
+  online_drivers: 156,
+  today_revenue: 245000,
+  today_rides: 342,
+  pending_payments: 12,
+  cancellation_rate: 4.2,
+  total_users: 15420,
+  total_drivers: 892,
+};
+
+const MOCK_DRIVERS = [
+  { id: 1, user_id: 'DRV001', full_name: 'Peter Mutombo', email: 'peter.m@email.com', phone: '+250788123456', avatar: '', user_type: 'driver', status: 'active', online_status: 'online', verification_status: 'verified', rating: 4.8, total_rides: 1250, created_at: Date.now() - 90 * 24 * 60 * 60 * 1000 },
+  { id: 2, user_id: 'DRV002', full_name: 'David Kagame', email: 'david.k@email.com', phone: '+250788234567', avatar: '', user_type: 'driver', status: 'active', online_status: 'busy', verification_status: 'verified', rating: 4.6, total_rides: 890, created_at: Date.now() - 60 * 24 * 60 * 60 * 1000 },
+  { id: 3, user_id: 'DRV003', full_name: 'Paul Rwema', email: 'paul.r@email.com', phone: '+250788345678', avatar: '', user_type: 'driver', status: 'active', online_status: 'offline', verification_status: 'verified', rating: 4.9, total_rides: 2100, created_at: Date.now() - 120 * 24 * 60 * 60 * 1000 },
+  { id: 4, user_id: 'DRV004', full_name: 'James Tuyisenge', email: 'james.t@email.com', phone: '+250788456789', avatar: '', user_type: 'driver', status: 'suspended', online_status: 'offline', verification_status: 'verified', rating: 3.9, total_rides: 450, created_at: Date.now() - 45 * 24 * 60 * 60 * 1000 },
+  { id: 5, user_id: 'DRV005', full_name: 'Alex Munyaneza', email: 'alex.m@email.com', phone: '+250788567890', avatar: '', user_type: 'driver', status: 'active', online_status: 'online', verification_status: 'pending', rating: 4.5, total_rides: 320, created_at: Date.now() - 30 * 24 * 60 * 60 * 1000 },
+];
+
+const MOCK_USERS = [
+  { id: 1, user_id: 'USR001', full_name: 'John Doe', email: 'john.doe@email.com', phone: '+250788111111', avatar: '', user_type: 'passenger', status: 'active', verification_status: 'verified', total_rides: 45, created_at: Date.now() - 100 * 24 * 60 * 60 * 1000 },
+  { id: 2, user_id: 'USR002', full_name: 'Jane Smith', email: 'jane.smith@email.com', phone: '+250788222222', avatar: '', user_type: 'passenger', status: 'active', verification_status: 'verified', total_rides: 120, created_at: Date.now() - 80 * 24 * 60 * 60 * 1000 },
+  { id: 3, user_id: 'USR003', full_name: 'Mike Johnson', email: 'mike.j@email.com', phone: '+250788333333', avatar: '', user_type: 'passenger', status: 'active', verification_status: 'pending', total_rides: 12, created_at: Date.now() - 15 * 24 * 60 * 60 * 1000 },
+  { id: 4, user_id: 'USR004', full_name: 'Sarah Wilson', email: 'sarah.w@email.com', phone: '+250788444444', avatar: '', user_type: 'passenger', status: 'suspended', verification_status: 'verified', total_rides: 78, created_at: Date.now() - 150 * 24 * 60 * 60 * 1000 },
+  { id: 5, user_id: 'USR005', full_name: 'Chris Brown', email: 'chris.b@email.com', phone: '+250788555555', avatar: '', user_type: 'passenger', status: 'active', verification_status: 'verified', total_rides: 200, created_at: Date.now() - 200 * 24 * 60 * 60 * 1000 },
+];
+
+const MOCK_RIDES = [
+  { id: 1, order_id: 'ORD001', user_id: 'USR001', provider_id: 'DRV001', pickup_location: 'Kigali Convention Centre', dropoff_location: 'Kigali International Airport', status: 'completed', payment_status: 'paid', amount: 5200, distance: 12.5, duration: 25, created_at: Date.now() - 2 * 60 * 60 * 1000 },
+  { id: 2, order_id: 'ORD002', user_id: 'USR002', provider_id: 'DRV002', pickup_location: 'Nyarutarama', dropoff_location: 'Downtown Kigali', status: 'in_progress', payment_status: 'pending', amount: 3800, distance: 8.2, duration: 18, created_at: Date.now() - 30 * 60 * 1000 },
+  { id: 3, order_id: 'ORD003', user_id: 'USR003', provider_id: 'DRV003', pickup_location: 'Kimihurura', dropoff_location: 'Remera', status: 'completed', payment_status: 'paid', amount: 2500, distance: 5.0, duration: 12, created_at: Date.now() - 4 * 60 * 60 * 1000 },
+  { id: 4, order_id: 'ORD004', user_id: 'USR004', provider_id: 'DRV001', pickup_location: 'Gisozi', dropoff_location: 'Kacyiru', status: 'cancelled', payment_status: 'refunded', amount: 0, distance: 0, duration: 0, created_at: Date.now() - 6 * 60 * 60 * 1000 },
+  { id: 5, order_id: 'ORD005', user_id: 'USR005', provider_id: 'DRV005', pickup_location: 'Kabuga', dropoff_location: 'Kigali Heights', status: 'completed', payment_status: 'paid', amount: 6100, distance: 15.0, duration: 35, created_at: Date.now() - 1 * 60 * 60 * 1000 },
+];
+
 // Response codes from backend
 export const API_CODES = {
   SUCCESS: '0000',
@@ -227,6 +268,9 @@ class ApiClient {
    * GET /dashboard/stats
    */
   async getDashboardStats(): Promise<ApiResponse<unknown>> {
+    if (DEMO_MODE) {
+      return { code: API_CODES.SUCCESS, msg: 'Success', data: MOCK_DASHBOARD_STATS };
+    }
     return this.request('/dashboard/stats');
   }
 
@@ -255,6 +299,55 @@ class ApiClient {
    * POST /users/search
    */
   async searchUsers(params: SearchRequest = {}): Promise<ApiResponse<PageResult<unknown>>> {
+    if (DEMO_MODE) {
+      const isDriver = params.user_type === 'driver';
+      const mockData = isDriver ? MOCK_DRIVERS : MOCK_USERS;
+      let filtered = [...mockData];
+      
+      // Apply keyword filter
+      if (params.keyword) {
+        const kw = params.keyword.toLowerCase();
+        filtered = filtered.filter(u => 
+          u.full_name.toLowerCase().includes(kw) || 
+          u.email.toLowerCase().includes(kw) ||
+          u.phone.includes(kw)
+        );
+      }
+      
+      // Apply status filter
+      if (params.status && params.status !== 'all') {
+        filtered = filtered.filter(u => u.status === params.status);
+      }
+      
+      // Apply online_status filter for drivers
+      if (isDriver && params.online_status && params.online_status !== 'all') {
+        filtered = filtered.filter((u: typeof MOCK_DRIVERS[0]) => u.online_status === params.online_status);
+      }
+      
+      const page = params.page || 1;
+      const limit = params.limit || 10;
+      const start = (page - 1) * limit;
+      const records = filtered.slice(start, start + limit);
+      
+      return {
+        code: API_CODES.SUCCESS,
+        msg: 'Success',
+        data: {
+          result_type: isDriver ? 'drivers' : 'users',
+          size: limit,
+          current: page,
+          total: Math.ceil(filtered.length / limit),
+          count: filtered.length,
+          records,
+          attach: isDriver ? {
+            total_count: MOCK_DRIVERS.length,
+            online_count: MOCK_DRIVERS.filter(d => d.online_status === 'online').length,
+            busy_count: MOCK_DRIVERS.filter(d => d.online_status === 'busy').length,
+            suspended_count: MOCK_DRIVERS.filter(d => d.status === 'suspended').length,
+          } : undefined,
+        },
+      };
+    }
     return this.request('/users/search', {
       method: 'POST',
       body: {
@@ -286,6 +379,16 @@ class ApiClient {
    * POST /users/detail
    */
   async getUserDetail(userId: string): Promise<ApiResponse<unknown>> {
+    if (DEMO_MODE) {
+      const driver = MOCK_DRIVERS.find(d => d.user_id === userId || String(d.id) === userId);
+      const user = MOCK_USERS.find(u => u.user_id === userId || String(u.id) === userId);
+      const found = driver || user;
+      if (found) {
+        return { code: API_CODES.SUCCESS, msg: 'Success', data: found };
+      }
+      // Return first mock driver/user as fallback
+      return { code: API_CODES.SUCCESS, msg: 'Success', data: MOCK_DRIVERS[0] };
+    }
     return this.request('/users/detail', {
       method: 'POST',
       body: { user_id: userId },
@@ -430,6 +533,42 @@ class ApiClient {
    * POST /orders/search
    */
   async searchOrders(params: OrderSearchRequest = {}): Promise<ApiResponse<PageResult<unknown>>> {
+    if (DEMO_MODE) {
+      let filtered = [...MOCK_RIDES];
+      
+      // Apply keyword filter
+      if (params.keyword) {
+        const kw = params.keyword.toLowerCase();
+        filtered = filtered.filter(r => 
+          r.order_id.toLowerCase().includes(kw) || 
+          r.pickup_location.toLowerCase().includes(kw) ||
+          r.dropoff_location.toLowerCase().includes(kw)
+        );
+      }
+      
+      // Apply status filter
+      if (params.status && params.status !== 'all') {
+        filtered = filtered.filter(r => r.status === params.status);
+      }
+      
+      const page = params.page || 1;
+      const limit = params.limit || 10;
+      const start = (page - 1) * limit;
+      const records = filtered.slice(start, start + limit);
+      
+      return {
+        code: API_CODES.SUCCESS,
+        msg: 'Success',
+        data: {
+          result_type: 'orders',
+          size: limit,
+          current: page,
+          total: Math.ceil(filtered.length / limit),
+          count: filtered.length,
+          records,
+        },
+      };
+    }
     return this.request('/orders/search', {
       method: 'POST',
       body: {
@@ -445,6 +584,14 @@ class ApiClient {
    * POST /orders/detail
    */
   async getOrderDetail(orderId: string): Promise<ApiResponse<unknown>> {
+    if (DEMO_MODE) {
+      const order = MOCK_RIDES.find(r => r.order_id === orderId || String(r.id) === orderId);
+      if (order) {
+        return { code: API_CODES.SUCCESS, msg: 'Success', data: order };
+      }
+      // Return first mock order as fallback
+      return { code: API_CODES.SUCCESS, msg: 'Success', data: MOCK_RIDES[0] };
+    }
     return this.request('/orders/detail', {
       method: 'POST',
       body: { order_id: orderId },

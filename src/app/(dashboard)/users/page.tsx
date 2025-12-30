@@ -456,13 +456,13 @@ export default function UsersPage() {
 
           {/* Pagination */}
           <div className="flex items-center justify-between border-t px-4 py-4">
-            <p className="text-sm text-muted-foreground">
+            <div className="text-sm text-muted-foreground">
               {isLoading ? (
                 <Skeleton className="h-4 w-32" />
               ) : (
                 <>Showing {((page - 1) * limit) + 1}-{Math.min(page * limit, totalCount)} of {totalCount} users</>
               )}
-            </p>
+            </div>
             <div className="flex items-center gap-2">
               <Button 
                 variant="outline" 
