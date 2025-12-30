@@ -24,13 +24,13 @@
 
 | Task | Status | Notes |
 |------|--------|-------|
-| 2.1 Update `User` type | ⏳ Pending | |
-| 2.2 Update `Driver` type | ⏳ Pending | |
-| 2.3 Update `Vehicle` type | ⏳ Pending | |
-| 2.4 Update `Ride`/`Order` type | ⏳ Pending | |
-| 2.5 Add `ApiResponse<T>` wrapper | ⏳ Pending | |
-| 2.6 Update `AdminUser` type | ⏳ Pending | |
-| 2.7 Build & Test | ⏳ Pending | |
+| 2.1 Update `User` type | ✅ Done | Matches t_users |
+| 2.2 Update `Driver` type | ✅ Done | Extends User |
+| 2.3 Update `Vehicle` type | ✅ Done | Matches t_vehicles |
+| 2.4 Update `Ride`/`Order` type | ✅ Done | Matches t_orders |
+| 2.5 Add `ApiResponse<T>` wrapper | ✅ Done | Added PageResult too |
+| 2.6 Update `AdminUser` type | ✅ Done | Matches t_admins |
+| 2.7 Build & Test | ✅ Done | Build passed |
 
 ---
 

@@ -32,14 +32,19 @@ export default function LoginPage() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       if (email && password) {
-        // Mock successful login
+        // Mock successful login (will be replaced with real API in Phase 3)
         setUser({
-          id: '1',
-          name: 'Admin User',
+          id: 1,
+          admin_id: 'ADM_001',
+          username: 'admin',
           email: email,
+          first_name: 'Admin',
+          last_name: 'User',
+          full_name: 'Admin User',
           role: 'super_admin',
-          permissions: ['read', 'write', 'delete', 'export', 'settings'],
-          createdAt: new Date(),
+          status: 'active',
+          created_at: Date.now(),
+          updated_at: Date.now(),
         });
 
         // Store mock token

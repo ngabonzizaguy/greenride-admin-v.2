@@ -179,7 +179,7 @@ export function Header() {
               <Avatar className="h-8 w-8">
                 <AvatarImage src={undefined} />
                 <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  {user?.name?.charAt(0) || 'A'}
+                  {user?.full_name?.charAt(0) || user?.username?.charAt(0) || 'A'}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -187,7 +187,7 @@ export function Header() {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">{user?.name || 'Admin User'}</p>
+                <p className="text-sm font-medium">{user?.full_name || user?.username || 'Admin User'}</p>
                 <p className="text-xs text-muted-foreground">{user?.email || 'admin@greenrideafrica.com'}</p>
               </div>
             </DropdownMenuLabel>

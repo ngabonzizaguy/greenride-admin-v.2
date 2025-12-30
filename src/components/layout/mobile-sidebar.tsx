@@ -127,11 +127,11 @@ export function MobileSidebar() {
               <Avatar className="h-10 w-10">
                 <AvatarImage src={undefined} />
                 <AvatarFallback className="bg-primary text-primary-foreground">
-                  {user?.name?.charAt(0) || 'A'}
+                  {user?.full_name?.charAt(0) || user?.username?.charAt(0) || 'A'}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="truncate text-sm font-medium">{user?.name || 'Admin User'}</p>
+                <p className="truncate text-sm font-medium">{user?.full_name || user?.username || 'Admin User'}</p>
                 <p className="truncate text-xs text-sidebar-foreground/60">
                   {user?.role?.replace('_', ' ') || 'Super Admin'}
                 </p>
