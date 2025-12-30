@@ -39,13 +39,13 @@
 
 | Task | Status | Notes |
 |------|--------|-------|
-| 3.1 Update login page form | ⏳ Pending | |
-| 3.2 Connect to `/login` endpoint | ⏳ Pending | |
-| 3.3 Handle JWT token storage | ⏳ Pending | |
-| 3.4 Update auth store | ⏳ Pending | |
-| 3.5 Add auth guard to dashboard | ⏳ Pending | |
-| 3.6 Implement logout | ⏳ Pending | |
-| 3.7 Build & Test | ⏳ Pending | |
+| 3.1 Update login page form | ✅ Done | Changed to username |
+| 3.2 Connect to `/login` endpoint | ✅ Done | Real API call |
+| 3.3 Handle JWT token storage | ✅ Done | localStorage |
+| 3.4 Update auth store | ✅ Done | Added checkAuth |
+| 3.5 Add auth guard to dashboard | ✅ Done | Redirect if not auth |
+| 3.6 Implement logout | ✅ Done | Calls /logout API |
+| 3.7 Build & Test | ✅ Done | Build passed |
 
 ---
 

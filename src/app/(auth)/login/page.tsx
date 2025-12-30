@@ -2,19 +2,20 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Leaf, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Leaf, User, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthStore } from '@/stores/auth-store';
-import { cn } from '@/lib/utils';
+import { apiClient, ApiError } from '@/lib/api-client';
+import type { AdminUser } from '@/types';
 
 export default function LoginPage() {
   const router = useRouter();
   const { setUser } = useAuthStore();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -27,37 +28,32 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // For demo purposes, accept any credentials
-      // In production, this would call the API
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      if (email && password) {
-        // Mock successful login (will be replaced with real API in Phase 3)
-        setUser({
-          id: 1,
-          admin_id: 'ADM_001',
-          username: 'admin',
-          email: email,
-          first_name: 'Admin',
-          last_name: 'User',
-          full_name: 'Admin User',
-          role: 'super_admin',
-          status: 'active',
-          created_at: Date.now(),
-          updated_at: Date.now(),
-        });
-
-        // Store mock token
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('admin_token', 'mock_token_123');
-        }
-
-        router.push('/');
-      } else {
-        setError('Please enter email and password');
+      if (!username || !password) {
+        setError('Please enter username and password');
+        return;
       }
+
+      // Call real API
+      const response = await apiClient.login(username, password);
+      
+      // Extract user data from response
+      const userData = response.data.user as AdminUser;
+      
+      // Set user in auth store
+      setUser(userData);
+      
+      // Redirect to dashboard
+      router.push('/');
     } catch (err) {
-      setError('Invalid email or password');
+      console.error('Login error:', err);
+      
+      if (err instanceof ApiError) {
+        setError(err.serverMessage || err.message);
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unexpected error occurred');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -127,23 +123,24 @@ export default function LoginPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 {error && (
                   <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    {error}
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    <span>{error}</span>
                   </div>
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email address</Label>
+                  <Label htmlFor="username">Username</Label>
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                      id="email"
-                      type="email"
-                      placeholder="admin@greenrideafrica.com"
+                      id="username"
+                      type="text"
+                      placeholder="admin"
                       className="pl-10"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
                       disabled={isLoading}
+                      autoComplete="username"
                       required
                     />
                   </div>
@@ -170,6 +167,7 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={isLoading}
+                      autoComplete="current-password"
                       required
                     />
                     <Button
@@ -226,9 +224,9 @@ export default function LoginPage() {
             </CardContent>
           </Card>
 
-          {/* Demo credentials hint */}
+          {/* API Connection hint */}
           <p className="mt-4 text-center text-xs text-muted-foreground">
-            Demo: Use any email and password to login
+            Connected to GreenRide API
           </p>
         </div>
       </div>
