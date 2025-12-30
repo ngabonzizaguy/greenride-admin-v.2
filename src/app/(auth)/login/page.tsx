@@ -12,6 +12,10 @@ import { useAuthStore } from '@/stores/auth-store';
 import { apiClient, ApiError } from '@/lib/api-client';
 import type { AdminUser } from '@/types';
 
+// Demo mode flag - set to true for local testing without real API
+// Set to false when real credentials are available
+const DEMO_MODE = true;
+
 export default function LoginPage() {
   const router = useRouter();
   const { setUser } = useAuthStore();
@@ -33,7 +37,38 @@ export default function LoginPage() {
         return;
       }
 
-      // Call real API
+      // Demo Mode: Allow login with any credentials for testing
+      if (DEMO_MODE) {
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // Create demo admin user
+        const demoUser: AdminUser = {
+          id: 1,
+          admin_id: 'DEMO_ADMIN_001',
+          username: username,
+          email: `${username}@greenrideafrica.com`,
+          first_name: username.charAt(0).toUpperCase() + username.slice(1),
+          last_name: 'Admin',
+          full_name: `${username.charAt(0).toUpperCase() + username.slice(1)} Admin`,
+          role: 'super_admin',
+          status: 'active',
+          active_status: 'online',
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        };
+        
+        // Store demo token
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('admin_token', 'demo_token_' + Date.now());
+        }
+        
+        setUser(demoUser);
+        router.push('/');
+        return;
+      }
+
+      // Production: Call real API
       const response = await apiClient.login(username, password);
       
       // Extract user data from response
@@ -224,10 +259,18 @@ export default function LoginPage() {
             </CardContent>
           </Card>
 
-          {/* API Connection hint */}
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            Connected to GreenRide API
-          </p>
+          {/* Mode indicator */}
+          <div className="mt-4 text-center">
+            {DEMO_MODE ? (
+              <p className="text-xs text-amber-600 bg-amber-50 rounded-lg py-2 px-3">
+                🧪 Demo Mode Active - Login with any credentials
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Connected to GreenRide API
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>
