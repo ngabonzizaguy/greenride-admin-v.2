@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { 
   Car, 
   Users, 
@@ -7,13 +8,11 @@ import {
   TrendingUp,
   Activity,
   Clock,
-  ArrowUpRight,
-  ArrowDownRight,
-  MoreHorizontal,
   Eye,
   MessageSquare,
   Download,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,30 +25,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
 import { StatsCard } from '@/components/charts/stats-card';
 import { RevenueChart } from '@/components/charts/revenue-chart';
 import { PaymentMethodsChart } from '@/components/charts/payment-methods-chart';
+import { apiClient } from '@/lib/api-client';
+import type { DashboardStats } from '@/types';
 
-// Mock data for the dashboard
-const stats = {
-  activeRides: { value: 12, change: 3, changeType: 'increase' as const },
-  onlineDrivers: { value: 8, subtext: '2 on trip' },
-  todayRevenue: { value: 245000, change: 15, changeType: 'increase' as const },
-  todayRides: { value: 67, subtext: '5 cancelled' },
-  pendingPayments: { value: 24500, count: 8 },
-  cancellationRate: { value: 7.5, change: 2.1, changeType: 'decrease' as const },
-};
-
-const recentActivity = [
+// Mock recent activity (will be replaced when backend provides this endpoint)
+const mockRecentActivity = [
   { id: 1, time: '2 min ago', event: 'Ride completed', user: 'John Doe', driver: 'Peter M.', status: 'completed', amount: 5200 },
   { id: 2, time: '5 min ago', event: 'Payment received', user: 'Jane Smith', driver: 'David K.', status: 'paid', amount: 3800 },
   { id: 3, time: '8 min ago', event: 'Ride started', user: 'Mike Johnson', driver: 'Paul R.', status: 'in_progress', amount: 4500 },
   { id: 4, time: '12 min ago', event: 'Ride cancelled', user: 'Sarah Wilson', driver: 'James T.', status: 'cancelled', amount: 0 },
   { id: 5, time: '15 min ago', event: 'Ride completed', user: 'Chris Brown', driver: 'Alex M.', status: 'completed', amount: 6100 },
-  { id: 6, time: '20 min ago', event: 'Driver went online', user: '-', driver: 'Peter M.', status: 'online', amount: 0 },
-  { id: 7, time: '25 min ago', event: 'New user registered', user: 'Emma Davis', driver: '-', status: 'new_user', amount: 0 },
-  { id: 8, time: '30 min ago', event: 'Ride completed', user: 'Tom Harris', driver: 'David K.', status: 'completed', amount: 4200 },
 ];
 
 const getStatusBadge = (status: string) => {
@@ -71,66 +60,149 @@ const getStatusBadge = (status: string) => {
   }
 };
 
+// Default stats for when API fails
+const defaultStats: DashboardStats = {
+  active_rides: 0,
+  online_drivers: 0,
+  today_revenue: 0,
+  today_rides: 0,
+  pending_payments: 0,
+  cancellation_rate: 0,
+  total_users: 0,
+  total_drivers: 0,
+};
+
 export default function DashboardPage() {
+  const [stats, setStats] = useState<DashboardStats>(defaultStats);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchDashboardData = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await apiClient.getDashboardStats();
+      setStats(response.data as DashboardStats);
+    } catch (err) {
+      console.error('Failed to fetch dashboard stats:', err);
+      setError('Failed to load dashboard data. Using cached data.');
+      // Keep existing stats or use defaults
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+    
+    // Refresh stats every 30 seconds
+    const interval = setInterval(fetchDashboardData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Welcome back! Here&apos;s what&apos;s happening with GreenRide today.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Welcome back! Here&apos;s what&apos;s happening with GreenRide today.
+          </p>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={fetchDashboardData}
+          disabled={isLoading}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg bg-yellow-50 border border-yellow-200 p-3 text-sm text-yellow-800">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatsCard
-          title="Active Rides"
-          value={stats.activeRides.value}
-          icon={Car}
-          change={stats.activeRides.change}
-          changeType={stats.activeRides.changeType}
-          changeLabel="vs yesterday"
-        />
-        <StatsCard
-          title="Online Drivers"
-          value={stats.onlineDrivers.value}
-          icon={Users}
-          subtext={stats.onlineDrivers.subtext}
-        />
-        <StatsCard
-          title="Today's Revenue"
-          value={`RWF ${stats.todayRevenue.value.toLocaleString()}`}
-          icon={DollarSign}
-          change={stats.todayRevenue.change}
-          changeType={stats.todayRevenue.changeType}
-          changeLabel="vs yesterday"
-        />
-        <StatsCard
-          title="Rides Today"
-          value={stats.todayRides.value}
-          icon={Activity}
-          subtext={stats.todayRides.subtext}
-        />
+        {isLoading ? (
+          <>
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i}>
+                <CardContent className="p-6">
+                  <Skeleton className="h-4 w-24 mb-2" />
+                  <Skeleton className="h-8 w-16" />
+                </CardContent>
+              </Card>
+            ))}
+          </>
+        ) : (
+          <>
+            <StatsCard
+              title="Active Rides"
+              value={stats.active_rides}
+              icon={Car}
+              changeLabel="in progress"
+            />
+            <StatsCard
+              title="Online Drivers"
+              value={stats.online_drivers}
+              icon={Users}
+              subtext={`${stats.total_drivers} total drivers`}
+            />
+            <StatsCard
+              title="Today's Revenue"
+              value={`RWF ${stats.today_revenue.toLocaleString()}`}
+              icon={DollarSign}
+              changeLabel="today"
+            />
+            <StatsCard
+              title="Rides Today"
+              value={stats.today_rides}
+              icon={Activity}
+              subtext={`${stats.total_users} total users`}
+            />
+          </>
+        )}
       </div>
 
       {/* Secondary Stats */}
       <div className="grid gap-4 md:grid-cols-2">
-        <StatsCard
-          title="Pending Payments"
-          value={`RWF ${stats.pendingPayments.value.toLocaleString()}`}
-          icon={Clock}
-          subtext={`${stats.pendingPayments.count} pending`}
-          variant="warning"
-        />
-        <StatsCard
-          title="Cancellation Rate"
-          value={`${stats.cancellationRate.value}%`}
-          icon={TrendingUp}
-          change={stats.cancellationRate.change}
-          changeType={stats.cancellationRate.changeType}
-          changeLabel="vs yesterday"
-        />
+        {isLoading ? (
+          <>
+            {[1, 2].map((i) => (
+              <Card key={i}>
+                <CardContent className="p-6">
+                  <Skeleton className="h-4 w-24 mb-2" />
+                  <Skeleton className="h-8 w-16" />
+                </CardContent>
+              </Card>
+            ))}
+          </>
+        ) : (
+          <>
+            <StatsCard
+              title="Pending Payments"
+              value={`RWF ${stats.pending_payments.toLocaleString()}`}
+              icon={Clock}
+              subtext="awaiting confirmation"
+              variant="warning"
+            />
+            <StatsCard
+              title="Cancellation Rate"
+              value={`${stats.cancellation_rate.toFixed(1)}%`}
+              icon={TrendingUp}
+              changeLabel="overall"
+            />
+          </>
+        )}
       </div>
 
       {/* Charts Row */}
@@ -163,21 +235,29 @@ export default function DashboardPage() {
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button className="w-full justify-start gap-2" variant="default">
-              <Eye className="h-4 w-4" />
-              View Active Rides
+            <Button className="w-full justify-start gap-2" variant="default" asChild>
+              <a href="/rides">
+                <Eye className="h-4 w-4" />
+                View Active Rides
+              </a>
             </Button>
-            <Button className="w-full justify-start gap-2" variant="outline">
-              <MessageSquare className="h-4 w-4" />
-              Broadcast Message
+            <Button className="w-full justify-start gap-2" variant="outline" asChild>
+              <a href="/notifications">
+                <MessageSquare className="h-4 w-4" />
+                Broadcast Message
+              </a>
             </Button>
-            <Button className="w-full justify-start gap-2" variant="outline">
-              <Download className="h-4 w-4" />
-              Export Report
+            <Button className="w-full justify-start gap-2" variant="outline" asChild>
+              <a href="/revenue">
+                <Download className="h-4 w-4" />
+                Export Report
+              </a>
             </Button>
-            <Button className="w-full justify-start gap-2" variant="outline">
-              <AlertCircle className="h-4 w-4" />
-              View Issues
+            <Button className="w-full justify-start gap-2" variant="outline" asChild>
+              <a href="/drivers">
+                <AlertCircle className="h-4 w-4" />
+                Manage Drivers
+              </a>
             </Button>
           </CardContent>
         </Card>
@@ -189,8 +269,8 @@ export default function DashboardPage() {
               <CardTitle>Recent Activity</CardTitle>
               <CardDescription>Latest events from your platform</CardDescription>
             </div>
-            <Button variant="outline" size="sm">
-              View All
+            <Button variant="outline" size="sm" asChild>
+              <a href="/rides">View All</a>
             </Button>
           </CardHeader>
           <CardContent>
@@ -206,7 +286,7 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentActivity.map((activity) => (
+                {mockRecentActivity.map((activity) => (
                   <TableRow key={activity.id}>
                     <TableCell className="text-muted-foreground text-sm">
                       {activity.time}
@@ -222,6 +302,9 @@ export default function DashboardPage() {
                 ))}
               </TableBody>
             </Table>
+            <p className="text-xs text-muted-foreground mt-4 text-center">
+              Real-time activity feed coming soon
+            </p>
           </CardContent>
         </Card>
       </div>

@@ -54,11 +54,11 @@
 
 | Task | Status | Notes |
 |------|--------|-------|
-| 4.1 Connect `/dashboard/stats` | ⏳ Pending | |
-| 4.2 Connect `/dashboard/revenue` | ⏳ Pending | |
-| 4.3 Connect `/dashboard/user-growth` | ⏳ Pending | |
-| 4.4 Add loading states | ⏳ Pending | |
-| 4.5 Build & Test | ⏳ Pending | |
+| 4.1 Connect `/dashboard/stats` | ✅ Done | Stats cards connected |
+| 4.2 Connect `/dashboard/revenue` | ⏳ Pending | Charts use mock data |
+| 4.3 Connect `/dashboard/user-growth` | ⏳ Pending | Charts use mock data |
+| 4.4 Add loading states | ✅ Done | Skeleton loaders |
+| 4.5 Build & Test | ✅ Done | Build passed |
 
 ---
 
