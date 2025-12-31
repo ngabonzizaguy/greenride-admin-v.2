@@ -362,7 +362,7 @@ class ApiClient {
       
       // Apply online_status filter for drivers
       if (isDriver && params.online_status && params.online_status !== 'all') {
-        filtered = filtered.filter((u: typeof MOCK_DRIVERS[0]) => u.online_status === params.online_status);
+        filtered = filtered.filter(u => 'online_status' in u && u.online_status === params.online_status);
       }
       
       const page = params.page || 1;
@@ -449,10 +449,12 @@ class ApiClient {
       
       if (isDriver) {
         mockDriverIdCounter++;
+        const driverName = `${firstName} ${lastName}`.trim() || 'New Driver';
         const newDriver = {
           id: mockDriverIdCounter,
           user_id: `DRV${String(mockDriverIdCounter).padStart(3, '0')}`,
-          full_name: `${firstName} ${lastName}`.trim() || 'New Driver',
+          full_name: driverName,
+          display_name: driverName,
           first_name: firstName,
           last_name: lastName,
           email: (userData.email as string) || '',
@@ -463,6 +465,7 @@ class ApiClient {
           online_status: 'offline',
           verification_status: 'pending',
           rating: 5.0,
+          score: 5.0,
           total_rides: 0,
           license_number: (userData.license_number as string) || '',
           created_at: Date.now(),
