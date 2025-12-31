@@ -16,13 +16,18 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle,
-  Mail
+  Mail,
+  Download,
+  Edit,
+  Trash2,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -38,6 +43,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -80,10 +93,19 @@ const getStatusBadge = (status: string) => {
   }
 };
 
+// Empty user form
+const emptyUserForm = {
+  first_name: '',
+  last_name: '',
+  email: '',
+  phone: '',
+};
+
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   
@@ -100,6 +122,15 @@ export default function UsersPage() {
     new_this_month: 0,
     suspended: 0,
   });
+
+  // Modal states
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [formData, setFormData] = useState(emptyUserForm);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -118,7 +149,6 @@ export default function UsersPage() {
       setTotalCount(pageResult.count || 0);
       setTotalPages(pageResult.total || 0);
       
-      // Update stats from attach data if available
       if (pageResult.attach) {
         setStats({
           total: (pageResult.attach.total_count as number) || pageResult.count || 0,
@@ -139,7 +169,6 @@ export default function UsersPage() {
     fetchUsers();
   }, [fetchUsers]);
 
-  // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
       if (page !== 1) {
@@ -151,15 +180,13 @@ export default function UsersPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const handleStatusChange = async (userId: string, newStatus: string) => {
-    try {
-      await apiClient.updateUserStatus(userId, newStatus);
-      fetchUsers(); // Refresh the list
-    } catch (err) {
-      console.error('Failed to update status:', err);
-      setError('Failed to update user status');
+  // Auto-hide success message
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(null), 3000);
+      return () => clearTimeout(timer);
     }
-  };
+  }, [successMessage]);
 
   const getDisplayName = (user: User) => {
     return user.display_name || 
@@ -173,6 +200,146 @@ export default function UsersPage() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
+  // Handle Add User
+  const handleAddUser = async () => {
+    if (!formData.first_name || !formData.phone) {
+      setError('First name and phone are required');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await apiClient.createUser({
+        user_type: 'passenger',
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        phone: formData.phone,
+        status: 'active',
+      });
+
+      setSuccessMessage('User added successfully!');
+      setIsAddModalOpen(false);
+      setFormData(emptyUserForm);
+      fetchUsers();
+    } catch (err) {
+      console.error('Failed to add user:', err);
+      setError('Failed to add user. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Edit User
+  const handleEditUser = async () => {
+    if (!selectedUser) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await apiClient.updateUser(selectedUser.user_id, {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        phone: formData.phone,
+      });
+
+      setSuccessMessage('User updated successfully!');
+      setIsEditModalOpen(false);
+      setSelectedUser(null);
+      setFormData(emptyUserForm);
+      fetchUsers();
+    } catch (err) {
+      console.error('Failed to update user:', err);
+      setError('Failed to update user. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Delete User
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await apiClient.updateUserStatus(selectedUser.user_id, 'banned');
+      setSuccessMessage('User removed successfully!');
+      setIsDeleteModalOpen(false);
+      setSelectedUser(null);
+      fetchUsers();
+    } catch (err) {
+      console.error('Failed to delete user:', err);
+      setError('Failed to remove user. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Suspend/Activate
+  const handleToggleSuspend = async () => {
+    if (!selectedUser) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    const newStatus = selectedUser.status === 'suspended' ? 'active' : 'suspended';
+
+    try {
+      await apiClient.updateUserStatus(selectedUser.user_id, newStatus);
+      setSuccessMessage(`User ${newStatus === 'suspended' ? 'suspended' : 'activated'} successfully!`);
+      setIsSuspendModalOpen(false);
+      setSelectedUser(null);
+      fetchUsers();
+    } catch (err) {
+      console.error('Failed to update user status:', err);
+      setError('Failed to update user status. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Open Edit Modal
+  const openEditModal = (user: User) => {
+    setSelectedUser(user);
+    setFormData({
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      email: user.email || '',
+      phone: user.phone || '',
+    });
+    setIsEditModalOpen(true);
+  };
+
+  // Export to CSV
+  const handleExportCSV = () => {
+    const headers = ['Name', 'Email', 'Phone', 'Status', 'Total Rides', 'Verified', 'Joined'];
+    const csvContent = [
+      headers.join(','),
+      ...users.map(user => [
+        `"${getDisplayName(user)}"`,
+        user.email || '',
+        user.phone || '',
+        user.status,
+        user.total_rides || 0,
+        user.is_phone_verified ? 'Yes' : 'No',
+        user.created_at ? new Date(user.created_at).toLocaleDateString() : '',
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `users_export_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    setSuccessMessage('Users exported to CSV!');
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -184,22 +351,37 @@ export default function UsersPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={users.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
           <Button variant="outline" size="sm" onClick={fetchUsers} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={() => { setFormData(emptyUserForm); setIsAddModalOpen(true); }}>
             <UserPlus className="h-4 w-4" />
             Add User
           </Button>
         </div>
       </div>
 
+      {/* Success Banner */}
+      {successMessage && (
+        <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800">
+          <CheckCircle className="h-4 w-4 flex-shrink-0" />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
       {/* Error Banner */}
       {error && (
         <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">
           <AlertCircle className="h-4 w-4 flex-shrink-0" />
           <span>{error}</span>
+          <Button variant="ghost" size="sm" className="ml-auto h-6 w-6 p-0" onClick={() => setError(null)}>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
       )}
 
@@ -318,7 +500,6 @@ export default function UsersPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                // Loading skeleton
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell>
@@ -419,6 +600,10 @@ export default function UsersPage() {
                               View Details
                             </Link>
                           </DropdownMenuItem>
+                          <DropdownMenuItem className="gap-2" onClick={() => openEditModal(user)}>
+                            <Edit className="h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
                           {user.phone && (
                             <DropdownMenuItem className="gap-2" asChild>
                               <a href={`tel:${user.phone}`}>
@@ -428,23 +613,29 @@ export default function UsersPage() {
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
-                          {user.status === 'suspended' ? (
-                            <DropdownMenuItem 
-                              className="gap-2 text-green-600"
-                              onClick={() => handleStatusChange(user.user_id, 'active')}
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                              Activate
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem 
-                              className="gap-2 text-yellow-600"
-                              onClick={() => handleStatusChange(user.user_id, 'suspended')}
-                            >
-                              <Ban className="h-4 w-4" />
-                              Suspend
-                            </DropdownMenuItem>
-                          )}
+                          <DropdownMenuItem 
+                            className={user.status === 'suspended' ? 'gap-2 text-green-600' : 'gap-2 text-yellow-600'}
+                            onClick={() => { setSelectedUser(user); setIsSuspendModalOpen(true); }}
+                          >
+                            {user.status === 'suspended' ? (
+                              <>
+                                <CheckCircle className="h-4 w-4" />
+                                Activate
+                              </>
+                            ) : (
+                              <>
+                                <Ban className="h-4 w-4" />
+                                Suspend
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="gap-2 text-destructive"
+                            onClick={() => { setSelectedUser(user); setIsDeleteModalOpen(true); }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -489,6 +680,174 @@ export default function UsersPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add User Modal */}
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add New User</DialogTitle>
+            <DialogDescription>
+              Enter the user&apos;s information to create their account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="first_name">First Name *</Label>
+                <Input
+                  id="first_name"
+                  placeholder="John"
+                  value={formData.first_name}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="last_name">Last Name</Label>
+                <Input
+                  id="last_name"
+                  placeholder="Doe"
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number *</Label>
+              <Input
+                id="phone"
+                placeholder="+250 788 123 456"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="john@example.com"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddModalOpen(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddUser} disabled={isSubmitting}>
+              {isSubmitting ? 'Adding...' : 'Add User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update user information.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit_first_name">First Name</Label>
+                <Input
+                  id="edit_first_name"
+                  value={formData.first_name}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_last_name">Last Name</Label>
+                <Input
+                  id="edit_last_name"
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_phone">Phone Number</Label>
+              <Input
+                id="edit_phone"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_email">Email Address</Label>
+              <Input
+                id="edit_email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditModalOpen(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditUser} disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Delete User</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{selectedUser && getDisplayName(selectedUser)}</strong>? 
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteUser} disabled={isSubmitting}>
+              {isSubmitting ? 'Deleting...' : 'Delete User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Suspend Confirmation Modal */}
+      <Dialog open={isSuspendModalOpen} onOpenChange={setIsSuspendModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedUser?.status === 'suspended' ? 'Activate User' : 'Suspend User'}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedUser?.status === 'suspended' 
+                ? `Are you sure you want to activate ${selectedUser && getDisplayName(selectedUser)}?`
+                : `Are you sure you want to suspend ${selectedUser && getDisplayName(selectedUser)}? They will not be able to book rides.`
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSuspendModalOpen(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button 
+              variant={selectedUser?.status === 'suspended' ? 'default' : 'destructive'}
+              onClick={handleToggleSuspend} 
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Processing...' : selectedUser?.status === 'suspended' ? 'Activate' : 'Suspend'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

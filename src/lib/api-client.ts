@@ -15,6 +15,11 @@ const DEMO_MODE = true; // process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 // ============================================
 // MOCK DATA FOR DEMO MODE
 // ============================================
+
+// Mutable mock data (allows CRUD in demo mode)
+let mockDriverIdCounter = 100;
+let mockUserIdCounter = 100;
+
 const MOCK_DASHBOARD_STATS = {
   active_rides: 23,
   online_drivers: 156,
@@ -26,20 +31,55 @@ const MOCK_DASHBOARD_STATS = {
   total_drivers: 892,
 };
 
-const MOCK_DRIVERS = [
-  { id: 1, user_id: 'DRV001', full_name: 'Peter Mutombo', email: 'peter.m@email.com', phone: '+250788123456', avatar: '', user_type: 'driver', status: 'active', online_status: 'online', verification_status: 'verified', rating: 4.8, total_rides: 1250, created_at: Date.now() - 90 * 24 * 60 * 60 * 1000 },
-  { id: 2, user_id: 'DRV002', full_name: 'David Kagame', email: 'david.k@email.com', phone: '+250788234567', avatar: '', user_type: 'driver', status: 'active', online_status: 'busy', verification_status: 'verified', rating: 4.6, total_rides: 890, created_at: Date.now() - 60 * 24 * 60 * 60 * 1000 },
-  { id: 3, user_id: 'DRV003', full_name: 'Paul Rwema', email: 'paul.r@email.com', phone: '+250788345678', avatar: '', user_type: 'driver', status: 'active', online_status: 'offline', verification_status: 'verified', rating: 4.9, total_rides: 2100, created_at: Date.now() - 120 * 24 * 60 * 60 * 1000 },
-  { id: 4, user_id: 'DRV004', full_name: 'James Tuyisenge', email: 'james.t@email.com', phone: '+250788456789', avatar: '', user_type: 'driver', status: 'suspended', online_status: 'offline', verification_status: 'verified', rating: 3.9, total_rides: 450, created_at: Date.now() - 45 * 24 * 60 * 60 * 1000 },
-  { id: 5, user_id: 'DRV005', full_name: 'Alex Munyaneza', email: 'alex.m@email.com', phone: '+250788567890', avatar: '', user_type: 'driver', status: 'active', online_status: 'online', verification_status: 'pending', rating: 4.5, total_rides: 320, created_at: Date.now() - 30 * 24 * 60 * 60 * 1000 },
+const MOCK_DRIVERS: Array<{
+  id: number;
+  user_id: string;
+  full_name: string;
+  display_name: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  avatar: string;
+  user_type: string;
+  status: string;
+  online_status: string;
+  verification_status: string;
+  rating: number;
+  score: number;
+  total_rides: number;
+  license_number?: string;
+  created_at: number;
+}> = [
+  { id: 1, user_id: 'DRV001', full_name: 'Peter Mutombo', display_name: 'Peter Mutombo', first_name: 'Peter', last_name: 'Mutombo', email: 'peter.m@email.com', phone: '+250788123456', avatar: '', user_type: 'driver', status: 'active', online_status: 'online', verification_status: 'verified', rating: 4.8, score: 4.8, total_rides: 1250, created_at: Date.now() - 90 * 24 * 60 * 60 * 1000 },
+  { id: 2, user_id: 'DRV002', full_name: 'David Kagame', display_name: 'David Kagame', first_name: 'David', last_name: 'Kagame', email: 'david.k@email.com', phone: '+250788234567', avatar: '', user_type: 'driver', status: 'active', online_status: 'busy', verification_status: 'verified', rating: 4.6, score: 4.6, total_rides: 890, created_at: Date.now() - 60 * 24 * 60 * 60 * 1000 },
+  { id: 3, user_id: 'DRV003', full_name: 'Paul Rwema', display_name: 'Paul Rwema', first_name: 'Paul', last_name: 'Rwema', email: 'paul.r@email.com', phone: '+250788345678', avatar: '', user_type: 'driver', status: 'active', online_status: 'offline', verification_status: 'verified', rating: 4.9, score: 4.9, total_rides: 2100, created_at: Date.now() - 120 * 24 * 60 * 60 * 1000 },
+  { id: 4, user_id: 'DRV004', full_name: 'James Tuyisenge', display_name: 'James Tuyisenge', first_name: 'James', last_name: 'Tuyisenge', email: 'james.t@email.com', phone: '+250788456789', avatar: '', user_type: 'driver', status: 'suspended', online_status: 'offline', verification_status: 'verified', rating: 3.9, score: 3.9, total_rides: 450, created_at: Date.now() - 45 * 24 * 60 * 60 * 1000 },
+  { id: 5, user_id: 'DRV005', full_name: 'Alex Munyaneza', display_name: 'Alex Munyaneza', first_name: 'Alex', last_name: 'Munyaneza', email: 'alex.m@email.com', phone: '+250788567890', avatar: '', user_type: 'driver', status: 'active', online_status: 'online', verification_status: 'pending', rating: 4.5, score: 4.5, total_rides: 320, created_at: Date.now() - 30 * 24 * 60 * 60 * 1000 },
 ];
 
-const MOCK_USERS = [
-  { id: 1, user_id: 'USR001', full_name: 'John Doe', email: 'john.doe@email.com', phone: '+250788111111', avatar: '', user_type: 'passenger', status: 'active', verification_status: 'verified', total_rides: 45, created_at: Date.now() - 100 * 24 * 60 * 60 * 1000 },
-  { id: 2, user_id: 'USR002', full_name: 'Jane Smith', email: 'jane.smith@email.com', phone: '+250788222222', avatar: '', user_type: 'passenger', status: 'active', verification_status: 'verified', total_rides: 120, created_at: Date.now() - 80 * 24 * 60 * 60 * 1000 },
-  { id: 3, user_id: 'USR003', full_name: 'Mike Johnson', email: 'mike.j@email.com', phone: '+250788333333', avatar: '', user_type: 'passenger', status: 'active', verification_status: 'pending', total_rides: 12, created_at: Date.now() - 15 * 24 * 60 * 60 * 1000 },
-  { id: 4, user_id: 'USR004', full_name: 'Sarah Wilson', email: 'sarah.w@email.com', phone: '+250788444444', avatar: '', user_type: 'passenger', status: 'suspended', verification_status: 'verified', total_rides: 78, created_at: Date.now() - 150 * 24 * 60 * 60 * 1000 },
-  { id: 5, user_id: 'USR005', full_name: 'Chris Brown', email: 'chris.b@email.com', phone: '+250788555555', avatar: '', user_type: 'passenger', status: 'active', verification_status: 'verified', total_rides: 200, created_at: Date.now() - 200 * 24 * 60 * 60 * 1000 },
+const MOCK_USERS: Array<{
+  id: number;
+  user_id: string;
+  full_name: string;
+  first_name?: string;
+  last_name?: string;
+  email: string;
+  phone: string;
+  avatar: string;
+  user_type: string;
+  status: string;
+  verification_status: string;
+  is_phone_verified?: boolean;
+  is_email_verified?: boolean;
+  total_rides: number;
+  created_at: number;
+}> = [
+  { id: 1, user_id: 'USR001', full_name: 'John Doe', first_name: 'John', last_name: 'Doe', email: 'john.doe@email.com', phone: '+250788111111', avatar: '', user_type: 'passenger', status: 'active', verification_status: 'verified', is_phone_verified: true, is_email_verified: true, total_rides: 45, created_at: Date.now() - 100 * 24 * 60 * 60 * 1000 },
+  { id: 2, user_id: 'USR002', full_name: 'Jane Smith', first_name: 'Jane', last_name: 'Smith', email: 'jane.smith@email.com', phone: '+250788222222', avatar: '', user_type: 'passenger', status: 'active', verification_status: 'verified', is_phone_verified: true, is_email_verified: true, total_rides: 120, created_at: Date.now() - 80 * 24 * 60 * 60 * 1000 },
+  { id: 3, user_id: 'USR003', full_name: 'Mike Johnson', first_name: 'Mike', last_name: 'Johnson', email: 'mike.j@email.com', phone: '+250788333333', avatar: '', user_type: 'passenger', status: 'active', verification_status: 'pending', is_phone_verified: true, is_email_verified: false, total_rides: 12, created_at: Date.now() - 15 * 24 * 60 * 60 * 1000 },
+  { id: 4, user_id: 'USR004', full_name: 'Sarah Wilson', first_name: 'Sarah', last_name: 'Wilson', email: 'sarah.w@email.com', phone: '+250788444444', avatar: '', user_type: 'passenger', status: 'suspended', verification_status: 'verified', is_phone_verified: true, is_email_verified: true, total_rides: 78, created_at: Date.now() - 150 * 24 * 60 * 60 * 1000 },
+  { id: 5, user_id: 'USR005', full_name: 'Chris Brown', first_name: 'Chris', last_name: 'Brown', email: 'chris.b@email.com', phone: '+250788555555', avatar: '', user_type: 'passenger', status: 'active', verification_status: 'verified', is_phone_verified: true, is_email_verified: true, total_rides: 200, created_at: Date.now() - 200 * 24 * 60 * 60 * 1000 },
 ];
 
 const MOCK_RIDES = [
@@ -169,11 +209,11 @@ class ApiClient {
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
-        method,
-        headers: requestHeaders,
-        body: body ? JSON.stringify(body) : undefined,
-      });
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method,
+      headers: requestHeaders,
+      body: body ? JSON.stringify(body) : undefined,
+    });
 
       const data: ApiResponse<T> = await response.json();
 
@@ -401,6 +441,57 @@ class ApiClient {
    * POST /users/create
    */
   async createUser(userData: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 300)); // Simulate API delay
+      const isDriver = userData.user_type === 'driver';
+      const firstName = (userData.first_name as string) || '';
+      const lastName = (userData.last_name as string) || '';
+      
+      if (isDriver) {
+        mockDriverIdCounter++;
+        const newDriver = {
+          id: mockDriverIdCounter,
+          user_id: `DRV${String(mockDriverIdCounter).padStart(3, '0')}`,
+          full_name: `${firstName} ${lastName}`.trim() || 'New Driver',
+          first_name: firstName,
+          last_name: lastName,
+          email: (userData.email as string) || '',
+          phone: (userData.phone as string) || '',
+          avatar: '',
+          user_type: 'driver',
+          status: 'active',
+          online_status: 'offline',
+          verification_status: 'pending',
+          rating: 5.0,
+          total_rides: 0,
+          license_number: (userData.license_number as string) || '',
+          created_at: Date.now(),
+        };
+        MOCK_DRIVERS.unshift(newDriver);
+        return { code: API_CODES.SUCCESS, msg: 'Driver created successfully', data: newDriver };
+      } else {
+        mockUserIdCounter++;
+        const newUser = {
+          id: mockUserIdCounter,
+          user_id: `USR${String(mockUserIdCounter).padStart(3, '0')}`,
+          full_name: `${firstName} ${lastName}`.trim() || 'New User',
+          first_name: firstName,
+          last_name: lastName,
+          email: (userData.email as string) || '',
+          phone: (userData.phone as string) || '',
+          avatar: '',
+          user_type: 'passenger',
+          status: 'active',
+          verification_status: 'pending',
+          is_phone_verified: false,
+          is_email_verified: false,
+          total_rides: 0,
+          created_at: Date.now(),
+        };
+        MOCK_USERS.unshift(newUser);
+        return { code: API_CODES.SUCCESS, msg: 'User created successfully', data: newUser };
+      }
+    }
     return this.request('/users/create', {
       method: 'POST',
       body: userData,
@@ -412,6 +503,44 @@ class ApiClient {
    * POST /users/update
    */
   async updateUser(userId: string, userData: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 300)); // Simulate API delay
+      
+      // Check drivers
+      const driverIndex = MOCK_DRIVERS.findIndex(d => d.user_id === userId);
+      if (driverIndex !== -1) {
+        const firstName = (userData.first_name as string) || MOCK_DRIVERS[driverIndex].first_name || '';
+        const lastName = (userData.last_name as string) || MOCK_DRIVERS[driverIndex].last_name || '';
+        MOCK_DRIVERS[driverIndex] = {
+          ...MOCK_DRIVERS[driverIndex],
+          first_name: firstName,
+          last_name: lastName,
+          full_name: `${firstName} ${lastName}`.trim(),
+          email: (userData.email as string) ?? MOCK_DRIVERS[driverIndex].email,
+          phone: (userData.phone as string) ?? MOCK_DRIVERS[driverIndex].phone,
+          license_number: (userData.license_number as string) ?? MOCK_DRIVERS[driverIndex].license_number,
+        };
+        return { code: API_CODES.SUCCESS, msg: 'Driver updated successfully', data: MOCK_DRIVERS[driverIndex] };
+      }
+      
+      // Check users
+      const userIndex = MOCK_USERS.findIndex(u => u.user_id === userId);
+      if (userIndex !== -1) {
+        const firstName = (userData.first_name as string) || MOCK_USERS[userIndex].first_name || '';
+        const lastName = (userData.last_name as string) || MOCK_USERS[userIndex].last_name || '';
+        MOCK_USERS[userIndex] = {
+          ...MOCK_USERS[userIndex],
+          first_name: firstName,
+          last_name: lastName,
+          full_name: `${firstName} ${lastName}`.trim(),
+          email: (userData.email as string) ?? MOCK_USERS[userIndex].email,
+          phone: (userData.phone as string) ?? MOCK_USERS[userIndex].phone,
+        };
+        return { code: API_CODES.SUCCESS, msg: 'User updated successfully', data: MOCK_USERS[userIndex] };
+      }
+      
+      return { code: API_CODES.BUSINESS_ERROR, msg: 'User not found', data: null };
+    }
     return this.request('/users/update', {
       method: 'POST',
       body: { user_id: userId, ...userData },
@@ -423,6 +552,28 @@ class ApiClient {
    * POST /users/status
    */
   async updateUserStatus(userId: string, status: string): Promise<ApiResponse<unknown>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 300)); // Simulate API delay
+      
+      // Check drivers
+      const driverIndex = MOCK_DRIVERS.findIndex(d => d.user_id === userId);
+      if (driverIndex !== -1) {
+        MOCK_DRIVERS[driverIndex].status = status;
+        if (status === 'suspended' || status === 'banned') {
+          MOCK_DRIVERS[driverIndex].online_status = 'offline';
+        }
+        return { code: API_CODES.SUCCESS, msg: `Driver ${status} successfully`, data: MOCK_DRIVERS[driverIndex] };
+      }
+      
+      // Check users
+      const userIndex = MOCK_USERS.findIndex(u => u.user_id === userId);
+      if (userIndex !== -1) {
+        MOCK_USERS[userIndex].status = status;
+        return { code: API_CODES.SUCCESS, msg: `User ${status} successfully`, data: MOCK_USERS[userIndex] };
+      }
+      
+      return { code: API_CODES.BUSINESS_ERROR, msg: 'User not found', data: null };
+    }
     return this.request('/users/status', {
       method: 'POST',
       body: { user_id: userId, status },

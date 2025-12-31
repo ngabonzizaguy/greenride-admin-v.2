@@ -18,13 +18,16 @@ import {
   Car,
   RefreshCw,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Download,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -41,6 +44,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -50,10 +61,9 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiClient } from '@/lib/api-client';
-import type { Driver, PageResult, OnlineStatus, UserStatus } from '@/types';
+import type { Driver, PageResult, UserStatus } from '@/types';
 
 const getStatusBadge = (status: string, onlineStatus?: string) => {
-  // Check online status first for drivers
   if (onlineStatus === 'online') {
     return (
       <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
@@ -71,7 +81,6 @@ const getStatusBadge = (status: string, onlineStatus?: string) => {
     );
   }
   
-  // Fall back to account status
   switch (status) {
     case 'active':
       return (
@@ -99,10 +108,22 @@ const getStatusBadge = (status: string, onlineStatus?: string) => {
   }
 };
 
+// Empty driver form
+const emptyDriverForm = {
+  first_name: '',
+  last_name: '',
+  email: '',
+  phone: '',
+  license_number: '',
+  vehicle_plate: '',
+  vehicle_type: 'sedan',
+};
+
 export default function DriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
@@ -120,6 +141,15 @@ export default function DriversPage() {
     busy: 0,
     suspended: 0,
   });
+
+  // Modal states
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  const [formData, setFormData] = useState(emptyDriverForm);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchDrivers = useCallback(async () => {
     setIsLoading(true);
@@ -139,7 +169,6 @@ export default function DriversPage() {
       setTotalCount(pageResult.count || 0);
       setTotalPages(pageResult.total || 0);
       
-      // Update stats from attach data if available
       if (pageResult.attach) {
         setStats({
           total: (pageResult.attach.total_count as number) || pageResult.count || 0,
@@ -160,7 +189,6 @@ export default function DriversPage() {
     fetchDrivers();
   }, [fetchDrivers]);
 
-  // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
       if (page !== 1) {
@@ -171,6 +199,14 @@ export default function DriversPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // Auto-hide success message
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
   const toggleSelectAll = () => {
     if (selectedDrivers.length === drivers.length) {
@@ -186,16 +222,6 @@ export default function DriversPage() {
     );
   };
 
-  const handleStatusChange = async (userId: string, newStatus: string) => {
-    try {
-      await apiClient.updateUserStatus(userId, newStatus);
-      fetchDrivers(); // Refresh the list
-    } catch (err) {
-      console.error('Failed to update status:', err);
-      setError('Failed to update driver status');
-    }
-  };
-
   const getDisplayName = (driver: Driver) => {
     return driver.display_name || 
       (driver.first_name && driver.last_name 
@@ -206,6 +232,151 @@ export default function DriversPage() {
   const getInitials = (driver: Driver) => {
     const name = getDisplayName(driver);
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  // Handle Add Driver
+  const handleAddDriver = async () => {
+    if (!formData.first_name || !formData.phone) {
+      setError('First name and phone are required');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await apiClient.createUser({
+        user_type: 'driver',
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        phone: formData.phone,
+        license_number: formData.license_number,
+        status: 'active',
+      });
+
+      setSuccessMessage('Driver added successfully!');
+      setIsAddModalOpen(false);
+      setFormData(emptyDriverForm);
+      fetchDrivers();
+    } catch (err) {
+      console.error('Failed to add driver:', err);
+      setError('Failed to add driver. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Edit Driver
+  const handleEditDriver = async () => {
+    if (!selectedDriver) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await apiClient.updateUser(selectedDriver.user_id, {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        phone: formData.phone,
+        license_number: formData.license_number,
+      });
+
+      setSuccessMessage('Driver updated successfully!');
+      setIsEditModalOpen(false);
+      setSelectedDriver(null);
+      setFormData(emptyDriverForm);
+      fetchDrivers();
+    } catch (err) {
+      console.error('Failed to update driver:', err);
+      setError('Failed to update driver. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Delete Driver
+  const handleDeleteDriver = async () => {
+    if (!selectedDriver) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await apiClient.updateUserStatus(selectedDriver.user_id, 'banned');
+      setSuccessMessage('Driver removed successfully!');
+      setIsDeleteModalOpen(false);
+      setSelectedDriver(null);
+      fetchDrivers();
+    } catch (err) {
+      console.error('Failed to delete driver:', err);
+      setError('Failed to remove driver. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle Suspend/Activate Driver
+  const handleToggleSuspend = async () => {
+    if (!selectedDriver) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    const newStatus = selectedDriver.status === 'suspended' ? 'active' : 'suspended';
+
+    try {
+      await apiClient.updateUserStatus(selectedDriver.user_id, newStatus);
+      setSuccessMessage(`Driver ${newStatus === 'suspended' ? 'suspended' : 'activated'} successfully!`);
+      setIsSuspendModalOpen(false);
+      setSelectedDriver(null);
+      fetchDrivers();
+    } catch (err) {
+      console.error('Failed to update driver status:', err);
+      setError('Failed to update driver status. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Open Edit Modal
+  const openEditModal = (driver: Driver) => {
+    setSelectedDriver(driver);
+    setFormData({
+      first_name: driver.first_name || '',
+      last_name: driver.last_name || '',
+      email: driver.email || '',
+      phone: driver.phone || '',
+      license_number: driver.license_number || '',
+      vehicle_plate: '',
+      vehicle_type: 'sedan',
+    });
+    setIsEditModalOpen(true);
+  };
+
+  // Export to CSV
+  const handleExportCSV = () => {
+    const headers = ['Name', 'Email', 'Phone', 'Status', 'Rating', 'Total Rides', 'Joined'];
+    const csvContent = [
+      headers.join(','),
+      ...drivers.map(driver => [
+        `"${getDisplayName(driver)}"`,
+        driver.email || '',
+        driver.phone || '',
+        driver.status,
+        driver.score?.toFixed(1) || '5.0',
+        driver.total_rides || 0,
+        driver.created_at ? new Date(driver.created_at).toLocaleDateString() : '',
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `drivers_export_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    setSuccessMessage('Drivers exported to CSV!');
   };
 
   return (
@@ -219,22 +390,37 @@ export default function DriversPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={drivers.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
           <Button variant="outline" size="sm" onClick={fetchDrivers} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={() => { setFormData(emptyDriverForm); setIsAddModalOpen(true); }}>
             <Plus className="h-4 w-4" />
             Add Driver
           </Button>
         </div>
       </div>
 
+      {/* Success Banner */}
+      {successMessage && (
+        <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800">
+          <CheckCircle className="h-4 w-4 flex-shrink-0" />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
       {/* Error Banner */}
       {error && (
         <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">
           <AlertCircle className="h-4 w-4 flex-shrink-0" />
           <span>{error}</span>
+          <Button variant="ghost" size="sm" className="ml-auto h-6 w-6 p-0" onClick={() => setError(null)}>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
       )}
 
@@ -360,7 +546,6 @@ export default function DriversPage() {
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                // Loading skeleton
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-4 w-4" /></TableCell>
@@ -455,7 +640,7 @@ export default function DriversPage() {
                               View Details
                             </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2">
+                          <DropdownMenuItem className="gap-2" onClick={() => openEditModal(driver)}>
                             <Edit className="h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
@@ -468,24 +653,26 @@ export default function DriversPage() {
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuSeparator />
-                          {driver.status === 'suspended' ? (
-                            <DropdownMenuItem 
-                              className="gap-2 text-green-600"
-                              onClick={() => handleStatusChange(driver.user_id, 'active')}
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                              Activate
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem 
-                              className="gap-2 text-yellow-600"
-                              onClick={() => handleStatusChange(driver.user_id, 'suspended')}
-                            >
-                              <Ban className="h-4 w-4" />
-                              Suspend
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem className="gap-2 text-destructive">
+                          <DropdownMenuItem 
+                            className={driver.status === 'suspended' ? 'gap-2 text-green-600' : 'gap-2 text-yellow-600'}
+                            onClick={() => { setSelectedDriver(driver); setIsSuspendModalOpen(true); }}
+                          >
+                            {driver.status === 'suspended' ? (
+                              <>
+                                <CheckCircle className="h-4 w-4" />
+                                Activate
+                              </>
+                            ) : (
+                              <>
+                                <Ban className="h-4 w-4" />
+                                Suspend
+                              </>
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="gap-2 text-destructive"
+                            onClick={() => { setSelectedDriver(driver); setIsDeleteModalOpen(true); }}
+                          >
                             <Trash2 className="h-4 w-4" />
                             Delete
                           </DropdownMenuItem>
@@ -533,6 +720,216 @@ export default function DriversPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Driver Modal */}
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add New Driver</DialogTitle>
+            <DialogDescription>
+              Enter the driver&apos;s information to register them in the system.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="first_name">First Name *</Label>
+                <Input
+                  id="first_name"
+                  placeholder="John"
+                  value={formData.first_name}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="last_name">Last Name</Label>
+                <Input
+                  id="last_name"
+                  placeholder="Doe"
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number *</Label>
+              <Input
+                id="phone"
+                placeholder="+250 788 123 456"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="john@example.com"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="license">License Number</Label>
+              <Input
+                id="license"
+                placeholder="DL-123456"
+                value={formData.license_number}
+                onChange={(e) => setFormData({ ...formData, license_number: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="vehicle_plate">Vehicle Plate</Label>
+                <Input
+                  id="vehicle_plate"
+                  placeholder="RAD 123A"
+                  value={formData.vehicle_plate}
+                  onChange={(e) => setFormData({ ...formData, vehicle_plate: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vehicle_type">Vehicle Type</Label>
+                <Select value={formData.vehicle_type} onValueChange={(v) => setFormData({ ...formData, vehicle_type: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sedan">Sedan</SelectItem>
+                    <SelectItem value="suv">SUV</SelectItem>
+                    <SelectItem value="moto">Moto</SelectItem>
+                    <SelectItem value="van">Van</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddModalOpen(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddDriver} disabled={isSubmitting}>
+              {isSubmitting ? 'Adding...' : 'Add Driver'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Driver Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Driver</DialogTitle>
+            <DialogDescription>
+              Update driver information.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit_first_name">First Name</Label>
+                <Input
+                  id="edit_first_name"
+                  value={formData.first_name}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_last_name">Last Name</Label>
+                <Input
+                  id="edit_last_name"
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_phone">Phone Number</Label>
+              <Input
+                id="edit_phone"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_email">Email Address</Label>
+              <Input
+                id="edit_email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_license">License Number</Label>
+              <Input
+                id="edit_license"
+                value={formData.license_number}
+                onChange={(e) => setFormData({ ...formData, license_number: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditModalOpen(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditDriver} disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Delete Driver</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete <strong>{selectedDriver && getDisplayName(selectedDriver)}</strong>? 
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteDriver} disabled={isSubmitting}>
+              {isSubmitting ? 'Deleting...' : 'Delete Driver'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Suspend Confirmation Modal */}
+      <Dialog open={isSuspendModalOpen} onOpenChange={setIsSuspendModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedDriver?.status === 'suspended' ? 'Activate Driver' : 'Suspend Driver'}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedDriver?.status === 'suspended' 
+                ? `Are you sure you want to activate ${selectedDriver && getDisplayName(selectedDriver)}? They will be able to receive ride requests again.`
+                : `Are you sure you want to suspend ${selectedDriver && getDisplayName(selectedDriver)}? They will not be able to receive ride requests.`
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSuspendModalOpen(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button 
+              variant={selectedDriver?.status === 'suspended' ? 'default' : 'destructive'}
+              onClick={handleToggleSuspend} 
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Processing...' : selectedDriver?.status === 'suspended' ? 'Activate' : 'Suspend'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
