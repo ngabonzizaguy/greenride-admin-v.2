@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { 
   Car, 
   Users, 
@@ -270,7 +271,7 @@ export default function DashboardPage() {
               <CardDescription>Latest events from your platform</CardDescription>
             </div>
             <Button variant="outline" size="sm" asChild>
-              <a href="/rides">View All</a>
+              <Link href="/rides">View All</Link>
             </Button>
           </CardHeader>
           <CardContent>

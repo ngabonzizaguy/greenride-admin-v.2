@@ -166,8 +166,8 @@ export function Header() {
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="justify-center text-primary">
-              View all notifications
+            <DropdownMenuItem className="justify-center text-primary" asChild>
+              <a href="/notifications">View all notifications</a>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
