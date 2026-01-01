@@ -1,6 +1,6 @@
 # 🚗 GreenRide Admin Dashboard - Developer Handoff Report
 
-> **Last Updated:** December 31, 2025  
+> **Last Updated:** January 1, 2026  
 > **Project Status:** Demo Mode Fully Functional  
 > **Branch:** `feature/api-integration`
 
@@ -97,7 +97,7 @@ greenride-admin-v.2/
 | **Revenue Dashboard** | ✅ Complete | Charts, trends, payment breakdown |
 | **Analytics** | ✅ Complete | Multiple chart types, time filters |
 | **Live Map** | ✅ Complete | Google Maps JS API, 30 mock drivers |
-| **Promotions** | ⚠️ UI Only | Form exists, CRUD not connected |
+| **Promotions** | ✅ Complete | Full CRUD, Duplicate, Toggle, Export CSV |
 | **Notifications** | ✅ Complete | List view with filters |
 | **Settings** | ✅ Complete | Profile, preferences, security tabs |
 
@@ -109,15 +109,14 @@ greenride-admin-v.2/
 | **Driver CRUD Modals** | ✅ Complete | Add/Edit/Delete with validation |
 | **User CRUD Modals** | ✅ Complete | Add/Edit/Delete with validation |
 | **CSV Export** | ✅ Complete | Client-side download for tables |
+| **PDF Export** | ✅ Complete | Revenue & Analytics printable reports |
+| **View All Links** | ✅ Complete | All navigation links functional |
 | **Auto Lock Cleanup** | ✅ Complete | `npm run dev` auto-cleans stale locks |
 
 ### **Pending Features**
 
 | Feature | Priority | Blocker |
 |---------|----------|---------|
-| Promotions CRUD | Low | None - can implement anytime |
-| PDF Export | Low | None - can use jsPDF library |
-| View All Button Links | Low | None - minor UI fix |
 | Real API Integration | High | AWS SSH access needed |
 
 ---
