@@ -17,7 +17,9 @@ import {
   Settings,
   LogOut,
   Leaf,
-  X
+  X,
+  PhoneCall,
+  MessageSquare
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -25,6 +27,8 @@ import { useAuthStore } from '@/stores/auth-store';
 
 const navItems = [
   { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/quick-booking', icon: PhoneCall, label: 'Quick Booking' },
+  { href: '/feedback', icon: MessageSquare, label: 'Feedback', badge: '3' },
   { href: '/map', icon: Map, label: 'Live Map' },
   { href: '/drivers', icon: Car, label: 'Drivers', badge: '24' },
   { href: '/users', icon: Users, label: 'Users' },

@@ -785,6 +785,109 @@ class ApiClient {
       body: { order_id: orderId, reason },
     });
   }
+
+  // ============================================
+  // FEEDBACK ENDPOINTS
+  // ============================================
+
+  /**
+   * Search feedback/complaints
+   * POST /feedback/search
+   */
+  async searchFeedback(params: {
+    page?: number;
+    limit?: number;
+    keyword?: string;
+    category?: string;
+    status?: string;
+    severity?: string;
+    start_date?: number;
+    end_date?: number;
+  } = {}): Promise<ApiResponse<PageResult<unknown>>> {
+    // Demo mode returns mock data from the page component
+    return this.request('/feedback/search', {
+      method: 'POST',
+      body: {
+        page: params.page || 1,
+        limit: params.limit || 10,
+        ...params,
+      },
+    });
+  }
+
+  /**
+   * Get feedback detail
+   * POST /feedback/detail
+   */
+  async getFeedbackDetail(feedbackId: string): Promise<ApiResponse<unknown>> {
+    return this.request('/feedback/detail', {
+      method: 'POST',
+      body: { feedback_id: feedbackId },
+    });
+  }
+
+  /**
+   * Update feedback (status, response)
+   * POST /feedback/update
+   */
+  async updateFeedback(feedbackId: string, data: {
+    status?: string;
+    admin_response?: string;
+    assigned_to?: string;
+  }): Promise<ApiResponse<unknown>> {
+    return this.request('/feedback/update', {
+      method: 'POST',
+      body: { feedback_id: feedbackId, ...data },
+    });
+  }
+
+  // ============================================
+  // SUPPORT CONFIG ENDPOINTS
+  // ============================================
+
+  /**
+   * Get support configuration
+   * GET /config/support
+   */
+  async getSupportConfig(): Promise<ApiResponse<{
+    phone: string;
+    email: string;
+    whatsapp?: string;
+    hours: string;
+    faq_url?: string;
+  }>> {
+    if (DEMO_MODE) {
+      return {
+        code: API_CODES.SUCCESS,
+        msg: 'Success',
+        data: {
+          phone: '+250 788 000 000',
+          email: 'support@greenrideafrica.com',
+          whatsapp: '+250 788 000 001',
+          hours: '24/7',
+          faq_url: 'https://greenrideafrica.com/faq',
+        },
+      };
+    }
+    return this.request('/config/support');
+  }
+
+  /**
+   * Update support configuration
+   * POST /config/support
+   */
+  async updateSupportConfig(config: {
+    phone?: string;
+    email?: string;
+    whatsapp?: string;
+    hours?: string;
+    faq_url?: string;
+  }): Promise<ApiResponse<unknown>> {
+    return this.request('/config/support', {
+      method: 'POST',
+      body: config,
+    });
+  }
 }
 
 /**
