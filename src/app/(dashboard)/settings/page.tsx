@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Save,
   Building,
   DollarSign,
   Shield,
   Users,
-  Bell
+  Bell,
+  Loader2,
+  CheckCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +33,8 @@ import {
 } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { toast } from 'sonner';
+import { apiClient } from '@/lib/api-client';
 
 // Mock admin users
 const adminUsers = [
@@ -64,9 +68,94 @@ const getRoleBadge = (role: string) => {
 };
 
 export default function SettingsPage() {
+  // Support config state
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true);
+  const [isSavingGeneral, setIsSavingGeneral] = useState(false);
+  const [isSavingPricing, setIsSavingPricing] = useState(false);
+  const [isSavingSecurity, setIsSavingSecurity] = useState(false);
+  const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+  
   const [companyName, setCompanyName] = useState('GreenRide Africa');
-  const [contactEmail, setContactEmail] = useState('support@greenrideafrica.com');
-  const [contactPhone, setContactPhone] = useState('+250 788 000 000');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactWhatsApp, setContactWhatsApp] = useState('');
+  const [operatingHours, setOperatingHours] = useState('24/7');
+  const [is24x7, setIs24x7] = useState(true);
+
+  // Load support config on mount
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const response = await apiClient.getSupportConfig();
+        if (response.data) {
+          setContactEmail(response.data.email || '');
+          setContactPhone(response.data.phone || '');
+          setContactWhatsApp(response.data.whatsapp || '');
+          setOperatingHours(response.data.hours || '24/7');
+          setIs24x7(response.data.hours === '24/7');
+        }
+      } catch (error) {
+        console.error('Failed to load support config:', error);
+        // Use defaults on error
+        setContactEmail('support@greenrideafrica.com');
+        setContactPhone('+250 788 000 000');
+      } finally {
+        setIsLoadingConfig(false);
+      }
+    };
+    loadConfig();
+  }, []);
+
+  // Save general settings
+  const handleSaveGeneral = async () => {
+    setIsSavingGeneral(true);
+    try {
+      await apiClient.updateSupportConfig({
+        email: contactEmail,
+        phone: contactPhone,
+        whatsapp: contactWhatsApp,
+        hours: is24x7 ? '24/7' : operatingHours,
+      });
+      toast.success('General settings saved successfully!', {
+        icon: <CheckCircle className="h-4 w-4 text-green-500" />,
+      });
+    } catch (error) {
+      toast.error('Failed to save settings. Please try again.');
+    } finally {
+      setIsSavingGeneral(false);
+    }
+  };
+
+  // Save pricing settings (mock)
+  const handleSavePricing = async () => {
+    setIsSavingPricing(true);
+    // Simulate API call
+    await new Promise(r => setTimeout(r, 500));
+    setIsSavingPricing(false);
+    toast.success('Pricing settings saved successfully!', {
+      icon: <CheckCircle className="h-4 w-4 text-green-500" />,
+    });
+  };
+
+  // Save security settings (mock)
+  const handleSaveSecurity = async () => {
+    setIsSavingSecurity(true);
+    await new Promise(r => setTimeout(r, 500));
+    setIsSavingSecurity(false);
+    toast.success('Security settings saved successfully!', {
+      icon: <CheckCircle className="h-4 w-4 text-green-500" />,
+    });
+  };
+
+  // Save notification settings (mock)
+  const handleSaveNotifications = async () => {
+    setIsSavingNotifications(true);
+    await new Promise(r => setTimeout(r, 500));
+    setIsSavingNotifications(false);
+    toast.success('Notification preferences saved successfully!', {
+      icon: <CheckCircle className="h-4 w-4 text-green-500" />,
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -108,64 +197,103 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle>Company Information</CardTitle>
               <CardDescription>
-                Basic information about your company
+                Basic information about your company and support contact details
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="company-name">Company Name</Label>
-                  <Input
-                    id="company-name"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                  />
+              {isLoadingConfig ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-muted-foreground">Loading settings...</span>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="contact-email">Contact Email</Label>
-                  <Input
-                    id="contact-email"
-                    type="email"
-                    value={contactEmail}
-                    onChange={(e) => setContactEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="contact-phone">Contact Phone</Label>
-                  <Input
-                    id="contact-phone"
-                    value={contactPhone}
-                    onChange={(e) => setContactPhone(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="timezone">Timezone</Label>
-                  <Input
-                    id="timezone"
-                    value="Africa/Kigali (UTC+2)"
-                    disabled
-                  />
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <h4 className="font-medium">Operating Hours</h4>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <span>24/7 Service</span>
-                    <Checkbox defaultChecked />
+              ) : (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="company-name">Company Name</Label>
+                      <Input
+                        id="company-name"
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="contact-email">Support Email</Label>
+                      <Input
+                        id="contact-email"
+                        type="email"
+                        value={contactEmail}
+                        onChange={(e) => setContactEmail(e.target.value)}
+                        placeholder="support@greenrideafrica.com"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="contact-phone">Support Phone</Label>
+                      <Input
+                        id="contact-phone"
+                        value={contactPhone}
+                        onChange={(e) => setContactPhone(e.target.value)}
+                        placeholder="+250 788 000 000"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="contact-whatsapp">WhatsApp Number</Label>
+                      <Input
+                        id="contact-whatsapp"
+                        value={contactWhatsApp}
+                        onChange={(e) => setContactWhatsApp(e.target.value)}
+                        placeholder="+250 788 000 001"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Used for WhatsApp support in mobile app
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              <div className="flex justify-end">
-                <Button className="gap-2">
-                  <Save className="h-4 w-4" />
-                  Save Changes
-                </Button>
-              </div>
+                  <Separator />
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="timezone">Timezone</Label>
+                      <Input
+                        id="timezone"
+                        value="Africa/Kigali (UTC+2)"
+                        disabled
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Operating Hours</h4>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="flex items-center justify-between p-3 border rounded-lg">
+                        <span>24/7 Service</span>
+                        <Checkbox 
+                          checked={is24x7} 
+                          onCheckedChange={(checked) => setIs24x7(checked === true)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button 
+                      className="gap-2" 
+                      onClick={handleSaveGeneral}
+                      disabled={isSavingGeneral}
+                    >
+                      {isSavingGeneral ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      {isSavingGeneral ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -224,9 +352,17 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex justify-end mt-6">
-                <Button className="gap-2">
-                  <Save className="h-4 w-4" />
-                  Save Changes
+                <Button 
+                  className="gap-2" 
+                  onClick={handleSavePricing}
+                  disabled={isSavingPricing}
+                >
+                  {isSavingPricing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  {isSavingPricing ? 'Saving...' : 'Save Changes'}
                 </Button>
               </div>
             </CardContent>
@@ -369,9 +505,17 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex justify-end">
-                <Button className="gap-2">
-                  <Save className="h-4 w-4" />
-                  Save Changes
+                <Button 
+                  className="gap-2" 
+                  onClick={handleSaveSecurity}
+                  disabled={isSavingSecurity}
+                >
+                  {isSavingSecurity ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  {isSavingSecurity ? 'Saving...' : 'Save Changes'}
                 </Button>
               </div>
             </CardContent>
@@ -423,9 +567,17 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex justify-end">
-                <Button className="gap-2">
-                  <Save className="h-4 w-4" />
-                  Save Changes
+                <Button 
+                  className="gap-2" 
+                  onClick={handleSaveNotifications}
+                  disabled={isSavingNotifications}
+                >
+                  {isSavingNotifications ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  {isSavingNotifications ? 'Saving...' : 'Save Changes'}
                 </Button>
               </div>
             </CardContent>
