@@ -69,14 +69,12 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { toast } from 'sonner';
+import { apiClient } from '@/lib/api-client';
+import { FeedbackCategory, FeedbackStatus, FeedbackSeverity } from '@/types';
 
 // ============================================
 // TYPES
 // ============================================
-
-type FeedbackCategory = 'driver' | 'vehicle' | 'pricing' | 'safety' | 'app' | 'payment' | 'other';
-type FeedbackStatus = 'pending' | 'reviewing' | 'resolved' | 'closed';
-type FeedbackSeverity = 'low' | 'medium' | 'high' | 'critical';
 
 interface Feedback {
   id: string;
@@ -102,133 +100,6 @@ interface Feedback {
 }
 
 // ============================================
-// MOCK DATA
-// ============================================
-
-const MOCK_FEEDBACK: Feedback[] = [
-  {
-    id: '1',
-    feedback_id: 'FB001',
-    order_id: 'ORD001',
-    user_id: 'USR001',
-    user_name: 'John Doe',
-    user_phone: '+250788111111',
-    driver_id: 'DRV003',
-    driver_name: 'Paul Rwema',
-    category: 'driver',
-    severity: 'high',
-    title: 'Rude driver behavior',
-    content: 'The driver was very rude and refused to help with luggage. He was also talking loudly on the phone the entire trip which made me very uncomfortable.',
-    rating: 2,
-    status: 'pending',
-    created_at: Date.now() - 2 * 60 * 60 * 1000,
-    updated_at: Date.now() - 2 * 60 * 60 * 1000,
-  },
-  {
-    id: '2',
-    feedback_id: 'FB002',
-    order_id: 'ORD002',
-    user_id: 'USR002',
-    user_name: 'Jane Smith',
-    user_phone: '+250788222222',
-    driver_id: 'DRV001',
-    driver_name: 'Peter Mutombo',
-    category: 'vehicle',
-    severity: 'medium',
-    title: 'Car AC not working',
-    content: 'The air conditioning was not working and it was very hot during the ride. The driver said he would fix it but it never worked.',
-    rating: 3,
-    status: 'reviewing',
-    admin_response: 'We are contacting the driver to verify the AC issue.',
-    created_at: Date.now() - 5 * 60 * 60 * 1000,
-    updated_at: Date.now() - 1 * 60 * 60 * 1000,
-  },
-  {
-    id: '3',
-    feedback_id: 'FB003',
-    user_id: 'USR003',
-    user_name: 'Mike Johnson',
-    user_phone: '+250788333333',
-    category: 'pricing',
-    severity: 'low',
-    title: 'Fare was higher than estimate',
-    content: 'The final fare was RWF 500 more than the initial estimate. I understand traffic can affect this but it seems too much.',
-    status: 'resolved',
-    admin_response: 'We reviewed the trip and found traffic conditions caused the delay. A RWF 300 credit has been added to your account as a goodwill gesture.',
-    created_at: Date.now() - 24 * 60 * 60 * 1000,
-    updated_at: Date.now() - 12 * 60 * 60 * 1000,
-    resolved_at: Date.now() - 12 * 60 * 60 * 1000,
-  },
-  {
-    id: '4',
-    feedback_id: 'FB004',
-    order_id: 'ORD004',
-    user_id: 'USR004',
-    user_name: 'Sarah Wilson',
-    user_phone: '+250788444444',
-    driver_id: 'DRV002',
-    driver_name: 'David Kagame',
-    category: 'safety',
-    severity: 'critical',
-    title: 'Dangerous driving',
-    content: 'Driver was speeding and running red lights. I was very scared and asked him to slow down but he ignored me. This is unacceptable!',
-    rating: 1,
-    status: 'pending',
-    created_at: Date.now() - 30 * 60 * 1000,
-    updated_at: Date.now() - 30 * 60 * 1000,
-  },
-  {
-    id: '5',
-    feedback_id: 'FB005',
-    user_id: 'USR005',
-    user_name: 'Chris Brown',
-    user_phone: '+250788555555',
-    category: 'app',
-    severity: 'low',
-    title: 'App crashes when booking',
-    content: 'The app keeps crashing when I try to book a ride. I have to restart it multiple times before it works.',
-    status: 'closed',
-    admin_response: 'This issue was fixed in app version 2.1.0. Please update your app from the store.',
-    created_at: Date.now() - 48 * 60 * 60 * 1000,
-    updated_at: Date.now() - 24 * 60 * 60 * 1000,
-    resolved_at: Date.now() - 24 * 60 * 60 * 1000,
-  },
-  {
-    id: '6',
-    feedback_id: 'FB006',
-    order_id: 'ORD006',
-    user_id: 'USR001',
-    user_name: 'John Doe',
-    user_phone: '+250788111111',
-    category: 'payment',
-    severity: 'high',
-    title: 'Double charged for ride',
-    content: 'I was charged twice for the same ride. My bank shows two transactions of RWF 4,500 each. Please refund one.',
-    status: 'reviewing',
-    created_at: Date.now() - 4 * 60 * 60 * 1000,
-    updated_at: Date.now() - 2 * 60 * 60 * 1000,
-  },
-  {
-    id: '7',
-    feedback_id: 'FB007',
-    order_id: 'ORD007',
-    user_id: 'USR002',
-    user_name: 'Jane Smith',
-    user_phone: '+250788222222',
-    driver_id: 'DRV005',
-    driver_name: 'Alex Munyaneza',
-    category: 'other',
-    severity: 'medium',
-    title: 'Driver took wrong route',
-    content: 'The driver took a much longer route than necessary. Google Maps showed 10 minutes but we drove for 25 minutes.',
-    rating: 2,
-    status: 'pending',
-    created_at: Date.now() - 6 * 60 * 60 * 1000,
-    updated_at: Date.now() - 6 * 60 * 60 * 1000,
-  },
-];
-
-// ============================================
 // HELPER FUNCTIONS
 // ============================================
 
@@ -236,16 +107,16 @@ const getCategoryIcon = (category: FeedbackCategory) => {
   switch (category) {
     case 'driver': return <User className="h-4 w-4" />;
     case 'vehicle': return <Car className="h-4 w-4" />;
-    case 'pricing': return <span className="text-sm font-bold">RWF</span>;
+    // case 'pricing': return <span className="text-sm font-bold">RWF</span>;
     case 'safety': return <AlertTriangle className="h-4 w-4" />;
-    case 'app': return <span className="text-sm">📱</span>;
-    case 'payment': return <span className="text-sm">💳</span>;
+    // case 'app': return <span className="text-sm">📱</span>;
+    // case 'payment': return <span className="text-sm">💳</span>;
     default: return <MessageSquare className="h-4 w-4" />;
   }
 };
 
 const getCategoryBadge = (category: FeedbackCategory) => {
-  const styles: Record<FeedbackCategory, string> = {
+  const styles: Record<string, string> = {
     driver: 'bg-blue-100 text-blue-700',
     vehicle: 'bg-purple-100 text-purple-700',
     pricing: 'bg-yellow-100 text-yellow-700',
@@ -255,7 +126,7 @@ const getCategoryBadge = (category: FeedbackCategory) => {
     other: 'bg-slate-100 text-slate-700',
   };
   return (
-    <Badge className={`${styles[category]} gap-1`}>
+    <Badge className={`${styles[category] || styles.other} gap-1`}>
       {getCategoryIcon(category)}
       <span className="capitalize">{category}</span>
     </Badge>
@@ -308,12 +179,16 @@ const formatTimeAgo = (timestamp: number) => {
 // ============================================
 
 export default function FeedbackPage() {
-  const [feedback, setFeedback] = useState<Feedback[]>(MOCK_FEEDBACK);
+  const [feedback, setFeedback] = useState<Feedback[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  
   const [selectedFeedback, setSelectedFeedback] = useState<Feedback | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isResponseDialogOpen, setIsResponseDialogOpen] = useState(false);
@@ -321,34 +196,48 @@ export default function FeedbackPage() {
   const [newStatus, setNewStatus] = useState<FeedbackStatus>('reviewing');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const limit = 10;
+  // Fetch feedback data
+  const fetchFeedback = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await apiClient.searchFeedback({
+        page,
+        limit,
+        keyword: search,
+        category: categoryFilter !== 'all' ? categoryFilter : undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        severity: severityFilter !== 'all' ? severityFilter : undefined,
+      });
+      
+      if (response.code === '0000') {
+        // Cast the unknown[] to Feedback[]
+        setFeedback(response.data.records as unknown as Feedback[]);
+        setTotalCount(response.data.total);
+      } else {
+        toast.error('Failed to fetch feedback');
+      }
+    } catch (error) {
+      console.error('Error fetching feedback:', error);
+      toast.error('Error loading feedback');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [page, limit, search, categoryFilter, statusFilter, severityFilter]);
 
-  // Filter feedback
-  const filteredFeedback = feedback.filter(f => {
-    const matchesSearch = search === '' || 
-      f.title.toLowerCase().includes(search.toLowerCase()) ||
-      f.content.toLowerCase().includes(search.toLowerCase()) ||
-      f.user_name.toLowerCase().includes(search.toLowerCase()) ||
-      f.feedback_id.toLowerCase().includes(search.toLowerCase());
-    
-    const matchesCategory = categoryFilter === 'all' || f.category === categoryFilter;
-    const matchesStatus = statusFilter === 'all' || f.status === statusFilter;
-    const matchesSeverity = severityFilter === 'all' || f.severity === severityFilter;
-    
-    return matchesSearch && matchesCategory && matchesStatus && matchesSeverity;
-  });
+  // Initial fetch and on filter change
+  useEffect(() => {
+    fetchFeedback();
+  }, [fetchFeedback]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredFeedback.length / limit);
-  const paginatedFeedback = filteredFeedback.slice((page - 1) * limit, page * limit);
-
-  // Stats
+  // Stats (in a real app, these should come from a separate API endpoint)
+  // For demo, we'll calculate from the current filtered list or fetch separately if needed
+  // Using a simplified stats object for now based on loaded data or a separate fetch
   const stats = {
-    total: feedback.length,
-    pending: feedback.filter(f => f.status === 'pending').length,
-    reviewing: feedback.filter(f => f.status === 'reviewing').length,
-    resolved: feedback.filter(f => f.status === 'resolved').length,
-    critical: feedback.filter(f => f.severity === 'critical' && f.status !== 'resolved' && f.status !== 'closed').length,
+    total: totalCount || 0, // This might be just the filtered total
+    pending: 0, // Hard to get accurate global stats without dedicated endpoint
+    reviewing: 0,
+    resolved: 0,
+    critical: 0,
   };
 
   // Open detail view
@@ -366,31 +255,23 @@ export default function FeedbackPage() {
   };
 
   // Submit response
-  const handleSubmitResponse = () => {
+  const handleSubmitResponse = async () => {
     if (!selectedFeedback) return;
     
     setIsSubmitting(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setFeedback(prev => prev.map(f => {
-        if (f.id === selectedFeedback.id) {
-          return {
-            ...f,
-            status: newStatus,
-            admin_response: responseText,
-            updated_at: Date.now(),
-            resolved_at: (newStatus === 'resolved' || newStatus === 'closed') ? Date.now() : f.resolved_at,
-          };
-        }
-        return f;
-      }));
+    try {
+      await apiClient.updateFeedback(selectedFeedback.feedback_id, {
+        status: newStatus,
+        admin_response: responseText
+      });
       
-      setIsResponseDialogOpen(false);
-      setIsSubmitting(false);
       toast.success(`Feedback ${selectedFeedback.feedback_id} updated successfully!`);
+      setIsResponseDialogOpen(false);
       
-      // Update selected feedback if detail is open
+      // Refresh list
+      fetchFeedback();
+      
+      // Update selected item if detail is open
       if (isDetailOpen) {
         setSelectedFeedback(prev => prev ? {
           ...prev,
@@ -399,24 +280,30 @@ export default function FeedbackPage() {
           updated_at: Date.now(),
         } : null);
       }
-    }, 500);
+    } catch (error) {
+      console.error('Failed to update feedback:', error);
+      toast.error('Failed to update feedback');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Quick status update
-  const quickStatusUpdate = (item: Feedback, status: FeedbackStatus) => {
-    setFeedback(prev => prev.map(f => {
-      if (f.id === item.id) {
-        return { ...f, status, updated_at: Date.now() };
-      }
-      return f;
-    }));
-    toast.success(`Status updated to ${status}`);
+  const quickStatusUpdate = async (item: Feedback, status: FeedbackStatus) => {
+    try {
+      await apiClient.updateFeedback(item.feedback_id, { status });
+      toast.success(`Status updated to ${status}`);
+      fetchFeedback();
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      toast.error('Failed to update status');
+    }
   };
 
   // Export to CSV
   const exportToCSV = () => {
     const headers = ['ID', 'Category', 'Severity', 'Status', 'Title', 'User', 'Phone', 'Driver', 'Created', 'Response'];
-    const rows = filteredFeedback.map(f => [
+    const rows = feedback.map(f => [
       f.feedback_id,
       f.category,
       f.severity,

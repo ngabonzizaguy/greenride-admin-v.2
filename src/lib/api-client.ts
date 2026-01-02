@@ -90,6 +90,129 @@ const MOCK_RIDES = [
   { id: 5, order_id: 'ORD005', user_id: 'USR005', provider_id: 'DRV005', pickup_location: 'Kabuga', dropoff_location: 'Kigali Heights', status: 'completed', payment_status: 'paid', amount: 6100, distance: 15.0, duration: 35, created_at: Date.now() - 1 * 60 * 60 * 1000 },
 ];
 
+const MOCK_FEEDBACK = [
+  {
+    id: '1',
+    feedback_id: 'FB001',
+    order_id: 'ORD001',
+    user_id: 'USR001',
+    user_name: 'John Doe',
+    user_phone: '+250788111111',
+    driver_id: 'DRV003',
+    driver_name: 'Paul Rwema',
+    category: 'driver',
+    severity: 'high',
+    title: 'Rude driver behavior',
+    content: 'The driver was very rude and refused to help with luggage. He was also talking loudly on the phone the entire trip which made me very uncomfortable.',
+    rating: 2,
+    status: 'pending',
+    created_at: Date.now() - 2 * 60 * 60 * 1000,
+    updated_at: Date.now() - 2 * 60 * 60 * 1000,
+  },
+  {
+    id: '2',
+    feedback_id: 'FB002',
+    order_id: 'ORD002',
+    user_id: 'USR002',
+    user_name: 'Jane Smith',
+    user_phone: '+250788222222',
+    driver_id: 'DRV001',
+    driver_name: 'Peter Mutombo',
+    category: 'vehicle',
+    severity: 'medium',
+    title: 'Car AC not working',
+    content: 'The air conditioning was not working and it was very hot during the ride. The driver said he would fix it but it never worked.',
+    rating: 3,
+    status: 'reviewing',
+    admin_response: 'We are contacting the driver to verify the AC issue.',
+    created_at: Date.now() - 5 * 60 * 60 * 1000,
+    updated_at: Date.now() - 1 * 60 * 60 * 1000,
+  },
+  {
+    id: '3',
+    feedback_id: 'FB003',
+    user_id: 'USR003',
+    user_name: 'Mike Johnson',
+    user_phone: '+250788333333',
+    category: 'pricing',
+    severity: 'low',
+    title: 'Fare was higher than estimate',
+    content: 'The final fare was RWF 500 more than the initial estimate. I understand traffic can affect this but it seems too much.',
+    status: 'resolved',
+    admin_response: 'We reviewed the trip and found traffic conditions caused the delay. A RWF 300 credit has been added to your account as a goodwill gesture.',
+    created_at: Date.now() - 24 * 60 * 60 * 1000,
+    updated_at: Date.now() - 12 * 60 * 60 * 1000,
+    resolved_at: Date.now() - 12 * 60 * 60 * 1000,
+  },
+  {
+    id: '4',
+    feedback_id: 'FB004',
+    order_id: 'ORD004',
+    user_id: 'USR004',
+    user_name: 'Sarah Wilson',
+    user_phone: '+250788444444',
+    driver_id: 'DRV002',
+    driver_name: 'David Kagame',
+    category: 'safety',
+    severity: 'critical',
+    title: 'Dangerous driving',
+    content: 'Driver was speeding and running red lights. I was very scared and asked him to slow down but he ignored me. This is unacceptable!',
+    rating: 1,
+    status: 'pending',
+    created_at: Date.now() - 30 * 60 * 1000,
+    updated_at: Date.now() - 30 * 60 * 1000,
+  },
+  {
+    id: '5',
+    feedback_id: 'FB005',
+    user_id: 'USR005',
+    user_name: 'Chris Brown',
+    user_phone: '+250788555555',
+    category: 'app',
+    severity: 'low',
+    title: 'App crashes when booking',
+    content: 'The app keeps crashing when I try to book a ride. I have to restart it multiple times before it works.',
+    status: 'closed',
+    admin_response: 'This issue was fixed in app version 2.1.0. Please update your app from the store.',
+    created_at: Date.now() - 48 * 60 * 60 * 1000,
+    updated_at: Date.now() - 24 * 60 * 60 * 1000,
+    resolved_at: Date.now() - 24 * 60 * 60 * 1000,
+  },
+  {
+    id: '6',
+    feedback_id: 'FB006',
+    order_id: 'ORD006',
+    user_id: 'USR001',
+    user_name: 'John Doe',
+    user_phone: '+250788111111',
+    category: 'payment',
+    severity: 'high',
+    title: 'Double charged for ride',
+    content: 'I was charged twice for the same ride. My bank shows two transactions of RWF 4,500 each. Please refund one.',
+    status: 'reviewing',
+    created_at: Date.now() - 4 * 60 * 60 * 1000,
+    updated_at: Date.now() - 2 * 60 * 60 * 1000,
+  },
+  {
+    id: '7',
+    feedback_id: 'FB007',
+    order_id: 'ORD007',
+    user_id: 'USR002',
+    user_name: 'Jane Smith',
+    user_phone: '+250788222222',
+    driver_id: 'DRV005',
+    driver_name: 'Alex Munyaneza',
+    category: 'other',
+    severity: 'medium',
+    title: 'Driver took wrong route',
+    content: 'The driver took a much longer route than necessary. Google Maps showed 10 minutes but we drove for 25 minutes.',
+    rating: 2,
+    status: 'pending',
+    created_at: Date.now() - 6 * 60 * 60 * 1000,
+    updated_at: Date.now() - 6 * 60 * 60 * 1000,
+  },
+];
+
 // Response codes from backend
 export const API_CODES = {
   SUCCESS: '0000',
@@ -804,7 +927,52 @@ class ApiClient {
     start_date?: number;
     end_date?: number;
   } = {}): Promise<ApiResponse<PageResult<unknown>>> {
-    // Demo mode returns mock data from the page component
+    if (DEMO_MODE) {
+      let filtered = [...MOCK_FEEDBACK];
+      
+      // Apply filters
+      if (params.keyword) {
+        const kw = params.keyword.toLowerCase();
+        filtered = filtered.filter(f => 
+          f.title.toLowerCase().includes(kw) || 
+          f.content.toLowerCase().includes(kw) ||
+          f.user_name.toLowerCase().includes(kw) ||
+          f.feedback_id.toLowerCase().includes(kw)
+        );
+      }
+      
+      if (params.category && params.category !== 'all') {
+        filtered = filtered.filter(f => f.category === params.category);
+      }
+      
+      if (params.status && params.status !== 'all') {
+        filtered = filtered.filter(f => f.status === params.status);
+      }
+      
+      if (params.severity && params.severity !== 'all') {
+        filtered = filtered.filter(f => f.severity === params.severity);
+      }
+      
+      const page = params.page || 1;
+      const limit = params.limit || 10;
+      const start = (page - 1) * limit;
+      const records = filtered.slice(start, start + limit);
+      
+      await new Promise(r => setTimeout(r, 300)); // Simulate delay
+      
+      return {
+        code: API_CODES.SUCCESS,
+        msg: 'Success',
+        data: {
+          result_type: 'feedback',
+          size: limit,
+          current: page,
+          total: Math.ceil(filtered.length / limit),
+          count: filtered.length,
+          records,
+        },
+      };
+    }
     return this.request('/feedback/search', {
       method: 'POST',
       body: {
@@ -820,6 +988,13 @@ class ApiClient {
    * POST /feedback/detail
    */
   async getFeedbackDetail(feedbackId: string): Promise<ApiResponse<unknown>> {
+    if (DEMO_MODE) {
+      const feedback = MOCK_FEEDBACK.find(f => f.feedback_id === feedbackId || String(f.id) === feedbackId);
+      if (feedback) {
+        return { code: API_CODES.SUCCESS, msg: 'Success', data: feedback };
+      }
+      return { code: API_CODES.BUSINESS_ERROR, msg: 'Feedback not found', data: null };
+    }
     return this.request('/feedback/detail', {
       method: 'POST',
       body: { feedback_id: feedbackId },
@@ -835,6 +1010,21 @@ class ApiClient {
     admin_response?: string;
     assigned_to?: string;
   }): Promise<ApiResponse<unknown>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 500)); // Simulate delay
+      const index = MOCK_FEEDBACK.findIndex(f => f.feedback_id === feedbackId || String(f.id) === feedbackId);
+      
+      if (index !== -1) {
+        MOCK_FEEDBACK[index] = {
+          ...MOCK_FEEDBACK[index],
+          ...data,
+          updated_at: Date.now(),
+          resolved_at: (data.status === 'resolved' || data.status === 'closed') ? Date.now() : MOCK_FEEDBACK[index].resolved_at,
+        };
+        return { code: API_CODES.SUCCESS, msg: 'Feedback updated successfully', data: MOCK_FEEDBACK[index] };
+      }
+      return { code: API_CODES.BUSINESS_ERROR, msg: 'Feedback not found', data: null };
+    }
     return this.request('/feedback/update', {
       method: 'POST',
       body: { feedback_id: feedbackId, ...data },
