@@ -5,6 +5,8 @@
  * Based on BACKEND_API_EXTRACTION.md
  */
 
+import { Feedback, SupportConfig, FeedbackStatus } from '@/types';
+
 // API Base URL - defaults to development server
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://18.143.118.157:8611';
 
@@ -90,7 +92,7 @@ const MOCK_RIDES = [
   { id: 5, order_id: 'ORD005', user_id: 'USR005', provider_id: 'DRV005', pickup_location: 'Kabuga', dropoff_location: 'Kigali Heights', status: 'completed', payment_status: 'paid', amount: 6100, distance: 15.0, duration: 35, created_at: Date.now() - 1 * 60 * 60 * 1000 },
 ];
 
-const MOCK_FEEDBACK = [
+const MOCK_FEEDBACK: Feedback[] = [
   {
     id: '1',
     feedback_id: 'FB001',
@@ -1006,7 +1008,7 @@ class ApiClient {
    * POST /feedback/update
    */
   async updateFeedback(feedbackId: string, data: {
-    status?: string;
+    status?: FeedbackStatus;
     admin_response?: string;
     assigned_to?: string;
   }): Promise<ApiResponse<unknown>> {

@@ -464,6 +464,49 @@ export interface DriverLocation {
 }
 
 // ============================================
+// FEEDBACK TYPES
+// ============================================
+
+export type FeedbackCategory = 'driver' | 'vehicle' | 'pricing' | 'safety' | 'app' | 'payment' | 'other';
+export type FeedbackStatus = 'pending' | 'reviewing' | 'resolved' | 'closed';
+export type FeedbackSeverity = 'low' | 'medium' | 'high' | 'critical';
+
+export interface Feedback {
+  id: string;
+  feedback_id: string;
+  order_id?: string;
+  user_id: string;
+  user_name: string;
+  user_phone: string;
+  driver_id?: string;
+  driver_name?: string;
+  category: FeedbackCategory;
+  severity: FeedbackSeverity;
+  title: string;
+  content: string;
+  rating?: number;
+  attachments?: string[];
+  status: FeedbackStatus;
+  admin_response?: string;
+  assigned_to?: string;
+  created_at: number;
+  updated_at: number;
+  resolved_at?: number;
+}
+
+// ============================================
+// CONFIG TYPES
+// ============================================
+
+export interface SupportConfig {
+  phone: string;
+  email: string;
+  whatsapp?: string;
+  hours: string;
+  faq_url?: string;
+}
+
+// ============================================
 // UTILITY TYPES
 // ============================================
 
