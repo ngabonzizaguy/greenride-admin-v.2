@@ -440,387 +440,309 @@ export default function FeedbackPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Feedback & Complaints</h1>
-          <p className="text-muted-foreground">
-            Manage customer feedback and resolve issues
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={exportToCSV}>
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setFeedback([...MOCK_FEEDBACK])}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
-      </div>
+    <div className="relative h-[calc(100vh-8rem)]">
+      {/* Main Content Area */}
+      <div className="h-full overflow-y-auto pb-6">
+        <div className="space-y-6">
+          {/* Header */}
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white drop-shadow-sm">Feedback & Complaints</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Manage customer feedback, resolve issues, and ensure high service quality.
+            </p>
+          </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="glass-card p-5 rounded-xl flex items-center justify-between group">
               <div>
-                <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Feedback</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1 group-hover:scale-105 transition-transform origin-left">{stats.total}</p>
               </div>
-              <MessageSquare className="h-5 w-5 text-muted-foreground" />
+              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 shadow-inner">
+                <MessageSquare className="h-6 w-6" />
+              </div>
             </div>
-          </CardContent>
-        </Card>
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+            <div className="glass-card p-5 rounded-xl border-l-4 border-l-yellow-400 flex items-center justify-between group">
               <div>
-                <p className="text-sm text-yellow-700">Pending</p>
-                <p className="text-2xl font-bold text-yellow-900">{stats.pending}</p>
+                <p className="text-sm font-medium text-yellow-600 dark:text-yellow-500">Pending</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1 group-hover:scale-105 transition-transform origin-left">{stats.pending}</p>
               </div>
-              <Clock className="h-5 w-5 text-yellow-600" />
+              <div className="h-12 w-12 rounded-xl bg-yellow-50/50 dark:bg-yellow-900/20 flex items-center justify-center text-yellow-600 dark:text-yellow-500 shadow-inner">
+                <Clock className="h-6 w-6" />
+              </div>
             </div>
-          </CardContent>
-        </Card>
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+            <div className="glass-card p-5 rounded-xl border-l-4 border-l-blue-500 flex items-center justify-between group">
               <div>
-                <p className="text-sm text-blue-700">Reviewing</p>
-                <p className="text-2xl font-bold text-blue-900">{stats.reviewing}</p>
+                <p className="text-sm font-medium text-blue-600 dark:text-blue-500">Reviewing</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1 group-hover:scale-105 transition-transform origin-left">{stats.reviewing}</p>
               </div>
-              <Eye className="h-5 w-5 text-blue-600" />
+              <div className="h-12 w-12 rounded-xl bg-blue-50/50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-500 shadow-inner">
+                <Eye className="h-6 w-6" />
+              </div>
             </div>
-          </CardContent>
-        </Card>
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-green-700">Resolved</p>
-                <p className="text-2xl font-bold text-green-900">{stats.resolved}</p>
-              </div>
-              <CheckCircle className="h-5 w-5 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-        {stats.critical > 0 && (
-          <Card className="border-red-300 bg-red-50">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-red-700">Critical</p>
-                  <p className="text-2xl font-bold text-red-900">{stats.critical}</p>
-                </div>
-                <AlertCircle className="h-5 w-5 text-red-600" />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+          </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search by title, content, user..."
-                className="pl-10"
+          {/* Filters */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 glass-panel p-4 rounded-xl">
+            <div className="relative flex-1 max-w-lg">
+              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </span>
+              <input 
+                className="block w-full pl-10 pr-3 py-2 border border-gray-200/50 dark:border-gray-600/30 rounded-lg leading-5 bg-white/50 dark:bg-gray-800/50 text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 focus:bg-white/80 sm:text-sm backdrop-blur-sm transition-all shadow-sm" 
+                placeholder="Search by ID, title, user..." 
+                type="text"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               />
             </div>
-            <div className="flex gap-2 flex-wrap">
-              <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(1); }}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  <SelectItem value="driver">Driver</SelectItem>
-                  <SelectItem value="vehicle">Vehicle</SelectItem>
-                  <SelectItem value="pricing">Pricing</SelectItem>
-                  <SelectItem value="safety">Safety</SelectItem>
-                  <SelectItem value="app">App</SelectItem>
-                  <SelectItem value="payment">Payment</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-                <SelectTrigger className="w-[130px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="reviewing">Reviewing</SelectItem>
-                  <SelectItem value="resolved">Resolved</SelectItem>
-                  <SelectItem value="closed">Closed</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={severityFilter} onValueChange={(v) => { setSeverityFilter(v); setPage(1); }}>
-                <SelectTrigger className="w-[130px]">
-                  <SelectValue placeholder="Severity" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Severity</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="critical">Critical</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex gap-2">
+              <select 
+                className="block w-full pl-3 pr-10 py-2 text-base border border-gray-200/50 dark:border-gray-600/30 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 sm:text-sm rounded-lg bg-white/50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 backdrop-blur-sm shadow-sm"
+                value={categoryFilter}
+                onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}
+              >
+                <option value="all">All Categories</option>
+                <option value="driver">Driver Behavior</option>
+                <option value="vehicle">Vehicle Condition</option>
+                <option value="pricing">Fare Dispute</option>
+                <option value="safety">Safety Issue</option>
+                <option value="app">App Issue</option>
+                <option value="payment">Payment Issue</option>
+                <option value="other">Other</option>
+              </select>
+              <select 
+                className="block w-full pl-3 pr-10 py-2 text-base border border-gray-200/50 dark:border-gray-600/30 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 sm:text-sm rounded-lg bg-white/50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 backdrop-blur-sm shadow-sm"
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+              >
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="reviewing">Reviewing</option>
+                <option value="resolved">Resolved</option>
+                <option value="closed">Closed</option>
+              </select>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Feedback Table */}
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[100px]">ID</TableHead>
-                <TableHead>Issue</TableHead>
-                <TableHead>User</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Severity</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedFeedback.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                    No feedback found matching your filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginatedFeedback.map((item) => (
-                  <TableRow 
-                    key={item.id} 
-                    className={`cursor-pointer hover:bg-muted/50 ${item.severity === 'critical' && item.status === 'pending' ? 'bg-red-50' : ''}`}
-                    onClick={() => openDetail(item)}
-                  >
-                    <TableCell className="font-mono text-sm">{item.feedback_id}</TableCell>
-                    <TableCell>
-                      <div className="max-w-[300px]">
-                        <p className="font-medium truncate">{item.title}</p>
-                        <p className="text-sm text-muted-foreground truncate">{item.content}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                            {item.user_name.split(' ').map(n => n[0]).join('')}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm">{item.user_name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{getCategoryBadge(item.category)}</TableCell>
-                    <TableCell>{getSeverityBadge(item.severity)}</TableCell>
-                    <TableCell>{getStatusBadge(item.status)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{formatTimeAgo(item.created_at)}</TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openDetail(item)}>
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openResponseDialog(item)}>
-                            <Send className="h-4 w-4 mr-2" />
-                            Respond
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {item.status !== 'reviewing' && (
-                            <DropdownMenuItem onClick={() => quickStatusUpdate(item, 'reviewing')}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              Mark as Reviewing
-                            </DropdownMenuItem>
-                          )}
-                          {item.status !== 'resolved' && (
-                            <DropdownMenuItem onClick={() => quickStatusUpdate(item, 'resolved')}>
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Mark as Resolved
-                            </DropdownMenuItem>
-                          )}
-                          {item.status !== 'closed' && (
-                            <DropdownMenuItem onClick={() => quickStatusUpdate(item, 'closed')}>
-                              <X className="h-4 w-4 mr-2" />
-                              Close
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          {/* Table */}
+          <div className="glass-panel rounded-xl overflow-hidden shadow-lg mb-6">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200/50 dark:divide-gray-700/50">
+                <thead className="bg-gray-50/50 dark:bg-gray-800/30">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">ID</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Issue</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200/50 dark:divide-gray-700/50">
+                  {paginatedFeedback.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
+                        No feedback found matching your filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedFeedback.map((item) => (
+                      <tr 
+                        key={item.id} 
+                        className={`hover:bg-white/40 dark:hover:bg-white/5 transition-colors group cursor-pointer ${item.severity === 'critical' ? 'bg-red-50/30 dark:bg-red-900/10 border-l-4 border-l-red-500' : ''}`}
+                        onClick={() => setSelectedFeedback(item)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">{item.feedback_id}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-primary transition-colors">{item.title}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xs">{item.content}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-800 flex items-center justify-center text-green-700 dark:text-green-300 text-xs font-bold mr-2 shadow-sm">
+                              {item.user_name.split(' ').map(n => n[0]).join('')}
+                            </div>
+                            <div className="text-sm text-gray-900 dark:text-white">{item.user_name}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                            item.category === 'safety' ? 'bg-red-100/80 text-red-800 border-red-200' :
+                            item.category === 'driver' ? 'bg-blue-100/80 text-blue-800 border-blue-200' :
+                            item.category === 'vehicle' ? 'bg-purple-100/80 text-purple-800 border-purple-200' :
+                            'bg-gray-100/80 text-gray-800 border-gray-200'
+                          }`}>
+                            {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                            item.status === 'resolved' ? 'bg-green-100/80 text-green-800 border-green-200' :
+                            item.status === 'reviewing' ? 'bg-blue-100/80 text-blue-800 border-blue-200' :
+                            item.status === 'pending' ? 'bg-yellow-100/80 text-yellow-800 border-yellow-200' :
+                            'bg-gray-100/80 text-gray-800 border-gray-200'
+                          }`}>
+                            {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <button 
+                            className="text-gray-400 hover:text-primary transition-colors hover:scale-110 transform"
+                            onClick={(e) => { e.stopPropagation(); setSelectedFeedback(item); }}
+                          >
+                            <ChevronRight className="h-5 w-5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t px-4 py-3">
-              <p className="text-sm text-muted-foreground">
-                Showing {((page - 1) * limit) + 1}-{Math.min(page * limit, filteredFeedback.length)} of {filteredFeedback.length}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-sm">Page {page} of {totalPages}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+      {/* Detail Overlay Panel */}
+      {selectedFeedback && (
+        <div className="absolute inset-y-0 right-0 w-full md:w-[480px] glass-panel m-0 md:m-4 md:mb-20 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] transform transition-transform duration-300 ease-in-out z-40 flex flex-col border border-white/40 dark:border-white/10 h-[calc(100vh-10rem)]">
+          <div className="flex items-start justify-between p-6 border-b border-gray-100/30 dark:border-gray-700/30 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-t-xl shrink-0">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white font-mono">{selectedFeedback.feedback_id}</h2>
+                {selectedFeedback.severity === 'critical' && (
+                  <span className="bg-red-100/80 text-red-700 dark:bg-red-900/40 dark:text-red-300 text-xs font-bold px-2 py-0.5 rounded border border-red-200/50 dark:border-red-800/50 shadow-sm">Critical</span>
+                )}
+              </div>
+              <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100 leading-tight">{selectedFeedback.title}</h3>
+            </div>
+            <button 
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors p-1 hover:bg-white/20 rounded-full"
+              onClick={() => setSelectedFeedback(null)}
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-6 space-y-8">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white/80 dark:bg-gray-800/80 p-4 rounded-xl border border-white/50 dark:border-white/10 shadow-sm backdrop-blur-sm">
+                <span className="text-xs text-gray-500 uppercase tracking-wide">Status</span>
+                <div className="mt-2 flex items-center">
+                  <span className={`h-2.5 w-2.5 rounded-full mr-2 shadow-[0_0_8px_rgba(0,0,0,0.2)] ${
+                    selectedFeedback.status === 'pending' ? 'bg-yellow-500' :
+                    selectedFeedback.status === 'reviewing' ? 'bg-blue-500' :
+                    selectedFeedback.status === 'resolved' ? 'bg-green-500' : 'bg-gray-500'
+                  }`}></span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white capitalize">{selectedFeedback.status}</span>
+                </div>
+              </div>
+              <div className="bg-white/80 dark:bg-gray-800/80 p-4 rounded-xl border border-white/50 dark:border-white/10 shadow-sm backdrop-blur-sm">
+                <span className="text-xs text-gray-500 uppercase tracking-wide">Category</span>
+                <div className="mt-2 flex items-center">
+                  <span className="text-sm font-medium text-gray-900 dark:text-white capitalize">{selectedFeedback.category}</span>
+                </div>
               </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* Detail Sheet */}
-      <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-          {selectedFeedback && (
-            <>
-              <SheetHeader>
-                <div className="flex items-center gap-2">
-                  <SheetTitle>{selectedFeedback.feedback_id}</SheetTitle>
-                  {getSeverityBadge(selectedFeedback.severity)}
+            <div className="relative pl-5 border-l-2 border-primary/30">
+              <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
+                <User className="h-4 w-4" /> Submitted By
+              </h4>
+              <div className="bg-white/70 dark:bg-gray-800/70 rounded-xl p-4 space-y-2 border border-white/20 dark:border-white/5 backdrop-blur-sm">
+                <div className="flex justify-between py-1 border-b border-gray-100/20 dark:border-gray-700/30 pb-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Name:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{selectedFeedback.user_name}</span>
                 </div>
-                <SheetDescription>{selectedFeedback.title}</SheetDescription>
-              </SheetHeader>
-              
-              <div className="mt-6 space-y-6">
-                {/* Status */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Status</span>
-                  {getStatusBadge(selectedFeedback.status)}
+                <div className="flex justify-between py-1 border-b border-gray-100/20 dark:border-gray-700/30 pb-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Phone:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white font-mono">{selectedFeedback.user_phone}</span>
                 </div>
-
-                {/* Category */}
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Category</span>
-                  {getCategoryBadge(selectedFeedback.category)}
-                </div>
-
-                <Separator />
-
-                {/* User Info */}
-                <div>
-                  <h4 className="font-medium mb-3 flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Submitted By
-                  </h4>
-                  <div className="space-y-2 text-sm">
-                    <p><span className="text-muted-foreground">Name:</span> {selectedFeedback.user_name}</p>
-                    <p><span className="text-muted-foreground">Phone:</span> {selectedFeedback.user_phone}</p>
-                    {selectedFeedback.order_id && (
-                      <p><span className="text-muted-foreground">Order:</span> {selectedFeedback.order_id}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Driver Info */}
-                {selectedFeedback.driver_name && (
-                  <>
-                    <Separator />
-                    <div>
-                      <h4 className="font-medium mb-3 flex items-center gap-2">
-                        <Car className="h-4 w-4" />
-                        Related Driver
-                      </h4>
-                      <p className="text-sm">{selectedFeedback.driver_name}</p>
-                    </div>
-                  </>
-                )}
-
-                <Separator />
-
-                {/* Content */}
-                <div>
-                  <h4 className="font-medium mb-3">Description</h4>
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                    {selectedFeedback.content}
-                  </p>
-                </div>
-
-                {/* Rating */}
-                {selectedFeedback.rating && (
-                  <div className="flex items-center gap-2">
-                    <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                    <span className="text-sm">{selectedFeedback.rating}/5 rating given</span>
+                {selectedFeedback.order_id && (
+                  <div className="flex justify-between py-1 pt-2">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Order ID:</span>
+                    <span className="text-sm font-medium text-primary hover:underline cursor-pointer">{selectedFeedback.order_id}</span>
                   </div>
                 )}
+              </div>
+            </div>
 
-                {/* Admin Response */}
-                {selectedFeedback.admin_response && (
-                  <>
-                    <Separator />
-                    <div>
-                      <h4 className="font-medium mb-3 text-primary">Admin Response</h4>
-                      <p className="text-sm bg-primary/5 p-3 rounded-lg">
-                        {selectedFeedback.admin_response}
-                      </p>
+            {selectedFeedback.driver_name && (
+              <div className="relative pl-5 border-l-2 border-gray-200/50 dark:border-gray-700/50">
+                <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
+                  <Car className="h-4 w-4" /> Related Driver
+                </h4>
+                <div className="flex items-center justify-between p-4 bg-white/70 dark:bg-gray-800/70 rounded-xl border border-white/20 dark:border-white/5 backdrop-blur-sm hover:bg-white/80 transition-colors cursor-pointer group">
+                  <div className="flex items-center">
+                    <div className="h-10 w-10 bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-600 dark:to-gray-700 rounded-full flex items-center justify-center overflow-hidden shadow-sm">
+                      <User className="h-5 w-5 text-gray-500 dark:text-gray-300" />
                     </div>
-                  </>
-                )}
-
-                {/* Timestamps */}
-                <Separator />
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p>Created: {new Date(selectedFeedback.created_at).toLocaleString()}</p>
-                  <p>Updated: {new Date(selectedFeedback.updated_at).toLocaleString()}</p>
-                  {selectedFeedback.resolved_at && (
-                    <p>Resolved: {new Date(selectedFeedback.resolved_at).toLocaleString()}</p>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2 pt-4">
-                  <Button className="flex-1" onClick={() => { setIsDetailOpen(false); openResponseDialog(selectedFeedback); }}>
-                    <Send className="h-4 w-4 mr-2" />
-                    Respond
-                  </Button>
-                  <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
-                    Close
-                  </Button>
+                    <div className="ml-3">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-primary transition-colors">{selectedFeedback.driver_name}</p>
+                      <div className="flex text-xs text-yellow-500 items-center">
+                        <Star className="h-3 w-3 fill-yellow-500" />
+                        <span className="ml-1 text-gray-500">4.5</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button className="text-gray-400 hover:text-primary group-hover:translate-x-1 transition-transform">
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
                 </div>
               </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+            )}
 
-      {/* Response Dialog */}
+            <div>
+              <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
+                Description
+              </h4>
+              <div className="bg-red-50/70 dark:bg-red-900/30 p-5 rounded-xl border border-red-100/50 dark:border-red-900/30 text-gray-800 dark:text-gray-200 text-sm leading-relaxed backdrop-blur-sm shadow-inner italic">
+                "{selectedFeedback.content}"
+              </div>
+              {selectedFeedback.rating && (
+                <div className="mt-4 flex items-center gap-3 bg-white/60 dark:bg-gray-800/60 p-3 rounded-lg w-fit border border-white/20">
+                  <span className="text-xs font-semibold text-gray-500">Rating given:</span>
+                  <div className="flex text-yellow-500">
+                    {[1,2,3,4,5].map(star => (
+                       <Star key={star} className={`h-3 w-3 ${star <= selectedFeedback.rating! ? 'fill-yellow-500 text-yellow-500' : 'text-gray-300/50'}`} />
+                    ))}
+                  </div>
+                  <span className="text-xs text-gray-500 font-medium bg-white/80 dark:bg-black/40 px-1.5 rounded">{selectedFeedback.rating}/5</span>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex items-center justify-between text-xs text-gray-400 dark:text-gray-500 border-t border-gray-100/30 dark:border-gray-800 pt-4">
+              <span>Created: {new Date(selectedFeedback.created_at).toLocaleString()}</span>
+              <span>Updated: {new Date(selectedFeedback.updated_at).toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div className="p-6 border-t border-gray-100/30 dark:border-gray-700/30 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-b-xl flex items-center justify-end gap-3 shrink-0">
+            <button 
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white/50 dark:bg-gray-700/50 border border-gray-300/50 dark:border-gray-600/50 rounded-lg hover:bg-white dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all shadow-sm"
+              onClick={() => setSelectedFeedback(null)}
+            >
+              Close
+            </button>
+            <button 
+              className="flex items-center px-4 py-2 text-sm font-medium text-white bg-primary/90 hover:bg-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary shadow-lg shadow-primary/30 transition-all transform hover:-translate-y-0.5 border border-white/20 backdrop-blur-sm"
+              onClick={() => openResponseDialog(selectedFeedback)}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Respond
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Response Dialog (Keep existing logic) */}
       <Dialog open={isResponseDialogOpen} onOpenChange={setIsResponseDialogOpen}>
+        {/* ... existing dialog content ... */}
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Respond to Feedback</DialogTitle>

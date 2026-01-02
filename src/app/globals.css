@@ -138,5 +138,63 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image: 
+        radial-gradient(at 0% 0%, hsla(158,82%,75%,0.4) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, hsla(210,80%,75%,0.3) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, hsla(280,70%,85%,0.3) 0px, transparent 50%),
+        radial-gradient(at 0% 100%, hsla(158,80%,85%,0.3) 0px, transparent 50%);
+    background-attachment: fixed;
+    background-color: #f0f4f8;
+  }
+}
+
+.dark body {
+  background-color: #0f172a;
+  background-image: 
+      radial-gradient(at 0% 0%, hsla(158,50%,20%,0.4) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(210,50%,20%,0.3) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, hsla(280,40%,25%,0.3) 0px, transparent 50%);
+}
+
+@layer components {
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  }
+  .glass-sidebar {
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .glass-card {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    transition: all 0.3s ease;
+  }
+  .glass-card:hover {
+    background: rgba(255, 255, 255, 0.95);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Dark mode variants */
+  .dark .glass-panel {
+    background: rgba(30, 41, 59, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+  }
+  .dark .glass-card {
+    background: rgba(30, 41, 59, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .dark .glass-card:hover {
+    background: rgba(30, 41, 59, 0.95);
   }
 }
