@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: greenride-db
+    restart: always
+    environment:
+      MYSQL_DATABASE: greenride
+      MYSQL_USER: greenride
+      MYSQL_PASSWORD: ${DB_PASSWORD:-GreenRide2024!}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-GreenRideRoot2024!}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - greenride-network
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: greenride-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - greenride-network
+
+  api:
+    build: .
+    container_name: greenride-api
+    restart: always
+    environment:
+      - ENV=prod
+      - TZ=Africa/Kigali
+    ports:
+      - "8610:8610"
+      - "8611:8611"
+      - "8612:8612"
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./prod.yaml:/app/prod.yaml
+      - ./logs:/app/logs
+    networks:
+      - greenride-network
+
+networks:
+  greenride-network:
+    driver: bridge
+
+volumes:
+  mysql_data:

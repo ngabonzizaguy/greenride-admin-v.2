@@ -1,0 +1,3408 @@
+{
+    "schemes": [
+        "http"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "GreenRide API Documentation\n## Response Codes:\n- 0000: Success - 操作成功\n- 9999: System Error - 系统错误\n- 1000: Parameter Error - 参数错误\n- 1001: Authorization Error - 授权失败\n- 1002: Authentication Expired - 认证过期\n- 2001: User Error - 用户相关错误\n- 4001: Business Error - 业务错误\n- 4002: Data Expired - 数据过期",
+        "title": "GreenRide API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/account/delete": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "软删除用户账户，添加删除标记和时间戳，保留数据但标记为已删除状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "用户"
+                ],
+                "summary": "删除账户",
+                "parameters": [
+                    {
+                        "description": "删除请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.DeleteAccountRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/change-password": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "用户修改密码，需要提供旧密码",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "认证"
+                ],
+                "summary": "修改密码",
+                "parameters": [
+                    {
+                        "description": "修改密码请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.ChangePasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "修改失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/checkout/status": {
+            "post": {
+                "description": "根据checkout_id查询订单和支付状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "支付"
+                ],
+                "summary": "查询checkout状态",
+                "parameters": [
+                    {
+                        "description": "checkout状态查询请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.CheckoutStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "查询失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/location/current": {
+            "get": {
+                "description": "获取当前用户的位置信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "位置"
+                ],
+                "summary": "获取当前用户位置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/location/update": {
+            "post": {
+                "description": "司机上报当前位置信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "位置"
+                ],
+                "summary": "更新司机位置",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "位置信息",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.UpdateLocationRequest"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/login": {
+            "post": {
+                "description": "用户登录接口，支持邮箱和手机号登录",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "认证"
+                ],
+                "summary": "用户登录",
+                "parameters": [
+                    {
+                        "description": "登录请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "参数错误或认证失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/logout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "用户登出，清除服务端相关信息。如果提供fcm_token，只停用该设备的FCM token；否则停用所有设备的token",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "认证"
+                ],
+                "summary": "用户登出",
+                "parameters": [
+                    {
+                        "description": "登出请求（可选参数）",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.LogoutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "登出成功",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/offline": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "司机下线，只有司机类型用户可以调用此接口。下线后司机状态变为离线，车辆状态变为不可用",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "司机"
+                ],
+                "summary": "司机下线",
+                "responses": {
+                    "200": {
+                        "description": "下线成功",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/online": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "司机上线，只有司机类型用户可以调用此接口。上线后司机状态变为在线，车辆状态变为可用",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "司机"
+                ],
+                "summary": "司机上线",
+                "parameters": [
+                    {
+                        "description": "上线请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.UserOnlineRequest"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/order/accept": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "服务提供者接受指定的订单",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "司机"
+                ],
+                "summary": "接受订单",
+                "parameters": [
+                    {
+                        "description": "接受订单请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.OrderAcceptRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "接受失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/order/arrived": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "司机标记已到达接客地点，更新订单状态为司机已到达",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "司机"
+                ],
+                "summary": "司机到达",
+                "parameters": [
+                    {
+                        "description": "司机到达请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.OrderActionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "到达失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/order/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "取消指定的订单",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "订单"
+                ],
+                "summary": "取消订单",
+                "parameters": [
+                    {
+                        "description": "取消请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.OrderCancelAPIRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "取消失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/order/cash/received": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "司机确认已收到现金支付",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "司机"
+                ],
+                "summary": "确认现金收款",
+                "parameters": [
+                    {
+                        "description": "确认现金收款请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.OrderPaymentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "确认失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/order/create": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "创建新的订单，支持网约车等类型",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "订单"
+                ],
+                "summary": "创建订单",
+                "parameters": [
+                    {
+                        "description": "创建订单请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.CreateOrderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "创建失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/order/detail": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取指定订单的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "订单"
+                ],
+                "summary": "获取订单详情",
+                "parameters": [
+                    {
+                        "description": "订单ID请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.OrderIDRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/order/estimate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据起点终点和订单类型预估费用、距离和时间，支持价格快照和规则引擎。统一接口支持网约车、外卖、网购等多种订单类型",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "订单"
+                ],
+                "summary": "预估订单费用",
+                "parameters": [
+                    {
+                        "description": "预估请求，包含订单类型、用户信息、起终点等",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.EstimateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "预估失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/order/finish": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "司机完成订单执行，标记订单状态为已完成",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "司机"
+                ],
+                "summary": "完成订单",
+                "parameters": [
+                    {
+                        "description": "完成订单请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.OrderActionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "完成失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/order/nearby": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "司机或服务提供者根据当前地理位置获取附近的待接订单列表，支持按距离、订单类型等条件进行筛选",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "司机"
+                ],
+                "summary": "获取附近的待接订单",
+                "parameters": [
+                    {
+                        "description": "获取附近订单请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.GetNearbyOrdersRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取成功，返回附近订单列表",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/greenride_internal_protocol.Result"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/greenride_internal_protocol.Order"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    },
+                    "401": {
+                        "description": "用户未认证",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    },
+                    "403": {
+                        "description": "权限不足，仅司机或服务提供者可访问",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/order/payment": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "处理用户订单支付，支持多种支付方式。沙盒模式下不实际请求支付渠道，直接返回成功。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "订单",
+                    "支付"
+                ],
+                "summary": "处理订单支付",
+                "parameters": [
+                    {
+                        "description": "订单支付请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.OrderPaymentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "支付处理失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/order/rating": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "对订单进行评价",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "订单"
+                ],
+                "summary": "创建评价",
+                "parameters": [
+                    {
+                        "description": "评价请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.CreateOrderRatingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "评价失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/order/ratings": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取订单的评价列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "订单"
+                ],
+                "summary": "获取评价列表",
+                "parameters": [
+                    {
+                        "description": "订单ID请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.OrderIDRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/order/reject": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "司机拒绝派单，支持枚举原因和自定义原因",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "司机"
+                ],
+                "summary": "拒绝订单",
+                "parameters": [
+                    {
+                        "description": "拒绝订单请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.OrderActionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "拒绝失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/order/start": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "司机开始执行订单，标记订单状态为进行中",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "司机"
+                ],
+                "summary": "开始订单",
+                "parameters": [
+                    {
+                        "description": "开始订单请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.OrderActionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "开始失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/orders": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取用户的订单列表，支持分页和类型过滤",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "订单"
+                ],
+                "summary": "获取订单列表",
+                "parameters": [
+                    {
+                        "description": "获取订单列表请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.UserRidesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/payment/cancel": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "用户主动取消订单支付",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "支付"
+                ],
+                "summary": "取消支付",
+                "parameters": [
+                    {
+                        "description": "取消支付请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.CancelPaymentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "取消失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/payment/methods": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据货币类型和金额查询支持的支付方式列表",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "支付"
+                ],
+                "summary": "获取支付方式列表",
+                "parameters": [
+                    {
+                        "description": "支付方式查询请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.PaymentMethodsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/profile": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取当前登录用户的详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "用户"
+                ],
+                "summary": "获取用户信息",
+                "responses": {
+                    "200": {
+                        "description": "获取失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/profile/update": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "按需更新用户个人信息，只更新提供的字段",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "用户"
+                ],
+                "summary": "更新个人信息",
+                "parameters": [
+                    {
+                        "description": "更新请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.UpdateProfileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/promotions": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "获取优惠券列表，支持分页和过滤",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "优惠券"
+                ],
+                "summary": "获取优惠券列表",
+                "parameters": [
+                    {
+                        "description": "优惠券搜索条件",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.UserPromotionsRequest"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/rating/delete": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "删除订单评价",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "订单"
+                ],
+                "summary": "删除评价",
+                "parameters": [
+                    {
+                        "description": "评价ID请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.RatingIDRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "删除失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/rating/reply": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "服务提供者回复用户评价",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "司机"
+                ],
+                "summary": "回复评价",
+                "parameters": [
+                    {
+                        "description": "回复请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.ReplyToRatingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "回复失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/rating/update": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "更新订单评价",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "订单"
+                ],
+                "summary": "更新评价",
+                "parameters": [
+                    {
+                        "description": "评价更新请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.UpdateOrderRatingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/register": {
+            "post": {
+                "description": "用户注册接口，支持乘客和司机注册。country_code为可选参数，默认为卢旺达(RW)。如果提供verify_code，会自动按优先级验证：先验证手机验证码，如果失败再验证邮箱验证码",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "认证"
+                ],
+                "summary": "用户注册",
+                "parameters": [
+                    {
+                        "description": "注册请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.RegisterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "参数错误或用户已存在",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/reset-password": {
+            "post": {
+                "description": "通过验证码重置密码",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "认证"
+                ],
+                "summary": "重置密码",
+                "parameters": [
+                    {
+                        "description": "重置密码请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.ResetPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "重置失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/send-verify-code": {
+            "post": {
+                "description": "发送验证码到邮箱或手机。系统会自动根据提供的email和phone字段判断发送方式，优先使用phone。country_code为可选参数，默认为卢旺达(RW)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "认证"
+                ],
+                "summary": "发送验证码",
+                "parameters": [
+                    {
+                        "description": "发送验证码请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.SendVerifyCodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "参数错误或发送失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicle": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取当前用户的车辆信息，司机返回绑定车辆，车主返回拥有的车辆",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "司机"
+                ],
+                "summary": "获取用户车辆信息",
+                "parameters": [
+                    {
+                        "description": "查询请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.UserVehicleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/vehicles": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取车辆列表，支持分页和类型过滤",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "车辆"
+                ],
+                "summary": "获取车辆列表",
+                "parameters": [
+                    {
+                        "description": "获取车辆列表请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.GetVehiclesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "获取失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/verify-code": {
+            "post": {
+                "description": "验证邮箱或手机验证码",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "认证"
+                ],
+                "summary": "验证验证码",
+                "parameters": [
+                    {
+                        "description": "验证请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.VerifyCodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "验证失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/webhook/{payment_id}": {
+            "post": {
+                "description": "接收 KPay 的支付状态回调通知，更新支付记录状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Api",
+                    "支付",
+                    "Webhook"
+                ],
+                "summary": "处理 KPay 支付 Webhook 通知",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "支付ID",
+                        "name": "payment_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "KPay Webhook 数据",
+                        "name": "webhook_data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.MapData"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "处理成功",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    },
+                    "400": {
+                        "description": "请求数据错误",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    },
+                    "404": {
+                        "description": "支付记录不存在",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    },
+                    "500": {
+                        "description": "处理失败",
+                        "schema": {
+                            "$ref": "#/definitions/greenride_internal_protocol.Result"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "greenride_internal_protocol.CancelPaymentRequest": {
+            "type": "object",
+            "required": [
+                "order_id"
+            ],
+            "properties": {
+                "order_id": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.ChannelResult": {
+            "type": "object",
+            "properties": {
+                "callback_data": {
+                    "description": "回调数据",
+                    "type": "string"
+                },
+                "channel_code": {
+                    "description": "渠道代码",
+                    "type": "string"
+                },
+                "channel_payment_id": {
+                    "description": "渠道订单ID",
+                    "type": "string"
+                },
+                "channel_status": {
+                    "description": "渠道状态",
+                    "type": "string"
+                },
+                "payment_id": {
+                    "description": "支付订单ID",
+                    "type": "string"
+                },
+                "redirect_url": {
+                    "description": "重定向URL",
+                    "type": "string"
+                },
+                "res_code": {
+                    "description": "响应码",
+                    "type": "string"
+                },
+                "res_msg": {
+                    "description": "响应消息",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "支付状态",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "交易类型",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.Checkout": {
+            "type": "object",
+            "properties": {
+                "expired_at": {
+                    "type": "integer"
+                },
+                "order_id": {
+                    "type": "string"
+                },
+                "order_status": {
+                    "type": "string"
+                },
+                "payment_id": {
+                    "type": "string"
+                },
+                "payment_status": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.CheckoutStatusRequest": {
+            "type": "object",
+            "required": [
+                "checkout_id",
+                "user_id"
+            ],
+            "properties": {
+                "checkout_id": {
+                    "description": "checkout ID",
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "用户ID，用于验证权限",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.CreateOrderRatingRequest": {
+            "type": "object",
+            "required": [
+                "order_id",
+                "rating"
+            ],
+            "properties": {
+                "comment": {
+                    "description": "评价内容",
+                    "type": "string"
+                },
+                "is_anonymous": {
+                    "description": "是否匿名评价",
+                    "type": "boolean"
+                },
+                "order_id": {
+                    "type": "string"
+                },
+                "rating": {
+                    "description": "评分 1-5",
+                    "type": "number",
+                    "maximum": 5,
+                    "minimum": 1
+                },
+                "tags": {
+                    "description": "评价标签(JSON格式)",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "user_id": {
+                    "description": "评价者ID",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.CreateOrderRequest": {
+            "type": "object",
+            "required": [
+                "price_id"
+            ],
+            "properties": {
+                "notes": {
+                    "description": "扩展信息",
+                    "type": "string"
+                },
+                "price_id": {
+                    "description": "价格信息",
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "用户ID",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.EstimateRequest": {
+            "type": "object",
+            "required": [
+                "dropoff_latitude",
+                "dropoff_longitude",
+                "pickup_latitude",
+                "pickup_longitude"
+            ],
+            "properties": {
+                "app_version": {
+                    "type": "string"
+                },
+                "base_price": {
+                    "description": "基础价格（内部计算用）",
+                    "type": "number"
+                },
+                "currency": {
+                    "description": "价格相关",
+                    "type": "string"
+                },
+                "dropoff_address": {
+                    "type": "string"
+                },
+                "dropoff_landmark": {
+                    "type": "string"
+                },
+                "dropoff_latitude": {
+                    "type": "number"
+                },
+                "dropoff_longitude": {
+                    "type": "number"
+                },
+                "estimated_distance": {
+                    "type": "number"
+                },
+                "estimated_duration": {
+                    "type": "integer"
+                },
+                "order_type": {
+                    "description": "订单类型，默认为网约车",
+                    "type": "string"
+                },
+                "passenger_count": {
+                    "description": "行程信息",
+                    "type": "integer"
+                },
+                "payment_method": {
+                    "type": "string"
+                },
+                "pickup_address": {
+                    "type": "string"
+                },
+                "pickup_landmark": {
+                    "type": "string"
+                },
+                "pickup_latitude": {
+                    "type": "number"
+                },
+                "pickup_longitude": {
+                    "type": "number"
+                },
+                "platform": {
+                    "description": "客户端信息",
+                    "type": "string"
+                },
+                "promo_codes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "request_ip": {
+                    "type": "string"
+                },
+                "requested_at": {
+                    "description": "请求时间(时间戳毫秒)，0表示当前时间",
+                    "type": "integer"
+                },
+                "scheduled_at": {
+                    "description": "上下文信息",
+                    "type": "integer"
+                },
+                "service_area": {
+                    "type": "string"
+                },
+                "session_id": {
+                    "type": "string"
+                },
+                "snapshot_duration": {
+                    "description": "设置选项",
+                    "type": "integer"
+                },
+                "user_agent": {
+                    "type": "string"
+                },
+                "user_category": {
+                    "description": "用户类别",
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "基础信息",
+                    "type": "string"
+                },
+                "vehicle_category": {
+                    "description": "sedan, suv, mpv, van, hatchback",
+                    "type": "string"
+                },
+                "vehicle_level": {
+                    "description": "economy, comfort, premium, luxury",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.GetNearbyOrdersRequest": {
+            "type": "object",
+            "properties": {
+                "latitude": {
+                    "type": "number"
+                },
+                "limit": {
+                    "description": "数量限制",
+                    "type": "integer"
+                },
+                "longitude": {
+                    "type": "number"
+                },
+                "order_type": {
+                    "description": "订单类型过滤",
+                    "type": "string"
+                },
+                "radius": {
+                    "description": "半径（公里）",
+                    "type": "number"
+                }
+            }
+        },
+        "greenride_internal_protocol.GetVehiclesRequest": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                }
+            }
+        },
+        "greenride_internal_protocol.MapData": {
+            "type": "object",
+            "additionalProperties": {}
+        },
+        "greenride_internal_protocol.Order": {
+            "type": "object",
+            "properties": {
+                "accepted_at": {
+                    "type": "integer"
+                },
+                "auto_dispatch_enabled": {
+                    "type": "boolean"
+                },
+                "cancel_reason": {
+                    "type": "string"
+                },
+                "cancellation_fee": {
+                    "type": "number"
+                },
+                "cancelled_at": {
+                    "type": "integer"
+                },
+                "cancelled_by": {
+                    "description": "取消信息",
+                    "type": "string"
+                },
+                "channel_payment_id": {
+                    "type": "string"
+                },
+                "completed_at": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "integer"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "current_round": {
+                    "type": "integer"
+                },
+                "details": {
+                    "description": "订单详情（兼容所有订单类型）",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/greenride_internal_protocol.OrderDetail"
+                        }
+                    ]
+                },
+                "discount_amount": {
+                    "description": "总优惠金额",
+                    "type": "number"
+                },
+                "discounted_amount": {
+                    "description": "优惠后总金额",
+                    "type": "number"
+                },
+                "dispatch_started_at": {
+                    "type": "integer"
+                },
+                "dispatch_status": {
+                    "description": "派单相关信息",
+                    "type": "string"
+                },
+                "dispatch_strategy": {
+                    "type": "string"
+                },
+                "driver": {
+                    "$ref": "#/definitions/greenride_internal_protocol.User"
+                },
+                "driver_ratings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/greenride_internal_protocol.Rating"
+                    }
+                },
+                "ended_at": {
+                    "type": "integer"
+                },
+                "last_dispatched_at": {
+                    "type": "integer"
+                },
+                "max_rounds": {
+                    "type": "integer"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "next_strategy": {
+                    "type": "string"
+                },
+                "notes": {
+                    "description": "其他信息",
+                    "type": "string"
+                },
+                "order_id": {
+                    "description": "订单基础信息",
+                    "type": "string"
+                },
+                "order_type": {
+                    "type": "string"
+                },
+                "original_amount": {
+                    "description": "金额信息",
+                    "type": "number"
+                },
+                "passenger": {
+                    "$ref": "#/definitions/greenride_internal_protocol.User"
+                },
+                "passenger_ratings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/greenride_internal_protocol.Rating"
+                    }
+                },
+                "payment_amount": {
+                    "description": "最终付款金额",
+                    "type": "number"
+                },
+                "payment_id": {
+                    "type": "string"
+                },
+                "payment_method": {
+                    "description": "支付信息",
+                    "type": "string"
+                },
+                "payment_redirect_url": {
+                    "description": "支付重定向URL",
+                    "type": "string"
+                },
+                "payment_result": {
+                    "description": "支付结果详情",
+                    "type": "string"
+                },
+                "payment_status": {
+                    "type": "string"
+                },
+                "platform_fee": {
+                    "type": "number"
+                },
+                "promo_codes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "promo_discount": {
+                    "type": "number"
+                },
+                "provider_id": {
+                    "type": "string"
+                },
+                "schedule_type": {
+                    "description": "时间信息",
+                    "type": "string"
+                },
+                "scheduled_at": {
+                    "type": "integer"
+                },
+                "started_at": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "user_promo_discount": {
+                    "description": "用户优惠券折扣金额",
+                    "type": "number"
+                },
+                "user_promotion_ids": {
+                    "description": "使用的用户优惠券ID列表",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "vehicle": {
+                    "$ref": "#/definitions/greenride_internal_protocol.Vehicle"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
+        "greenride_internal_protocol.OrderAcceptRequest": {
+            "type": "object",
+            "required": [
+                "order_id",
+                "user_id"
+            ],
+            "properties": {
+                "order_id": {
+                    "description": "订单ID",
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "用户ID（司机ID）",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.OrderActionRequest": {
+            "type": "object",
+            "required": [
+                "latitude",
+                "longitude"
+            ],
+            "properties": {
+                "action_type": {
+                    "description": "动作类型",
+                    "type": "string"
+                },
+                "dispatch_id": {
+                    "description": "派单ID",
+                    "type": "string"
+                },
+                "latitude": {
+                    "description": "到达纬度",
+                    "type": "number"
+                },
+                "longitude": {
+                    "description": "到达经度",
+                    "type": "number"
+                },
+                "order_id": {
+                    "description": "订单ID",
+                    "type": "string"
+                },
+                "reject_reason": {
+                    "description": "拒绝原因（枚举值或自定义文本）",
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "用户ID",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.OrderCancelAPIRequest": {
+            "type": "object",
+            "required": [
+                "order_id"
+            ],
+            "properties": {
+                "order_id": {
+                    "description": "订单ID",
+                    "type": "string"
+                },
+                "reason": {
+                    "description": "取消原因",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.OrderDetail": {
+            "type": "object",
+            "properties": {
+                "actual_distance": {
+                    "type": "number"
+                },
+                "actual_duration": {
+                    "type": "integer"
+                },
+                "courier_id": {
+                    "type": "string"
+                },
+                "courier_name": {
+                    "type": "string"
+                },
+                "courier_phone": {
+                    "type": "string"
+                },
+                "courier_rating": {
+                    "type": "number"
+                },
+                "delivery_address": {
+                    "type": "string"
+                },
+                "delivery_latitude": {
+                    "type": "number"
+                },
+                "delivery_longitude": {
+                    "type": "number"
+                },
+                "driver_id": {
+                    "description": "司机信息",
+                    "type": "string"
+                },
+                "driver_name": {
+                    "type": "string"
+                },
+                "driver_phone": {
+                    "type": "string"
+                },
+                "driver_rating": {
+                    "type": "number"
+                },
+                "dropoff_address": {
+                    "type": "string"
+                },
+                "dropoff_landmark": {
+                    "type": "string"
+                },
+                "dropoff_latitude": {
+                    "type": "number"
+                },
+                "dropoff_longitude": {
+                    "type": "number"
+                },
+                "estimated_distance": {
+                    "type": "number"
+                },
+                "estimated_duration": {
+                    "type": "integer"
+                },
+                "license_plate": {
+                    "type": "string"
+                },
+                "order_id": {
+                    "description": "通用字段",
+                    "type": "string"
+                },
+                "order_type": {
+                    "type": "string"
+                },
+                "passenger_count": {
+                    "type": "integer"
+                },
+                "passenger_id": {
+                    "description": "网约车详情字段（当order_type=ride时使用）",
+                    "type": "string"
+                },
+                "passenger_name": {
+                    "type": "string"
+                },
+                "passenger_phone": {
+                    "type": "string"
+                },
+                "pickup_address": {
+                    "type": "string"
+                },
+                "pickup_landmark": {
+                    "type": "string"
+                },
+                "pickup_latitude": {
+                    "type": "number"
+                },
+                "pickup_longitude": {
+                    "type": "number"
+                },
+                "restaurant_address": {
+                    "type": "string"
+                },
+                "restaurant_id": {
+                    "description": "外卖详情字段（当order_type=delivery时使用，预留）",
+                    "type": "string"
+                },
+                "restaurant_name": {
+                    "type": "string"
+                },
+                "restaurant_phone": {
+                    "type": "string"
+                },
+                "ride_type": {
+                    "type": "string"
+                },
+                "shipping_address": {
+                    "type": "string"
+                },
+                "store_address": {
+                    "type": "string"
+                },
+                "store_id": {
+                    "description": "购物详情字段（当order_type=shopping时使用，预留）",
+                    "type": "string"
+                },
+                "store_name": {
+                    "type": "string"
+                },
+                "tracking_number": {
+                    "type": "string"
+                },
+                "vehicle_category": {
+                    "type": "string"
+                },
+                "vehicle_color": {
+                    "type": "string"
+                },
+                "vehicle_id": {
+                    "description": "车辆信息",
+                    "type": "string"
+                },
+                "vehicle_level": {
+                    "type": "string"
+                },
+                "vehicle_model": {
+                    "type": "string"
+                },
+                "vehicle_photo": {
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.OrderIDRequest": {
+            "type": "object",
+            "required": [
+                "order_id"
+            ],
+            "properties": {
+                "order_id": {
+                    "description": "订单ID",
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "用户ID",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.OrderPaymentRequest": {
+            "type": "object",
+            "required": [
+                "order_id"
+            ],
+            "properties": {
+                "account_name": {
+                    "type": "string"
+                },
+                "account_no": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "order_id": {
+                    "type": "string"
+                },
+                "payment_method": {
+                    "description": "内部设置",
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "内部设置",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.OrderPrice": {
+            "type": "object",
+            "properties": {
+                "base_fare": {
+                    "description": "起步价",
+                    "type": "number"
+                },
+                "breakdowns": {
+                    "description": "价格明细分解",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/greenride_internal_protocol.PriceRuleResult"
+                    }
+                },
+                "calculation_time_ms": {
+                    "description": "计算元信息（扁平化）",
+                    "type": "integer"
+                },
+                "currency": {
+                    "description": "基础价格信息",
+                    "type": "string"
+                },
+                "discount_amount": {
+                    "description": "总折扣金额",
+                    "type": "number"
+                },
+                "discounted_fare": {
+                    "description": "优惠后折扣费用 (应用所有优惠后的价格)",
+                    "type": "number"
+                },
+                "distance": {
+                    "description": "距离（公里）",
+                    "type": "number"
+                },
+                "distance_fare": {
+                    "description": "里程费",
+                    "type": "number"
+                },
+                "duration": {
+                    "description": "预计用时（分钟）",
+                    "type": "integer"
+                },
+                "engine_version": {
+                    "description": "引擎版本",
+                    "type": "string"
+                },
+                "expires_at": {
+                    "description": "过期时间戳",
+                    "type": "integer"
+                },
+                "is_locked": {
+                    "description": "是否已锁定",
+                    "type": "boolean"
+                },
+                "order_type": {
+                    "description": "订单类型",
+                    "type": "string"
+                },
+                "original_fare": {
+                    "description": "优惠前原始费用 (所有费用项的总和)",
+                    "type": "number"
+                },
+                "price_id": {
+                    "description": "价格锁定信息（扁平化）",
+                    "type": "string"
+                },
+                "promo_discount": {
+                    "description": "优惠码折扣金额",
+                    "type": "number"
+                },
+                "rules_applied": {
+                    "description": "应用的规则数量",
+                    "type": "integer"
+                },
+                "rules_evaluated": {
+                    "description": "评估的规则数量",
+                    "type": "integer"
+                },
+                "service_fee": {
+                    "description": "服务费",
+                    "type": "number"
+                },
+                "surge_fare": {
+                    "description": "高峰期费用",
+                    "type": "number"
+                },
+                "time_fare": {
+                    "description": "时长费",
+                    "type": "number"
+                },
+                "user_promo_discount": {
+                    "description": "用户优惠券折扣金额",
+                    "type": "number"
+                },
+                "vehicle_category": {
+                    "description": "车辆类别",
+                    "type": "string"
+                },
+                "vehicle_level": {
+                    "description": "车辆级别",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.PageResult": {
+            "type": "object",
+            "properties": {
+                "attach": {
+                    "description": "附加数据",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "count": {
+                    "description": "总记录数",
+                    "type": "integer"
+                },
+                "current": {
+                    "description": "当前页码",
+                    "type": "integer"
+                },
+                "records": {
+                    "description": "记录列表"
+                },
+                "result_type": {
+                    "description": "数据类型",
+                    "type": "string"
+                },
+                "size": {
+                    "description": "每页记录数",
+                    "type": "integer"
+                },
+                "total": {
+                    "description": "总页数",
+                    "type": "integer"
+                }
+            }
+        },
+        "greenride_internal_protocol.PaymentMethodsRequest": {
+            "type": "object",
+            "required": [
+                "order_id"
+            ],
+            "properties": {
+                "order_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.PriceRuleResult": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "description": "计算结果字段",
+                    "type": "number"
+                },
+                "applied": {
+                    "description": "是否应用",
+                    "type": "boolean"
+                },
+                "category": {
+                    "type": "string"
+                },
+                "ccy": {
+                    "description": "货币",
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "reason": {
+                    "description": "原因",
+                    "type": "string"
+                },
+                "rule_id": {
+                    "description": "基本规则信息",
+                    "type": "string"
+                },
+                "rule_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.Rating": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_anonymous": {
+                    "type": "boolean"
+                },
+                "order_id": {
+                    "type": "string"
+                },
+                "ratee_id": {
+                    "type": "string"
+                },
+                "ratee_type": {
+                    "description": "user, provider",
+                    "type": "string"
+                },
+                "rater_id": {
+                    "type": "string"
+                },
+                "rater_type": {
+                    "description": "user, provider",
+                    "type": "string"
+                },
+                "rating": {
+                    "description": "评分 1-5",
+                    "type": "number"
+                },
+                "replied_at": {
+                    "type": "integer"
+                },
+                "reply": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "type": "integer"
+                }
+            }
+        },
+        "greenride_internal_protocol.RatingIDRequest": {
+            "type": "object",
+            "required": [
+                "rating_id",
+                "user_id"
+            ],
+            "properties": {
+                "rating_id": {
+                    "description": "评价ID",
+                    "type": "integer"
+                },
+                "user_id": {
+                    "description": "用户ID",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.ReplyToRatingRequest": {
+            "type": "object",
+            "required": [
+                "rating_id",
+                "reply"
+            ],
+            "properties": {
+                "rating_id": {
+                    "description": "评价ID",
+                    "type": "string"
+                },
+                "reply": {
+                    "description": "回复内容",
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "评价者ID",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.Result": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "data": {},
+                "msg": {
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.UpdateLocationRequest": {
+            "type": "object",
+            "required": [
+                "latitude",
+                "longitude"
+            ],
+            "properties": {
+                "latitude": {
+                    "type": "number",
+                    "maximum": 90,
+                    "minimum": -90
+                },
+                "longitude": {
+                    "type": "number",
+                    "maximum": 180,
+                    "minimum": -180
+                },
+                "updated_at": {
+                    "description": "时间戳，毫秒",
+                    "type": "integer"
+                },
+                "user_id": {
+                    "description": "内部设置",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.UpdateOrderRatingRequest": {
+            "type": "object",
+            "required": [
+                "rating",
+                "rating_id"
+            ],
+            "properties": {
+                "comment": {
+                    "description": "评价内容",
+                    "type": "string"
+                },
+                "rating": {
+                    "description": "评分 1-5",
+                    "type": "number",
+                    "maximum": 5,
+                    "minimum": 1
+                },
+                "rating_id": {
+                    "description": "评价ID",
+                    "type": "integer"
+                },
+                "user_id": {
+                    "description": "评价者ID",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.User": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "description": "联系信息",
+                    "type": "string"
+                },
+                "avatar": {
+                    "type": "string"
+                },
+                "birthday": {
+                    "type": "integer"
+                },
+                "city": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "country_code": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "description": "时间戳",
+                    "type": "integer"
+                },
+                "deleted_at": {
+                    "description": "删除时间戳",
+                    "type": "integer"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "email_verified_at": {
+                    "type": "integer"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "full_name": {
+                    "type": "string"
+                },
+                "gender": {
+                    "type": "string"
+                },
+                "invite_code": {
+                    "description": "推荐系统",
+                    "type": "string"
+                },
+                "invite_count": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_email_verified": {
+                    "type": "boolean"
+                },
+                "is_phone_verified": {
+                    "type": "boolean"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "last_login_at": {
+                    "type": "integer"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "latitude": {
+                    "description": "位置信息",
+                    "type": "number"
+                },
+                "license_expiry": {
+                    "type": "integer"
+                },
+                "license_number": {
+                    "description": "司机相关信息",
+                    "type": "string"
+                },
+                "location_updated_at": {
+                    "type": "integer"
+                },
+                "longitude": {
+                    "type": "number"
+                },
+                "online_status": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "phone_verified_at": {
+                    "type": "integer"
+                },
+                "postal_code": {
+                    "type": "string"
+                },
+                "sandbox": {
+                    "description": "沙盒信息",
+                    "type": "integer"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "状态信息",
+                    "type": "string"
+                },
+                "timezone": {
+                    "type": "string"
+                },
+                "total_rides": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "user_type": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                },
+                "vehicle": {
+                    "$ref": "#/definitions/greenride_internal_protocol.Vehicle"
+                }
+            }
+        },
+        "greenride_internal_protocol.UserOnlineRequest": {
+            "type": "object",
+            "required": [
+                "latitude",
+                "longitude",
+                "vehicle_id"
+            ],
+            "properties": {
+                "latitude": {
+                    "description": "到达纬度",
+                    "type": "number"
+                },
+                "longitude": {
+                    "description": "到达经度",
+                    "type": "number"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "vehicle_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.UserPromotionsRequest": {
+            "type": "object",
+            "properties": {
+                "end_date": {
+                    "description": "结束日期过滤 (时间戳毫秒)",
+                    "type": "integer"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "start_date": {
+                    "description": "开始日期过滤 (时间戳毫秒)",
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "优惠券状态过滤",
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "user_type": {
+                    "description": "用户类型，自动识别",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.UserRidesRequest": {
+            "type": "object",
+            "properties": {
+                "end_date": {
+                    "description": "结束日期过滤 (时间戳毫秒)",
+                    "type": "integer"
+                },
+                "limit": {
+                    "description": "每页数量，默认10",
+                    "type": "integer"
+                },
+                "order_type": {
+                    "description": "订单类型过滤",
+                    "type": "string"
+                },
+                "page": {
+                    "description": "页码，默认1",
+                    "type": "integer"
+                },
+                "start_date": {
+                    "description": "开始日期过滤 (时间戳毫秒)",
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "订单状态过滤",
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "用户ID",
+                    "type": "string"
+                },
+                "user_type": {
+                    "description": "用户类型：user(乘客), driver(司机)，空则自动识别",
+                    "type": "string"
+                }
+            }
+        },
+        "greenride_internal_protocol.Vehicle": {
+            "type": "object",
+            "properties": {
+                "brand": {
+                    "type": "string"
+                },
+                "category": {
+                    "description": "sedan, suv, mpv, van, hatchback",
+                    "type": "string"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "description": "时间戳",
+                    "type": "integer"
+                },
+                "current_latitude": {
+                    "description": "位置信息",
+                    "type": "number"
+                },
+                "current_longitude": {
+                    "type": "number"
+                },
+                "documents": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "documents_verified": {
+                    "description": "验证状态",
+                    "type": "boolean"
+                },
+                "driver": {
+                    "$ref": "#/definitions/greenride_internal_protocol.User"
+                },
+                "driver_id": {
+                    "type": "string"
+                },
+                "engine_size": {
+                    "type": "string"
+                },
+                "fuel_type": {
+                    "description": "petrol, diesel, electric, hybrid",
+                    "type": "string"
+                },
+                "has_air_conditioner": {
+                    "description": "车辆特性",
+                    "type": "boolean"
+                },
+                "has_bluetooth": {
+                    "type": "boolean"
+                },
+                "has_charger": {
+                    "type": "boolean"
+                },
+                "has_gps": {
+                    "type": "boolean"
+                },
+                "has_wifi": {
+                    "type": "boolean"
+                },
+                "inspection_date": {
+                    "type": "string"
+                },
+                "inspection_expiry": {
+                    "type": "string"
+                },
+                "inspection_passed": {
+                    "type": "boolean"
+                },
+                "insurance_company": {
+                    "type": "string"
+                },
+                "insurance_expiry": {
+                    "type": "string"
+                },
+                "insurance_policy_number": {
+                    "type": "string"
+                },
+                "last_service_date": {
+                    "description": "维护信息",
+                    "type": "string"
+                },
+                "last_used_at": {
+                    "description": "使用信息",
+                    "type": "integer"
+                },
+                "level": {
+                    "description": "economy, comfort, premium, luxury",
+                    "type": "string"
+                },
+                "location_updated_at": {
+                    "type": "integer"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "next_service_due": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "photos": {
+                    "description": "文档和图片",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "plate_number": {
+                    "type": "string"
+                },
+                "rating": {
+                    "description": "评价和统计",
+                    "type": "number"
+                },
+                "registration_expiry": {
+                    "type": "string"
+                },
+                "registration_number": {
+                    "description": "注册和保险信息",
+                    "type": "string"
+                },
+                "seat_capacity": {
+                    "type": "integer"
+                },
+                "service_mileage": {
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "状态信息",
+                    "type": "string"
+                },
+                "total_distance": {
+                    "type": "number"
+                },
+                "total_mileage": {
+                    "type": "integer"
+                },
+                "total_rides": {
+                    "type": "integer"
+                },
+                "transmission": {
+                    "description": "manual, automatic",
+                    "type": "string"
+                },
+                "type_id": {
+                    "description": "车辆类型和配置",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "integer"
+                },
+                "vehicle_id": {
+                    "description": "基础信息",
+                    "type": "string"
+                },
+                "verified_at": {
+                    "type": "integer"
+                },
+                "verify_status": {
+                    "description": "unverified, pending, active, inactive, maintenance, suspended, banned, retired",
+                    "type": "string"
+                },
+                "vin": {
+                    "type": "string"
+                },
+                "year": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_handlers.ChangePasswordRequest": {
+            "type": "object",
+            "required": [
+                "new_password",
+                "old_password"
+            ],
+            "properties": {
+                "new_password": {
+                    "description": "新密码",
+                    "type": "string"
+                },
+                "old_password": {
+                    "description": "旧密码",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.DeleteAccountRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "description": "删除原因（可选）",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.LoginRequest": {
+            "type": "object",
+            "properties": {
+                "app_id": {
+                    "description": "应用标识",
+                    "type": "string"
+                },
+                "device_id": {
+                    "description": "设备ID",
+                    "type": "string"
+                },
+                "email": {
+                    "description": "login_type=email时必填",
+                    "type": "string"
+                },
+                "fcm_token": {
+                    "description": "FCM推送相关字段（可选）",
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "phone": {
+                    "description": "login_type=phone时必填",
+                    "type": "string"
+                },
+                "platform": {
+                    "description": "平台：ios, android, web",
+                    "type": "string"
+                },
+                "user_type": {
+                    "description": "必填：passenger, driver，用于区分同一手机号/邮箱的不同身份",
+                    "type": "string"
+                },
+                "verify_code": {
+                    "description": "login_type=phone时必填",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "integer"
+                },
+                "is_verified": {
+                    "type": "boolean"
+                },
+                "needs_verify": {
+                    "description": "[\"email\", \"phone\"]",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "refresh_at": {
+                    "type": "integer"
+                },
+                "token": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/greenride_internal_protocol.User"
+                }
+            }
+        },
+        "internal_handlers.LogoutRequest": {
+            "type": "object",
+            "properties": {
+                "fcm_token": {
+                    "description": "FCM Token（可选，如果提供则只停用该设备的token）",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.RegisterRequest": {
+            "type": "object",
+            "required": [
+                "username",
+                "verify_code"
+            ],
+            "properties": {
+                "country_code": {
+                    "description": "可选，默认为卢旺达(RW)",
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "invite_code": {
+                    "description": "可选邀请码",
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "user_type": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                },
+                "verify_code": {
+                    "description": "验证码 (可选，如果提供则优先验证手机，然后邮箱)",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.RegisterResponse": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "user_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.ResetPasswordRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "method",
+                "new_password",
+                "user_type"
+            ],
+            "properties": {
+                "code": {
+                    "description": "验证码",
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "method": {
+                    "description": "email, phone",
+                    "type": "string",
+                    "enum": [
+                        "email",
+                        "phone"
+                    ]
+                },
+                "new_password": {
+                    "description": "新密码",
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "user_type": {
+                    "description": "用户类型",
+                    "type": "string",
+                    "enum": [
+                        "passenger",
+                        "driver"
+                    ]
+                }
+            }
+        },
+        "internal_handlers.SendVerifyCodeRequest": {
+            "type": "object",
+            "required": [
+                "type",
+                "user_type"
+            ],
+            "properties": {
+                "country_code": {
+                    "description": "手机号国家代码，默认为卢旺达(RW)",
+                    "type": "string"
+                },
+                "email": {
+                    "description": "邮箱地址，有则发送邮箱验证码",
+                    "type": "string"
+                },
+                "phone": {
+                    "description": "手机号码，有则发送短信验证码",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "验证码类型",
+                    "type": "string",
+                    "enum": [
+                        "register",
+                        "login",
+                        "reset_password",
+                        "change_phone",
+                        "change_email"
+                    ]
+                },
+                "user_type": {
+                    "description": "用户类型，用于区分同一联系方式的不同身份",
+                    "type": "string",
+                    "enum": [
+                        "passenger",
+                        "driver"
+                    ]
+                }
+            }
+        },
+        "internal_handlers.UpdateProfileRequest": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "avatar": {
+                    "type": "string"
+                },
+                "birthday": {
+                    "type": "integer"
+                },
+                "city": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "gender": {
+                    "type": "string"
+                },
+                "language": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "postal_code": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "timezone": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.UserVehicleRequest": {
+            "type": "object"
+        },
+        "internal_handlers.VerifyCodeRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "method",
+                "type",
+                "user_type"
+            ],
+            "properties": {
+                "code": {
+                    "description": "验证码",
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "method": {
+                    "description": "email, phone",
+                    "type": "string"
+                },
+                "new_email": {
+                    "description": "更换邮箱时需要",
+                    "type": "string"
+                },
+                "new_password": {
+                    "description": "重置密码时需要",
+                    "type": "string"
+                },
+                "new_phone": {
+                    "description": "更换手机时需要",
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "验证码类型",
+                    "type": "string"
+                },
+                "user_id": {
+                    "description": "某些情况下需要用户ID",
+                    "type": "string"
+                },
+                "user_type": {
+                    "description": "用户类型，用于区分同一联系方式的不同身份",
+                    "type": "string",
+                    "enum": [
+                        "passenger",
+                        "driver"
+                    ]
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

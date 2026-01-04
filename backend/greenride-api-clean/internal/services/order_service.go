@@ -1,0 +1,1383 @@
+package services
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+	"sync"
+	"time"
+
+	"greenride/internal/config"
+	"greenride/internal/i18n"
+	"greenride/internal/log"
+	"greenride/internal/models"
+	"greenride/internal/protocol"
+	"greenride/internal/utils"
+
+	"gorm.io/gorm"
+)
+
+// OrderService 通用订单服务 - 整合了所有订单相关功能
+type OrderService struct {
+}
+
+var (
+	orderServiceInstance *OrderService
+	orderServiceOnce     sync.Once
+)
+
+// GetOrderService 获取订单服务单例
+func GetOrderService() *OrderService {
+	if orderServiceInstance == nil {
+		SetupOrderService()
+	}
+	return orderServiceInstance
+}
+
+// SetupOrderService 设置订单服务
+func SetupOrderService() {
+	orderServiceOnce.Do(func() {
+		orderServiceInstance = &OrderService{}
+	})
+}
+
+// ============================================================================
+// 基础订单管理功能
+// ============================================================================
+
+// GetOrdersByUser 根据用户获取订单列表
+func (s *OrderService) GetOrdersByUser(req *protocol.UserRidesRequest) ([]*protocol.Order, int64) {
+	query := models.DB.Model(&models.Order{})
+
+	// 如果没有指定用户类型，则自动识别
+	userType := req.UserType
+	if userType == "" {
+		// 通过用户服务获取用户信息来确定用户类型
+		userService := GetUserService()
+		user := userService.GetUserByID(req.UserID)
+		if user == nil {
+			return nil, 0
+		}
+		userType = user.GetUserType()
+	}
+
+	// 根据用户类型设置查询条件
+	orderBy := "created_at DESC"
+	switch userType {
+	case protocol.UserTypePassenger:
+		query = query.Where("user_id = ?", req.UserID)
+	case protocol.UserTypeDriver:
+		query = query.Where("provider_id = ?", req.UserID)
+		orderBy = "accepted_at DESC"
+	default:
+		return nil, 0
+	}
+
+	// 状态过滤
+	if req.Status != "" {
+		query = query.Where("status = ?", req.Status)
+	}
+
+	// 订单类型过滤
+	if req.OrderType != "" {
+		query = query.Where("order_type = ?", req.OrderType)
+	}
+
+	// 日期过滤 (使用时间戳毫秒)
+	if req.StartDate != nil {
+		query = query.Where("created_at >= ?", *req.StartDate)
+	}
+	if req.EndDate != nil {
+		query = query.Where("created_at <= ?", *req.EndDate)
+	}
+
+	// 计算总数
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0
+	}
+
+	// 获取订单列表
+	var orders []*models.Order
+	var orderList []string
+	offset := (req.Page - 1) * req.Limit
+	if err := query.Select([]string{"order_id"}).Offset(offset).Limit(req.Limit).Order(orderBy).Find(&orderList).Error; err != nil {
+		return nil, 0
+	}
+	// 根据订单ID列表获取完整的订单信息
+	if len(orderList) > 0 {
+		if err := models.DB.Where("order_id IN ?", orderList).Order(orderBy).Find(&orders).Error; err != nil {
+			return nil, 0
+		}
+	}
+	list := []*protocol.Order{}
+	for _, order := range orders {
+		info := s.GetOrderInfo(order)
+		list = append(list, info)
+	}
+
+	return list, total
+}
+
+// CancelOrder 取消订单
+func (s *OrderService) CancelOrder(orderID, cancelledBy, reason string) protocol.ErrorCode {
+	order := models.GetOrderByID(orderID)
+	if order == nil || order.GetOrderType() != protocol.RideOrder {
+		return protocol.OrderNotFound
+	}
+	// 检查订单是否可以取消
+	if !s.CanCancelOrder(order.GetStatus()) {
+		return protocol.CancellationNotAllowed
+	}
+
+	// 使用事务处理取消逻辑
+	err := models.DB.Transaction(func(tx *gorm.DB) error {
+		// 更新订单状态
+		values := &models.OrderValues{}
+		values.CancelOrder(cancelledBy, reason).
+			SetCompletedAt(utils.TimeNowMilli())
+
+		if err := models.UpdateOrder(tx, order, values); err != nil {
+			return err
+		}
+
+		// 恢复用户优惠券状态
+		if err := models.ResetUserPromotionsByIDs(tx, order.GetUserPromotionIDs()); err != nil {
+			log.Get().Errorf("取消订单时恢复用户优惠券失败: %v", err)
+			//return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return protocol.DatabaseError
+	}
+
+	// 发送FCM通知
+	go s.NotifyOrderCancelled(orderID)
+
+	return protocol.Success
+}
+
+// ReleaseOrder 释放订单
+func (s *OrderService) ReleaseOrder(orderID, releasedBy, reason string) protocol.ErrorCode {
+	order := models.GetOrderByID(orderID)
+	if order == nil || order.GetOrderType() != protocol.RideOrder {
+		return protocol.OrderNotFound
+	}
+	// 检查订单是否可以取消
+	if !s.CanCancelOrder(order.GetStatus()) {
+		return protocol.CancellationNotAllowed
+	}
+
+	// 使用事务处理取消逻辑
+	err := models.DB.Transaction(func(tx *gorm.DB) error {
+		// 更新订单状态
+		values := &models.OrderValues{}
+		values.CancelOrder(releasedBy, reason).
+			SetCompletedAt(utils.TimeNowMilli())
+
+		if err := models.UpdateOrder(tx, order, values); err != nil {
+			return err
+		}
+
+		// 恢复用户优惠券状态
+		if err := models.ResetUserPromotionsByIDs(tx, order.GetUserPromotionIDs()); err != nil {
+			log.Get().Errorf("取消订单时恢复用户优惠券失败: %v", err)
+			//return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return protocol.DatabaseError
+	}
+
+	// 发送FCM通知
+	go s.NotifyOrderCancelled(orderID)
+
+	return protocol.Success
+}
+
+// CancelOrderRequest 使用请求结构体取消订单
+func (s *OrderService) CancelOrderRequest(req *protocol.CancelOrderRequest) protocol.ErrorCode {
+	// 获取当前用户信息，确定用户类型
+	userService := GetUserService()
+	user := userService.GetUserByID(req.UserID)
+	userType := protocol.UserTypePassenger
+	if user != nil && user.IsDriver() {
+		userType = protocol.UserTypeDriver
+	}
+
+	// 保存订单旧状态
+	oldOrder := models.GetOrderByID(req.OrderID)
+	if oldOrder == nil {
+		return protocol.OrderNotFound
+	}
+
+	// 调用取消订单的内部方法
+	errCode := s.CancelOrder(req.OrderID, req.UserID, req.Reason)
+
+	// 如果取消成功，记录历史
+	if errCode == protocol.Success {
+		go func() {
+			newOrder := models.GetOrderByID(req.OrderID)
+			GetOrderHistoryService().RecordOrderCancelled(oldOrder, newOrder, req.UserID, userType, req.Reason)
+		}()
+	}
+
+	return errCode
+}
+
+// CanCancelOrder 检查订单是否可以取消
+func (s *OrderService) CanCancelOrder(status string) bool {
+	cancellableStates := []string{
+		protocol.StatusRequested,
+		protocol.StatusAccepted,
+		protocol.StatusDriverArrived,
+		protocol.StatusDriverComing,
+	}
+
+	return slices.Contains(cancellableStates, status)
+}
+
+func (s *OrderService) GetOrderInfoByID(orderId string) *protocol.Order {
+	order := models.GetOrderByID(orderId)
+	if order == nil {
+		return nil
+	}
+	return s.GetOrderInfo(order)
+}
+
+func (s *OrderService) GetOrderInfo(order *models.Order) *protocol.Order {
+	info := order.Protocol()
+	if detail := models.GetOrderDetail(order.OrderID, order.GetOrderType()); detail != nil {
+		info.Details = detail.Protocol()
+		if detail.VehicleID != nil {
+			vehicle := models.GetVehicleByID(*detail.VehicleID)
+			if vehicle != nil {
+				info.Vehicle = vehicle.Protocol()
+			}
+		}
+	}
+	user := models.GetUserByID(order.GetUserID())
+	if user != nil {
+		info.Passenger = user.Protocol()
+	}
+	if order.GetProviderID() != "" {
+		provider := models.GetUserByID(order.GetProviderID())
+		if provider != nil {
+			info.Driver = provider.Protocol()
+		}
+	}
+	ratings := models.GetRatingsByOrderID(order.OrderID)
+	for _, rating := range ratings {
+		switch rating.RaterType {
+		case protocol.UserTypePassenger, protocol.UserTypeUser:
+			info.PassengerRatings = append(info.PassengerRatings, rating.Protocol())
+		case protocol.UserTypeDriver, protocol.UserTypeProvider:
+			info.DriverRatings = append(info.DriverRatings, rating.Protocol())
+		}
+	}
+
+	return info
+}
+
+// ============================================================================
+// RideOrderService 功能融入 - 网约车订单管理
+// ============================================================================
+
+// EstimateOrder 预估订单费用
+func (s *OrderService) EstimateOrder(req *protocol.EstimateRequest) (*protocol.OrderPrice, protocol.ErrorCode) {
+	// 0. 向后兼容性处理
+	if req.VehicleCategory == "" {
+		req.VehicleCategory = "sedan" // 默认小车
+	}
+	if req.VehicleLevel == "" {
+		req.VehicleLevel = "economy" // 默认经济型
+	}
+
+	// 1. 使用 GoogleService 获取准确的路线信息
+	if req.EstimatedDistance == 0 || req.EstimatedDuration == 0 {
+		s.EnrichRouteByGoogleMap(req)
+	}
+
+	// 2. 使用 PriceRuleService 进行价格计算
+	pricingService := GetPriceRuleService()
+	req.SnapshotDuration = 30
+
+	// 3. 调用价格引擎进行计算
+	snapshot := pricingService.EstimatePrice(req)
+
+	// 保存价格快照
+	if err := pricingService.SavePriceSnapshot(snapshot); err != nil {
+		return nil, protocol.DatabaseError
+	}
+
+	// 4. 从快照转换为 OrderPrice
+	orderPrice := snapshot.Protocol()
+
+	return orderPrice, protocol.Success
+}
+
+// EnrichRouteByGoogleMap 使用 GoogleService 丰富路线数据
+func (s *OrderService) EnrichRouteByGoogleMap(req *protocol.EstimateRequest) {
+	googleService := GetGoogleService()
+	if googleService == nil {
+		return
+	}
+
+	// 根据服务类型设置路线偏好
+	avoidTolls := false
+	if req.VehicleLevel == "economy" {
+		avoidTolls = true // 标准服务避开收费路段
+	}
+
+	// 调用 GoogleService 计算路线
+	ctx := context.Background()
+	route, err := googleService.CalculateRidehailingRoute(ctx,
+		req.PickupLatitude, req.PickupLongitude,
+		req.DropoffLatitude, req.DropoffLongitude,
+		avoidTolls)
+	if err != nil {
+		return
+	}
+
+	// 单位转换并填充到请求中
+	// Google API 返回米和秒，转换为公里和分钟
+	if route.Distance != nil {
+		req.EstimatedDistance = float64(route.Distance.Value) / 1000.0 // 米 -> 公里
+	}
+	if route.Duration != nil {
+		req.EstimatedDuration = route.Duration.Value / 60 // 秒 -> 分钟
+	}
+}
+
+// ValidateRideOrderSnapshot 验证行程订单快照
+func (s *OrderService) ValidateRideOrderSnapshot(orderID string, snapshot map[string]interface{}) error {
+	order := models.GetRideOrderByOrderID(orderID)
+	if order == nil {
+		return errors.New("ride order not found")
+	}
+
+	// 验证关键字段是否匹配
+	if pickup, ok := snapshot["pickup_address"].(string); ok {
+		if order.PickupAddress != nil && *order.PickupAddress != pickup {
+			return errors.New("pickup address mismatch")
+		}
+	}
+
+	if dropoff, ok := snapshot["dropoff_address"].(string); ok {
+		if order.DropoffAddress != nil && *order.DropoffAddress != dropoff {
+			return errors.New("dropoff address mismatch")
+		}
+	}
+
+	return nil
+}
+
+func (s *OrderService) ArrivedOrder(req *protocol.OrderActionRequest) protocol.ErrorCode {
+	user := models.GetUserByID(req.UserID)
+	if !user.IsDriver() {
+		return protocol.AccessDenied
+	}
+	if req.OrderID == "" {
+		return protocol.InvalidParams
+	}
+	order := models.GetOrderByID(req.OrderID)
+	if order == nil || order.GetOrderType() != protocol.RideOrder {
+		return protocol.OrderNotFound
+	}
+	if order.GetProviderID() != user.UserID {
+		return protocol.AccessDenied
+	}
+	if order.GetStatus() == protocol.StatusDriverArrived {
+		return protocol.Success
+	}
+	if order.GetStatus() != protocol.StatusDriverComing && order.GetStatus() != protocol.StatusAccepted {
+		return protocol.InvalidRideStatus // 司机状态不正确，无法标记到达
+	}
+	//检查当前司机是否有其他进行中的订单
+	if s.CountActiveRideOrdersByDriver(user.UserID, order.OrderID) > 0 {
+		return protocol.DriverHasActiveOrderInProgress // 司机有在途订单，不能开启新行程
+	}
+	err := models.DB.Transaction(func(tx *gorm.DB) error {
+		orderValues := models.OrderValues{}
+		orderValues.SetStatus(protocol.StatusDriverArrived)
+		if err := models.UpdateOrder(tx, order, &orderValues); err != nil {
+			return err
+		}
+		detail := models.OrderDetailValues{}
+		detail.SetDriverArrived()
+		return tx.Table(models.GetTableNameByOrderType(order.GetOrderType())).Where("order_id = ?", order.OrderID).UpdateColumns(detail).Error
+	})
+	if err != nil {
+		return protocol.DatabaseError
+	}
+	go GetUserService().RefreshDriverOrderQueue(req.UserID)
+	// 发送FCM通知
+	go s.NotifyDriverArrived(req.OrderID)
+
+	return protocol.Success
+}
+
+func (s *OrderService) StartOrder(req *protocol.OrderActionRequest) protocol.ErrorCode {
+	user := models.GetUserByID(req.UserID)
+	if !user.IsDriver() {
+		return protocol.AccessDenied
+	}
+	order := models.GetOrderByID(req.OrderID)
+	if order == nil || order.GetOrderType() != protocol.RideOrder || order.GetProviderID() != user.UserID {
+		return protocol.OrderNotFound
+	}
+	if order.GetStatus() == protocol.StatusInProgress {
+		return protocol.Success
+	}
+	// 司机还未到达，无法开始行程
+	if !slices.Contains([]string{protocol.StatusDriverArrived, protocol.StatusAccepted}, order.GetStatus()) {
+		return protocol.InvalidRideStatus
+	}
+	//检查当前司机是否有其他进行中的订单
+	if s.CountActiveRideOrdersByDriver(user.UserID, order.OrderID) > 0 {
+		return protocol.DriverHasActiveOrderInProgress // 司机有在途订单，不能开启新行程
+	}
+	orderValues := models.OrderValues{}
+	orderValues.StartOrder()
+	if err := models.UpdateOrder(models.DB, order, &orderValues); err != nil {
+		return protocol.DatabaseError
+	}
+	go GetUserService().RefreshDriverOrderQueue(req.UserID)
+	// 发送FCM通知
+	go s.NotifyTripStarted(req.OrderID)
+
+	// 记录订单开始历史
+	go func() {
+		// 获取更新后的订单
+		updatedOrder := models.GetOrderByID(req.OrderID)
+		if updatedOrder != nil {
+			GetOrderHistoryService().RecordOrderStarted(order, updatedOrder, req.UserID)
+		}
+	}()
+
+	return protocol.Success
+}
+
+func (s *OrderService) FinishOrder(req *protocol.OrderActionRequest) protocol.ErrorCode {
+	user := models.GetUserByID(req.UserID)
+	if !user.IsDriver() {
+		return protocol.AccessDenied
+	}
+	if req.OrderID == "" {
+		return protocol.InvalidParams
+	}
+	order := models.GetOrderByID(req.OrderID)
+	if order == nil || order.GetOrderType() != protocol.RideOrder || order.GetProviderID() != user.UserID {
+		return protocol.OrderNotFound
+	}
+	if order.GetStatus() == protocol.StatusDriverArrived {
+		return protocol.Success
+	}
+	if order.GetStatus() != protocol.StatusInProgress {
+		return protocol.RideNotStarted // 行程还没开始
+	}
+	err := models.DB.Transaction(func(tx *gorm.DB) error {
+		orderValues := models.OrderValues{}
+		orderValues.FinishOrder()
+		return models.UpdateOrder(tx, order, &orderValues)
+	})
+	if err != nil {
+		return protocol.DatabaseError
+	}
+
+	go GetUserService().RefreshDriverOrderQueue(req.UserID)
+	// 发送FCM通知
+	go s.NotifyTripEnded(req.OrderID)
+
+	// 记录订单完成历史
+	go func() {
+		// 获取更新后的订单
+		updatedOrder := models.GetOrderByID(req.OrderID)
+		if updatedOrder != nil {
+			GetOrderHistoryService().RecordOrderFinished(order, updatedOrder, req.UserID)
+		}
+	}()
+
+	return protocol.Success
+}
+
+// GetActiveRideOrderByUser gets active ride order for a user
+func (s *OrderService) GetActiveRideOrderByUser(userID string) (*models.Order, error) {
+	var order models.Order
+	err := models.DB.Where("user_id = ? AND status IN (?)", userID, []string{protocol.StatusRequested, protocol.StatusPending, protocol.StatusAccepted, protocol.StatusInProgress}).First(&order).Error
+	if err != nil {
+		return nil, err
+	}
+	return &order, nil
+}
+
+// CountActiveRideOrdersByUser counts active ride orders for a user
+func (s *OrderService) CountActiveRideOrdersByUser(userID string) int64 {
+	var count int64
+	err := models.DB.Model(&models.Order{}).Where("user_id = ? AND status IN (?)", userID, []string{protocol.StatusRequested, protocol.StatusPending, protocol.StatusAccepted, protocol.StatusInProgress}).Count(&count).Error
+	if err != nil {
+		return 0
+	}
+	return count
+}
+func (s *OrderService) CountActiveRideOrdersByDriver(userID, orderID string) int64 {
+	var count int64
+	err := models.DB.Model(&models.Order{}).Where("provider_id = ? AND status IN (?) and order_id != ?", userID, []string{protocol.StatusDriverArrived, protocol.StatusInProgress}, orderID).Count(&count).Error
+	if err != nil {
+		return 0
+	}
+	return count
+}
+
+func (s *OrderService) GenerateOrderIDByType(orderType string) string {
+	switch orderType {
+	case protocol.RideOrder:
+		return utils.GenerateRideOrderID()
+	default:
+		return utils.GenerateOrderID()
+	}
+}
+
+// CreateOrder creates a new order with details from request
+func (s *OrderService) CreateOrder(req *protocol.CreateOrderRequest) (*protocol.Order, protocol.ErrorCode) {
+	log.Get().Infof("OrderService.CreateOrder: 开始创建订单，UserID=%s, PriceID=%s", req.UserID, req.PriceID)
+
+	// 调用价格验证和锁定逻辑
+	pricingService := GetPriceRuleService()
+	price, errCode := pricingService.ValidateAndLockPriceID(req.PriceID)
+	if errCode != protocol.Success {
+		log.Get().Errorf("OrderService.CreateOrder: 价格验证失败，ErrorCode=%s", errCode)
+		return nil, errCode
+	}
+
+	log.Get().Infof("OrderService.CreateOrder: 价格验证成功，OrderType=%s, SnapshotUserID=%s", price.GetOrderType(), price.GetUserID())
+
+	// 根据订单类型创建相应的详情
+	switch price.GetOrderType() {
+	case protocol.RideOrder:
+		log.Get().Infof("OrderService.CreateOrder: 订单类型为RideOrder，检查用户活跃订单")
+		// 检查用户是否有活跃的网约车订单
+		activeOrderCount := s.CountActiveRideOrdersByUser(req.UserID)
+		if activeOrderCount > 0 {
+			log.Get().Warnf("OrderService.CreateOrder: 用户有活跃订单，数量=%d", activeOrderCount)
+			return nil, protocol.RideInProgress
+		}
+		log.Get().Infof("OrderService.CreateOrder: 用户没有活跃订单，继续创建")
+	default:
+		log.Get().Errorf("OrderService.CreateOrder: 不支持的订单类型=%s", price.GetOrderType())
+		// 其他订单类型暂时不支持
+		return nil, protocol.InvalidParams
+	}
+	// 从快照metadata获取业务参数
+	snapshotMeta := price.GetMetadata()
+	nowtime := utils.TimeNowMilli()
+	// 创建订单metadata，只记录必要信息
+	metadata := map[string]any{}
+	// 只记录快照ID，不重复存储快照中的坐标等信息
+	metadata["price_id"] = price.SnapshotID
+
+	// 检查用户是否为sandbox用户
+	user := models.GetUserByID(req.UserID)
+	sandbox := 0
+	if user != nil && user.IsSandbox() {
+		sandbox = 1 // 如果用户是sandbox用户，设置订单的sandbox=1
+	}
+
+	// 创建订单对象
+	order := &models.Order{
+		OrderID: s.GenerateOrderIDByType(price.GetOrderType()),
+		Salt:    utils.GenerateSalt(),
+		OrderValues: &models.OrderValues{
+			PromoDiscount:       price.PromoDiscount,
+			UserPromoDiscount:   price.UserPromoDiscount,
+			UserPromotionIDs:    price.UserPromotionIDs,
+			OrderDispatchValues: &models.OrderDispatchValues{},
+		},
+	}
+
+	// 确定要使用的用户ID：优先使用请求中的UserID，如果为空则使用快照中的UserID
+	userID := req.UserID
+	if userID == "" {
+		userID = price.GetUserID()
+	}
+	orderConfig := config.Get().Order
+	expiredAt := time.Now().Add(time.Duration(orderConfig.RideOrder.ExpireMinutes) * time.Minute).UnixMilli()
+
+	order.SetScheduleType(protocol.ScheduleTypeInstant).
+		SetStatus(protocol.StatusRequested).
+		SetPaymentStatus(protocol.StatusPending).
+		SetOrderType(price.GetOrderType()).
+		SetUserID(userID).
+		SetOriginalAmount(price.GetOriginalFare()).
+		SetDiscountedAmount(price.GetDiscountedFare()).
+		SetPaymentAmount(price.GetDiscountedFare()).
+		SetTotalDiscountAmount(price.GetDiscountAmount()).
+		SetCurrency(price.GetCurrency()).
+		SetScheduledAt(price.GetScheduledAt()).
+		SetNotes(req.Notes).
+		SetMetadata(metadata).
+		SetSandbox(sandbox).
+		SetExpiredAt(expiredAt)
+
+	//15分钟以上的预定视为预约订单
+	if order.GetScheduledAt()-nowtime > int64(15*time.Minute) {
+		order.SetScheduleType(protocol.ScheduleTypeScheduled)
+	}
+	dispatchCfg := config.Get().Dispatch
+	order.SetAutoDispatchEnabled(dispatchCfg.Enabled)
+	if order.GetAutoDispatchEnabled() {
+		order.SetCurrentRound(1).
+			SetDispatchStatus(protocol.StatusPending).
+			SetMaxRounds(dispatchCfg.MaxRounds)
+	}
+	err := models.GetDB().Transaction(func(tx *gorm.DB) error {
+		// 创建主订单
+		if err := tx.Create(order).Error; err != nil {
+			return err
+		}
+
+		// 根据订单类型创建详情表
+		switch price.GetOrderType() {
+		case protocol.RideOrder:
+			// 创建网约车详情，优先从快照获取信息
+			rideOrder := models.NewRideOrder(order.OrderID)
+			rideOrder.SetVehicleCategory(price.GetVehicleCategory()).
+				SetVehicleLevel(price.GetVehicleLevel()).
+				SetEstimatedDistance(price.GetDistance()).
+				SetEstimatedDuration(price.GetDuration()).
+				SetPassengerCount(snapshotMeta.GetInt("passenger_count")).
+				SetPickupAddress(snapshotMeta.Get("pickup_address")).
+				SetPickupLatitude(snapshotMeta.GetFloat64("pickup_latitude")).
+				SetPickupLongitude(snapshotMeta.GetFloat64("pickup_longitude")).
+				SetPickupLandmark(snapshotMeta.Get("pickup_landmark")).
+				SetDropoffAddress(snapshotMeta.Get("dropoff_address")).
+				SetDropoffLatitude(snapshotMeta.GetFloat64("dropoff_latitude")).
+				SetDropoffLongitude(snapshotMeta.GetFloat64("dropoff_longitude")).
+				SetDropoffLandmark(snapshotMeta.Get("dropoff_landmark"))
+
+			if err := tx.Create(rideOrder).Error; err != nil {
+				return err
+			}
+		}
+		// 更新价格快照的订单关联
+		if err := models.UpdatePriceOrderID(tx, price.SnapshotID, order.OrderID); err != nil {
+			return err
+		}
+
+		// 将使用的用户优惠券标记为已使用
+		for _, item := range price.GetBreakdowns() {
+			if item.Category != protocol.PriceRuleCategoryUserPromotion {
+				continue
+			}
+			if err := models.UseUserPromotionByID(tx, item.RuleID, order.OrderID, item.Amount); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, protocol.DatabaseError
+	}
+	orderInfo := s.GetOrderInfo(order)
+
+	go GetUserService().RefreshUserOrderQueue(req.UserID)
+	//开始自动派单（异步）
+	go s.DispatchOrder(orderInfo)
+	// 记录订单创建历史
+	go GetOrderHistoryService().RecordOrderCreated(order, req.UserID)
+
+	return orderInfo, protocol.Success
+}
+
+func (s *OrderService) DispatchOrderByID(orderID string) (result *protocol.DispatchResult) {
+	order := s.GetOrderInfoByID(orderID)
+	return s.DispatchOrder(order)
+}
+
+func (s *OrderService) DispatchOrder(order *protocol.Order) (result *protocol.DispatchResult) {
+	result = &protocol.DispatchResult{
+		Success: false,
+	}
+	if !order.AutoDispatchEnabled {
+		result.Message = "Auto dispatch not enabled for this order"
+		return
+	}
+	if order.Details == nil {
+		order = s.GetOrderInfoByID(order.OrderID)
+	}
+	// 这里是派单的具体逻辑
+	//time.Sleep(10 * time.Second)
+	GetDispatchService().StartAutoDispatch(order)
+	return
+}
+
+// AcceptOrder accepts an order
+func (s *OrderService) AcceptOrder(req *protocol.OrderActionRequest) protocol.ErrorCode {
+	user := models.GetUserByID(req.UserID)
+	// 检查用户类型
+	if !user.IsDriver() {
+		return protocol.PermissionDenied
+	}
+	if user.GetOnlineStatus() != protocol.StatusOnline {
+		return protocol.DriverOffline // 司机未上线，无法接单
+	}
+	if models.CountProcessingOrdersByUserID(req.UserID) > 3 {
+		return protocol.DriverHasActiveOrder // 司机有未完成的订单，无法接单
+	}
+	var order *models.Order
+	if req.DispatchId != "" {
+		dispatch := models.GetDispatchByID(req.DispatchId)
+		if dispatch != nil {
+			order = models.GetOrderByID(dispatch.OrderID)
+		}
+	} else if req.OrderID != "" {
+		order = models.GetOrderByID(req.OrderID)
+	}
+	// 先获取要接受的订单信息，确定订单类型
+	if order == nil || order.GetOrderType() != protocol.RideOrder {
+		return protocol.OrderNotFound
+	}
+
+	// 检查订单状态是否可以接单
+	if order.GetStatus() != protocol.StatusRequested {
+		// 根据当前状态返回具体错误
+		switch order.GetStatus() {
+		case protocol.StatusAccepted:
+			return protocol.RideAlreadyBooked // 订单已被接单
+		case protocol.StatusCancelled:
+			return protocol.RideAlreadyCancelled // 订单已取消
+		case protocol.StatusCompleted:
+			return protocol.RideAlreadyCompleted // 订单已完成
+		default:
+			return protocol.InvalidRideStatus // 订单状态不允许接单
+		}
+	}
+
+	// 检查订单是否已被其他司机接单
+	if order.GetProviderID() != "" && order.GetProviderID() != req.UserID {
+		return protocol.RideAlreadyBooked // 订单已被其他司机接单
+	}
+	vehicle := models.GetVehicleByDriverID(req.UserID)
+	if vehicle == nil || !vehicle.IsAvailable() {
+		return protocol.VehicleNotAssigned // 司机没有分配车辆，无法接单
+	}
+	orderValues := models.OrderValues{}
+	orderValues.SetAcceptedAt(utils.TimeNowMilli()).
+		SetStatus(protocol.StatusAccepted).
+		SetProviderID(req.UserID)
+	// 使用事务确保订单和车辆信息的一致性
+	hasAccepted := true
+	err := models.DB.Transaction(func(tx *gorm.DB) error {
+		// 更新主订单表
+		rs := tx.Model(&models.Order{}).
+			Where("order_id = ?", order.OrderID).
+			Where("status = ?", protocol.StatusRequested).
+			Where("provider_id IS NULL or provider_id =''").
+			UpdateColumns(orderValues)
+		if rs.Error != nil {
+			return rs.Error
+		}
+		if rs.RowsAffected == 0 {
+			hasAccepted = false
+			return nil
+		}
+
+		// 更新网约车订单表的车辆ID
+		return tx.Model(&models.RideOrder{}).
+			Where("order_id = ?", req.OrderID).
+			Update("vehicle_id", vehicle.VehicleID).Error
+	})
+	if err != nil {
+		return protocol.DatabaseError
+	}
+	if !hasAccepted {
+		return protocol.RideAlreadyBooked // 订单已被其他司机接单
+	}
+	models.RefreshOrderCache(order.OrderID)
+	go GetUserService().RefreshDriverOrderQueue(req.UserID)
+	if req.DispatchId != "" {
+		// 如果是调度系统分配的订单，更新调度记录
+		GetDispatchService().HandleDriverAccept(req.DispatchId, req.UserID, req.Latitude, req.Longitude)
+	}
+	// 发送FCM通知给乘客（司机已接单）
+	go s.NotifyOrderAccepted(order.OrderID)
+
+	// 记录订单接受历史
+	go func() {
+		GetOrderHistoryService().RecordOrderAccepted(order, order, req.UserID)
+	}()
+
+	return protocol.Success
+}
+
+func (s *OrderService) RejectOrder(req *protocol.OrderActionRequest) protocol.ErrorCode {
+	user := models.GetUserByID(req.UserID)
+	// 检查用户类型
+	userType := user.GetUserType()
+	if userType != protocol.UserTypeDriver {
+		return protocol.PermissionDenied
+	}
+
+	// 先获取要接受的订单信息，确定订单类型
+	var order *models.Order
+	if req.DispatchId != "" {
+		dispatch := models.GetDispatchByID(req.DispatchId)
+		if dispatch != nil {
+			order = models.GetOrderByID(dispatch.OrderID)
+		}
+	} else if req.OrderID != "" {
+		order = models.GetOrderByID(req.OrderID)
+	}
+	// 先获取要接受的订单信息，确定订单类型
+	if order == nil || order.GetOrderType() != protocol.RideOrder {
+		return protocol.OrderNotFound
+	}
+
+	// 检查订单状态是否可以接单
+	if order.GetStatus() != protocol.StatusRequested {
+		// 根据当前状态返回具体错误
+		switch order.GetStatus() {
+		case protocol.StatusAccepted:
+			return protocol.RideAlreadyBooked // 订单已被接单
+		case protocol.StatusCancelled:
+			return protocol.RideAlreadyCancelled // 订单已取消
+		case protocol.StatusCompleted:
+			return protocol.RideAlreadyCompleted // 订单已完成
+		default:
+			return protocol.InvalidRideStatus // 订单状态不允许接单
+		}
+	}
+
+	if req.DispatchId != "" {
+		// 如果是调度系统分配的订单，更新调度记录
+		GetDispatchService().HandleDriverAccept(req.DispatchId, req.UserID, req.Latitude, req.Longitude)
+	}
+
+	// 记录订单拒绝历史
+	go func() {
+		GetOrderHistoryService().RecordOrderRejected(order, order, req.UserID, req.RejectReason)
+	}()
+
+	return protocol.Success
+}
+
+// GetNearbyOrders gets nearby orders
+func (s *OrderService) GetNearbyOrders(req *protocol.GetNearbyOrdersRequest) (*protocol.GetNearbyOrdersResponse, protocol.ErrorCode) {
+	var order_list []string
+	query := models.GetDB().Model(&models.Order{}).
+		Where("order_type = ?", req.OrderType).
+		Where("status = ?", protocol.StatusRequested)
+	//计算坐标范围,根据坐标和半径
+	if req.Radius != 0 && req.Latitude != 0 && req.Longitude != 0 {
+		minLat, maxLat, minLng, maxLng := utils.CalculateCoordinateRange(req.Latitude, req.Longitude, req.Radius)
+		// 添加地理范围过滤
+		query = query.Joins("JOIN t_ride_orders ON t_orders.order_id = t_ride_orders.order_id").
+			Where("t_ride_orders.pickup_latitude BETWEEN ? AND ?", minLat, maxLat).
+			Where("t_ride_orders.pickup_longitude BETWEEN ? AND ?", minLng, maxLng)
+	}
+
+	// Mock implementation - in real app would use spatial queries
+	query.Select([]string{"order_id"}).Limit(req.Limit).Order("created_at DESC").Find(&order_list)
+
+	var orderList []*protocol.Order
+	for _, orderID := range order_list {
+		orderList = append(orderList, s.GetOrderInfoByID(orderID))
+	}
+
+	response := &protocol.GetNearbyOrdersResponse{
+		Orders: orderList,
+		Count:  len(orderList),
+	}
+
+	return response, protocol.Success
+}
+
+func (s *OrderService) OrderPayment(req *protocol.OrderPaymentRequest) (result *protocol.OrderPaymentResult, errCode protocol.ErrorCode) {
+	errCode = protocol.Success
+	user := models.GetUserByID(req.UserID)
+	if user == nil {
+		errCode = protocol.UserNotFound
+		return
+	}
+	// 设置用户ID
+	req.UserID = user.UserID
+	if req.PaymentMethod == protocol.PaymentMethodCash && !user.IsDriver() {
+		errCode = protocol.PermissionDenied
+		return
+	}
+	if req.PaymentMethod != protocol.PaymentMethodCash && !user.IsPassenger() {
+		errCode = protocol.PermissionDenied
+		return
+	}
+	order := models.GetOrderByID(req.OrderID)
+	if order == nil || (order.GetProviderID() != user.UserID && order.GetUserID() != user.UserID) {
+		errCode = protocol.OrderNotFound
+		return
+	}
+	if order.GetPaymentStatus() == protocol.StatusSuccess {
+		result = &protocol.OrderPaymentResult{
+			OrderID: order.OrderID,
+			Status:  order.GetPaymentStatus(),
+		}
+		errCode = protocol.Success
+		return
+	} else if order.GetPaymentMethod() == req.PaymentMethod && order.GetPaymentStatus() == protocol.StatusPending && order.GetPaymentRedirectURL() != "" {
+		result = &protocol.OrderPaymentResult{
+			RedirectURL: order.GetPaymentRedirectURL(),
+			OrderID:     order.OrderID,
+			Status:      order.GetPaymentStatus(),
+		}
+		errCode = protocol.Success
+		return
+	}
+	values := &models.OrderValues{}
+	values.SetPaymentMethod(req.PaymentMethod)
+	cresult, errCode := GetPaymentService().OrderPayment(&ChannelPaymentRequest{
+		Phone:         req.Phone,
+		Email:         req.Email,
+		AccountNo:     req.AccountNo,
+		AccountName:   req.AccountName,
+		PaymentMethod: req.PaymentMethod,
+		Order:         order,
+		User:          user,
+	})
+	if errCode != protocol.Success {
+		return
+	}
+
+	values.SetPaymentMethod(req.PaymentMethod).
+		SetPaymentID(cresult.PaymentID).
+		SetChannelPaymentID(cresult.ChannelPaymentID).
+		SetPaymentRedirectURL(cresult.RedirectURL).
+		SetPaymentResult("")
+	switch cresult.Status {
+	case protocol.StatusSuccess:
+		values.CompleteOrder().
+			SetPaymentStatus(protocol.StatusSuccess)
+	case protocol.StatusFailed:
+		// 根据req.Language，判断ResCode是否预定义的结果码，如果是，PaymentResult就用[ResCode]对应翻译
+		paymentResult := s.getTranslatedPaymentResult(cresult.ResCode, cresult.ResMsg, req.Language)
+		values.SetPaymentResult(paymentResult)
+	}
+	if err := models.UpdateOrder(models.DB, order, values); err != nil {
+		errCode = protocol.DatabaseError
+		return
+	}
+	// 支付成功时，发送支付确认消息
+	if order.GetPaymentStatus() == protocol.StatusSuccess {
+		go s.NotifyPaymentConfirmed(req.OrderID)
+	}
+
+	result = &protocol.OrderPaymentResult{
+		RedirectURL: order.GetPaymentRedirectURL(),
+		OrderID:     order.OrderID,
+		Status:      order.GetPaymentStatus(),
+		Reason:      order.GetPaymentResult(),
+	}
+	return
+}
+
+func (s *OrderService) CheckOrderPayment(order_id, payment_id string) {
+	order := models.GetOrderByID(order_id)
+	if order == nil {
+		return
+	}
+	if order.GetPaymentStatus() == protocol.StatusSuccess || order.GetPaymentStatus() == protocol.StatusFailed {
+		return
+	}
+	if order.GetPaymentMethod() == protocol.PaymentMethodCash {
+		return
+	}
+	payment := models.GetPaymentByID(payment_id)
+	if payment == nil {
+		payment = models.GetLastPaymentByOrderID(order_id)
+	}
+	if payment == nil {
+		return
+	}
+	if order.GetPaymentStatus() == payment.GetStatus() {
+		return
+	}
+	values := &models.OrderValues{}
+	values.SetPaymentRedirectURL(payment.GetRedirectURL())
+	switch payment.GetStatus() {
+	case protocol.StatusSuccess:
+		values.SetPaymentStatus(protocol.StatusSuccess).
+			SetStatus(protocol.StatusCompleted).
+			SetCompletedAt(payment.GetCompletedAt()).
+			SetPaymentID(payment.PaymentID)
+		// 处理成功状态
+	case protocol.StatusFailed:
+		// 处理失败状态
+		values.SetPaymentStatus(protocol.StatusFailed).
+			SetPaymentID(payment.PaymentID).
+			SetPaymentResult(fmt.Sprintf("[%v]%v", payment.GetResCode(), payment.GetResMsg()))
+	}
+	if err := models.UpdateOrder(models.DB, order, values); err != nil {
+		log.Get().Errorf("OrderService.CheckOrderPayment: 更新订单支付状态失败, OrderID=%s, Error=%v", order.OrderID, err)
+		return
+	}
+	// 支付成功时，发送支付确认消息
+	if order.GetPaymentStatus() == protocol.StatusSuccess {
+		go s.NotifyPaymentConfirmed(order.OrderID)
+	}
+	log.Get().Info("OrderService.CheckOrderPayment: 订单支付状态已更新", "OrderID", order.OrderID, "PaymentStatus", order.GetPaymentStatus())
+}
+
+// ============================================================================
+// FCM 推送通知功能
+// ============================================================================
+
+// NotifyPassenger 通知乘客 - 接收订单对象作为参数
+func (s *OrderService) NotifyPassenger(order *models.Order, notificationType string) error {
+	if order == nil {
+		return errors.New("order is nil")
+	}
+
+	if order.GetUserID() == "" {
+		return errors.New("passenger not found in order")
+	}
+
+	// 获取乘客信息
+	passenger := models.GetUserByID(order.GetUserID())
+	if passenger == nil {
+		return errors.New("passenger not found")
+	}
+
+	// 获取订单详情
+	orderDetail := models.GetOrderDetail(order.OrderID, order.GetOrderType())
+	if orderDetail == nil {
+		return errors.New("order detail not found")
+	}
+
+	// 根据通知类型映射到消息类型
+	var msgType string
+	switch notificationType {
+	case protocol.NotificationTypeOrderAccepted:
+		msgType = protocol.MsgTypePassengerOrderAccepted
+	case protocol.NotificationTypeDriverArrived:
+		msgType = protocol.MsgTypePassengerDriverArrived
+	case protocol.NotificationTypeTripStarted:
+		msgType = protocol.MsgTypePassengerTripStarted
+	case protocol.NotificationTypeTripEnded:
+		msgType = protocol.MsgTypePassengerTripEnded
+	case protocol.NotificationTypePaymentConfirmed:
+		msgType = protocol.MsgTypePassengerPaymentConfirmed
+	case protocol.NotificationTypeOrderCancelled:
+		msgType = protocol.MsgTypePassengerOrderCancelled
+	default:
+		return fmt.Errorf("unsupported notification type for passenger: %s", notificationType)
+	}
+
+	// 准备消息参数
+	params := map[string]any{
+		"to":                order.GetUserID(),
+		"OrderID":           order.OrderID,
+		"OrderStatus":       order.GetStatus(),
+		"PickupAddress":     orderDetail.GetPickupAddress(),
+		"DropoffAddress":    orderDetail.GetDropoffAddress(),
+		"Amount":            order.GetPaymentAmount().StringFixed(2),
+		"Currency":          order.GetCurrency(),
+		"msg_type":          protocol.FCMMessageTypeOrder,
+		"notification_type": notificationType,
+		"order_status":      order.GetStatus(),
+	}
+
+	// 添加司机信息
+	if order.GetProviderID() != "" {
+		driver := models.GetUserByID(order.GetProviderID())
+		if driver != nil {
+			params["DriverName"] = driver.GetDisplayName()
+
+			// 添加车辆信息
+			if orderDetail.GetVehicleID() != "" {
+				vehicle := models.GetVehicleByID(orderDetail.GetVehicleID())
+				if vehicle != nil {
+					params["PlateNumber"] = vehicle.GetPlateNumber()
+				}
+			}
+		}
+	}
+
+	// 添加取消信息
+	if notificationType == protocol.NotificationTypeOrderCancelled {
+		if order.CancelledBy != nil {
+			cancellerName := "System"
+			if *order.CancelledBy == order.GetUserID() {
+				cancellerName = "You"
+			} else if *order.CancelledBy == order.GetProviderID() {
+				cancellerName = "Driver"
+			}
+			params["CancelledBy"] = cancellerName
+		}
+		if order.CancelReason != nil {
+			params["CancelReason"] = *order.CancelReason
+		} else {
+			params["CancelReason"] = "No reason provided"
+		}
+	}
+
+	// 创建消息对象
+	message := &Message{
+		Type:     msgType,
+		Channels: []string{protocol.MsgChannelFcm},
+		Params:   params,
+		Language: getUserLanguage(passenger), // 使用用户偏好语言
+	}
+
+	// 使用消息服务发送
+	return GetMessageService().SendMessage(message)
+}
+
+// NotifyDriver 通知司机 - 接收订单对象作为参数
+func (s *OrderService) NotifyDriver(order *models.Order, notificationType string) error {
+	if order == nil {
+		return errors.New("order is nil")
+	}
+
+	if order.GetProviderID() == "" {
+		return errors.New("driver not found in order")
+	}
+
+	// 获取司机信息
+	driver := models.GetUserByID(order.GetProviderID())
+	if driver == nil {
+		return errors.New("driver not found")
+	}
+
+	// 获取订单详情
+	orderDetail := models.GetOrderDetail(order.OrderID, order.GetOrderType())
+	if orderDetail == nil {
+		return errors.New("order detail not found")
+	}
+
+	// 根据通知类型映射到消息类型
+	var msgType string
+	switch notificationType {
+	case protocol.NotificationTypeTripEnded:
+		msgType = protocol.MsgTypeDriverTripEnded
+	case protocol.NotificationTypePaymentConfirmed:
+		msgType = protocol.MsgTypeDriverPaymentConfirmed
+	case protocol.NotificationTypeOrderCancelled:
+		msgType = protocol.MsgTypeDriverOrderCancelled
+	case protocol.NotificationTypeNewOrderAvailable:
+		msgType = protocol.MsgTypeDriverNewOrder
+	default:
+		return fmt.Errorf("unsupported notification type for driver: %s", notificationType)
+	}
+
+	// 准备消息参数
+	params := map[string]any{
+		"to":                order.GetProviderID(),
+		"OrderID":           order.OrderID,
+		"OrderStatus":       order.GetStatus(),
+		"PassengerName":     "Passenger", // 默认值
+		"PickupAddress":     orderDetail.GetPickupAddress(),
+		"DropoffAddress":    orderDetail.GetDropoffAddress(),
+		"Amount":            order.GetPaymentAmount().StringFixed(2),
+		"Currency":          order.GetCurrency(),
+		"msg_type":          protocol.FCMMessageTypeOrder,
+		"notification_type": notificationType,
+		"order_status":      order.GetStatus(),
+	}
+
+	// 添加乘客信息
+	if order.GetUserID() != "" {
+		passenger := models.GetUserByID(order.GetUserID())
+		if passenger != nil {
+			params["PassengerName"] = passenger.GetFullName()
+		}
+	}
+
+	// 添加取消原因信息
+	if notificationType == protocol.NotificationTypeOrderCancelled && order.CancelReason != nil {
+		params["CancelReason"] = *order.CancelReason
+	}
+
+	// 创建消息对象
+	message := &Message{
+		Type:     msgType,
+		Channels: []string{protocol.MsgChannelFcm},
+		Params:   params,
+		Language: getUserLanguage(driver), // 使用用户偏好语言
+	}
+
+	// 使用消息服务发送
+	return GetMessageService().SendMessage(message)
+}
+
+// NotifyOrderAccepted 通知乘客订单已被接单（司机触发）
+func (s *OrderService) NotifyOrderAccepted(orderID string) error {
+	order := models.GetOrderByID(orderID)
+	if order == nil {
+		return errors.New("order not found")
+	}
+	return s.NotifyPassenger(order, protocol.NotificationTypeOrderAccepted)
+}
+
+// NotifyDriverArrived 通知乘客司机已到达（司机触发）
+func (s *OrderService) NotifyDriverArrived(orderID string) error {
+	order := models.GetOrderByID(orderID)
+	if order == nil {
+		return errors.New("order not found")
+	}
+	return s.NotifyPassenger(order, protocol.NotificationTypeDriverArrived)
+}
+
+// NotifyTripStarted 通知乘客行程已开始（司机触发）
+func (s *OrderService) NotifyTripStarted(orderID string) error {
+	order := models.GetOrderByID(orderID)
+	if order == nil {
+		return errors.New("order not found")
+	}
+	return s.NotifyPassenger(order, protocol.NotificationTypeTripStarted)
+}
+
+// NotifyTripEnded 通知相关用户行程已结束（司机触发）
+func (s *OrderService) NotifyTripEnded(orderID string) error {
+	order := models.GetOrderByID(orderID)
+	if order == nil {
+		return errors.New("order not found")
+	}
+
+	// 通知乘客
+	err1 := s.NotifyPassenger(order, protocol.NotificationTypeTripEnded)
+	// 通知司机
+	err2 := s.NotifyDriver(order, protocol.NotificationTypeTripEnded)
+
+	// 返回第一个遇到的错误
+	if err1 != nil {
+		return err1
+	}
+	return err2
+}
+
+// NotifyPaymentConfirmed 通知司机和乘客支付已确认
+func (s *OrderService) NotifyPaymentConfirmed(orderID string) error {
+	order := models.GetOrderByID(orderID)
+	if order == nil {
+		return errors.New("order not found")
+	}
+
+	// 通知乘客支付确认
+	err1 := s.NotifyPassenger(order, protocol.NotificationTypePaymentConfirmed)
+
+	// 通知司机支付确认
+	var err2 error
+	if order.GetProviderID() != "" {
+		err2 = s.NotifyDriver(order, protocol.NotificationTypePaymentConfirmed)
+	}
+
+	// 返回第一个遇到的错误
+	if err1 != nil {
+		return err1
+	}
+	return err2
+}
+
+// NotifyOrderCancelled 通知相关用户订单已取消（任一方触发）
+func (s *OrderService) NotifyOrderCancelled(orderID string) error {
+	order := models.GetOrderByID(orderID)
+	if order == nil {
+		return errors.New("order not found")
+	}
+
+	// 通知乘客
+	err1 := s.NotifyPassenger(order, protocol.NotificationTypeOrderCancelled)
+
+	// 如果有司机，也通知司机
+	var err2 error
+	if order.GetProviderID() != "" {
+		err2 = s.NotifyDriver(order, protocol.NotificationTypeOrderCancelled)
+	}
+
+	// 返回第一个遇到的错误
+	if err1 != nil {
+		return err1
+	}
+	return err2
+}
+
+// getTranslatedPaymentResult 根据语言获取翻译后的支付结果
+// 检查ResCode是否是预定义的结果码，如果是，则使用翻译
+func (s *OrderService) getTranslatedPaymentResult(resCode, resMsg, language string) string {
+	// 获取有效的语言代码，如果不支持则使用默认语言
+	language = i18n.GetValidLanguage(language)
+
+	// 检查ResCode是否是预定义的结果码
+	if s.isPredefinedResCode(resCode) {
+		// 使用ResCode作为翻译键进行翻译
+		translatedMsg := i18n.Translate(resCode, language)
+		// 如果翻译成功（不等于原键值），则使用翻译结果
+		if translatedMsg != "" && translatedMsg != resCode {
+			return fmt.Sprintf("[%v]%v", resCode, translatedMsg)
+		}
+	}
+
+	// 如果不是预定义的结果码或翻译失败，则使用原始消息
+	return fmt.Sprintf("[%v]%v", resCode, resMsg)
+}
+
+// isPredefinedResCode 检查ResCode是否是预定义的结果码
+func (s *OrderService) isPredefinedResCode(resCode string) bool {
+	// 定义所有预定义的ResCode常量
+	predefinedResCodes := []string{
+		// 请求相关错误
+		protocol.ResCodeRequestFailed,
+		protocol.ResCodeRequestTimeout,
+		protocol.ResCodeConnectionFailed,
+		protocol.ResCodeNetworkError,
+
+		// 响应解析相关错误
+		protocol.ResCodeResponseParseFailed,
+		protocol.ResCodeInvalidResponse,
+		protocol.ResCodeMissingFields,
+		protocol.ResCodeUnexpectedFormat,
+
+		// 渠道相关错误
+		protocol.ResCodeChannelError,
+		protocol.ResCodeChannelUnavailable,
+		protocol.ResCodeChannelMaintenance,
+		protocol.ResCodeChannelRateLimited,
+
+		// 配置相关错误
+		protocol.ResCodeConfigError,
+		protocol.ResCodeMissingConfig,
+		protocol.ResCodeInvalidConfig,
+
+		// 认证相关错误
+		protocol.ResCodeAuthFailed,
+		protocol.ResCodeInvalidCredentials,
+		protocol.ResCodeTokenExpired,
+
+		// 业务逻辑错误
+		protocol.ResCodeBusinessError,
+		protocol.ResCodeInvalidAmount,
+		protocol.ResCodeInvalidCurrency,
+		protocol.ResCodeInsufficientFunds,
+		protocol.ResCodeUnsupportedPaymentMethod,
+
+		// 支付成功结果码
+		protocol.ResCodeSandboxSuccess,
+		protocol.ResCodeCashSuccess,
+
+		// 支付失败结果码
+		protocol.ResCodePaymentFailed,
+
+		// 系统错误
+		protocol.ResCodeSystemError,
+		protocol.ResCodeInternalError,
+		protocol.ResCodeUnknownError,
+	}
+
+	// 检查resCode是否在预定义列表中
+	return slices.Contains(predefinedResCodes, resCode)
+}

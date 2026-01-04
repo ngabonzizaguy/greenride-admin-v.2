@@ -1,0 +1,16 @@
+{
+  "registration_success": "Registration successful",
+  "login_success": "Login successful",
+  "logout_success": "Logout successful",
+  "password_changed": "Password changed successfully",
+  "password_reset": "Password reset successfully",
+  "verification_sent": "Verification code sent successfully",
+  "verification_success": "Verification successful",
+  "email_changed": "Email address updated successfully",
+  "phone_changed": "Phone number updated successfully",
+  "profile_updated": "Profile updated successfully",
+  "operation_success": "Operation completed successfully",
+  "please_check_verification_code": "Please check your verification code",
+  "please_verify_email": "Please verify your email address",
+  "please_verify_phone": "Please verify your phone number"
+}

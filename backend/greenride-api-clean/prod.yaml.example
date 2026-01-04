@@ -1,0 +1,26 @@
+# Server Configuration
+server:
+  api_port: 8610
+  admin_port: 8611
+  ws_port: 8612
+  jwt_secret: "GENERATE_A_RANDOM_SECRET_HERE" # Use a strong random string
+
+# Database Configuration (Docker service name is 'db')
+database:
+  dsn: "greenride:GreenRide2024!@tcp(db:3306)/greenride?charset=utf8mb4&parseTime=True&loc=Local"
+
+# Redis Configuration (Docker service name is 'redis')
+redis:
+  addr: "redis:6379"
+  password: ""
+  db: 0
+
+# Log Configuration
+log:
+  level: "info"
+  path: "/app/logs"
+  format: "json"
+
+# Internal Configuration
+env: production
+debug: false

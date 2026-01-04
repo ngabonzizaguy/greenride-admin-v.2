@@ -12,9 +12,9 @@ import { useAuthStore } from '@/stores/auth-store';
 import { apiClient, ApiError } from '@/lib/api-client';
 import type { AdminUser } from '@/types';
 
-// Demo mode flag - set to true for local testing without real API
-// Set to false when real credentials are available
-const DEMO_MODE = true;
+// Demo mode flag - reads from environment variable
+// Set NEXT_PUBLIC_DEMO_MODE=false in .env.local to use real API
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE !== 'false';
 
 export default function LoginPage() {
   const router = useRouter();

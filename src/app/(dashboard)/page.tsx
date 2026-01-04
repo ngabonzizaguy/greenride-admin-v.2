@@ -84,7 +84,18 @@ export default function DashboardPage() {
     
     try {
       const response = await apiClient.getDashboardStats();
-      setStats(response.data as DashboardStats);
+      // Map backend response to frontend format with fallbacks
+      const backendData = response.data as Record<string, unknown>;
+      setStats({
+        active_rides: (backendData.active_trips as number) ?? 0,
+        online_drivers: (backendData.online_drivers as number) ?? 0,
+        today_revenue: (backendData.total_revenue as number) ?? (backendData.today_revenue as number) ?? 0,
+        today_rides: (backendData.total_trips as number) ?? (backendData.today_rides as number) ?? 0,
+        pending_payments: (backendData.pending_payments as number) ?? 0,
+        cancellation_rate: (backendData.cancellation_rate as number) ?? 0,
+        total_users: (backendData.total_users as number) ?? 0,
+        total_drivers: (backendData.total_drivers as number) ?? 0,
+      });
     } catch (err) {
       console.error('Failed to fetch dashboard stats:', err);
       setError('Failed to load dashboard data. Using cached data.');
@@ -148,27 +159,27 @@ export default function DashboardPage() {
           <>
             <StatsCard
               title="Active Rides"
-              value={stats.active_rides}
+              value={stats.active_rides ?? 0}
               icon={Car}
               changeLabel="in progress"
             />
             <StatsCard
               title="Online Drivers"
-              value={stats.online_drivers}
+              value={stats.online_drivers ?? 0}
               icon={Users}
-              subtext={`${stats.total_drivers} total drivers`}
+              subtext={`${stats.total_drivers ?? 0} total drivers`}
             />
             <StatsCard
               title="Today's Revenue"
-              value={`RWF ${stats.today_revenue.toLocaleString()}`}
+              value={`RWF ${(stats.today_revenue ?? 0).toLocaleString()}`}
               icon={DollarSign}
               changeLabel="today"
             />
             <StatsCard
               title="Rides Today"
-              value={stats.today_rides}
+              value={stats.today_rides ?? 0}
               icon={Activity}
-              subtext={`${stats.total_users} total users`}
+              subtext={`${stats.total_users ?? 0} total users`}
             />
           </>
         )}
@@ -191,14 +202,14 @@ export default function DashboardPage() {
           <>
             <StatsCard
               title="Pending Payments"
-              value={`RWF ${stats.pending_payments.toLocaleString()}`}
+              value={`RWF ${(stats.pending_payments ?? 0).toLocaleString()}`}
               icon={Clock}
               subtext="awaiting confirmation"
               variant="warning"
             />
             <StatsCard
               title="Cancellation Rate"
-              value={`${stats.cancellation_rate.toFixed(1)}%`}
+              value={`${(stats.cancellation_rate ?? 0).toFixed(1)}%`}
               icon={TrendingUp}
               changeLabel="overall"
             />

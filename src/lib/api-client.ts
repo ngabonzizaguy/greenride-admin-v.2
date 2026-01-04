@@ -7,12 +7,19 @@
 
 import { Feedback, SupportConfig, FeedbackStatus } from '@/types';
 
-// API Base URL - defaults to development server
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://18.143.118.157:8611';
+// API Base URL - defaults to local development server
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8611';
 
 // Demo mode - returns mock data instead of real API calls
-// Hardcoded to true for local testing until real credentials are available
-const DEMO_MODE = true; // process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+// Set NEXT_PUBLIC_DEMO_MODE=false in .env.local to use real API
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE !== 'false';
+
+// Debug logging (will show in browser console)
+if (typeof window !== 'undefined') {
+  console.log('[API Client] NEXT_PUBLIC_DEMO_MODE:', process.env.NEXT_PUBLIC_DEMO_MODE);
+  console.log('[API Client] DEMO_MODE:', DEMO_MODE);
+  console.log('[API Client] API_BASE_URL:', API_BASE_URL);
+}
 
 // ============================================
 // MOCK DATA FOR DEMO MODE

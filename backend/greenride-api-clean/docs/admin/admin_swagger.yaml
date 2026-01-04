@@ -1,0 +1,2554 @@
+basePath: /
+definitions:
+  greenride_internal_models.Admin:
+    properties:
+      actions_this_month:
+        type: integer
+      actions_this_week:
+        type: integer
+      actions_today:
+        description: 统计数据
+        type: integer
+      active_status:
+        description: online, offline, busy
+        type: string
+      admin_id:
+        type: string
+      allowed_ips:
+        description: 允许的IP地址列表
+        type: string
+      approved_at:
+        type: integer
+      approved_by:
+        type: string
+      avatar:
+        type: string
+      created_at:
+        type: integer
+      created_by:
+        description: 审计信息
+        type: string
+      current_session_id:
+        description: 会话管理
+        type: string
+      date_format:
+        type: string
+      department:
+        description: 部门
+        type: string
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      emergency_contact:
+        type: string
+      failed_attempts:
+        type: integer
+      first_name:
+        description: 个人信息
+        type: string
+      full_name:
+        type: string
+      id:
+        type: integer
+      job_title:
+        description: 职位
+        type: string
+      language:
+        description: 偏好设置
+        type: string
+      last_failed_at:
+        type: integer
+      last_login_at:
+        description: 登录相关
+        type: integer
+      last_login_ip:
+        type: string
+      last_name:
+        type: string
+      last_updated_by:
+        type: string
+      locked_until:
+        type: integer
+      login_count:
+        type: integer
+      max_concurrent_sessions:
+        type: integer
+      metadata:
+        description: 元数据
+        type: string
+      must_change_password:
+        type: boolean
+      notes:
+        type: string
+      office_address:
+        type: string
+      office_phone:
+        description: 联系信息
+        type: string
+      password_changed_at:
+        description: 安全设置
+        type: integer
+      permissions:
+        description: JSON数组存储权限列表
+        type: string
+      phone:
+        type: string
+      phone_verified:
+        type: boolean
+      preferences:
+        description: JSON对象存储个人偏好
+        type: string
+      role:
+        description: 角色和权限
+        type: string
+      salt:
+        type: string
+      security_question:
+        type: string
+      session_count:
+        type: integer
+      status:
+        description: 状态管理
+        type: string
+      suspended_at:
+        type: integer
+      suspended_by:
+        type: string
+      suspension_reason:
+        type: string
+      tags:
+        description: 逗号分隔的标签
+        type: string
+      time_format:
+        type: string
+      timezone:
+        type: string
+      total_actions:
+        type: integer
+      two_factor_enabled:
+        type: boolean
+      updated_at:
+        type: integer
+      username:
+        description: 基本信息
+        type: string
+      working_areas:
+        description: JSON数组存储负责区域
+        type: string
+      working_hours:
+        description: 工作时间和区域
+        type: string
+      working_timezone:
+        type: string
+    type: object
+  greenride_internal_protocol.AdminChangePasswordRequest:
+    properties:
+      new_password:
+        description: 新密码
+        type: string
+      old_password:
+        description: 旧密码
+        type: string
+    required:
+    - new_password
+    - old_password
+    type: object
+  greenride_internal_protocol.AdminCreateOrderRequest:
+    properties:
+      admin_id:
+        description: 管理员ID（从上下文获取）
+        type: string
+      admin_reason:
+        description: 管理员创建原因
+        type: string
+      notes:
+        description: 订单备注
+        type: string
+      price_id:
+        description: 价格快照ID
+        type: string
+      user_id:
+        description: 用户ID
+        type: string
+    required:
+    - price_id
+    - user_id
+    type: object
+  greenride_internal_protocol.AdminCreateUserRequest:
+    properties:
+      email:
+        description: 邮箱
+        type: string
+      first_name:
+        description: 名字
+        type: string
+      last_name:
+        description: 姓氏
+        type: string
+      phone:
+        description: 手机号
+        type: string
+      user_type:
+        description: 用户类型，默认passenger
+        type: string
+      username:
+        description: 用户名
+        type: string
+    required:
+    - phone
+    type: object
+  greenride_internal_protocol.AdminLoginRequest:
+    properties:
+      password:
+        description: 密码
+        type: string
+      username:
+        description: 用户名
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  greenride_internal_protocol.AdminOrderCancelRequest:
+    properties:
+      order_id:
+        description: 订单ID
+        type: string
+      reason:
+        description: 取消原因
+        type: string
+    required:
+    - order_id
+    - reason
+    type: object
+  greenride_internal_protocol.AdminOrderEstimateRequest:
+    properties:
+      admin_reason:
+        description: 管理员操作原因（管理员特有字段）
+        type: string
+      app_version:
+        type: string
+      base_price:
+        description: 基础价格（内部计算用）
+        type: number
+      currency:
+        description: 价格相关
+        type: string
+      dropoff_address:
+        type: string
+      dropoff_landmark:
+        type: string
+      dropoff_latitude:
+        type: number
+      dropoff_longitude:
+        type: number
+      estimated_distance:
+        type: number
+      estimated_duration:
+        type: integer
+      order_type:
+        description: 订单类型，默认为网约车
+        type: string
+      passenger_count:
+        description: 行程信息
+        type: integer
+      payment_method:
+        type: string
+      pickup_address:
+        type: string
+      pickup_landmark:
+        type: string
+      pickup_latitude:
+        type: number
+      pickup_longitude:
+        type: number
+      platform:
+        description: 客户端信息
+        type: string
+      promo_codes:
+        items:
+          type: string
+        type: array
+      request_ip:
+        type: string
+      requested_at:
+        description: 请求时间(时间戳毫秒)，0表示当前时间
+        type: integer
+      scheduled_at:
+        description: 上下文信息
+        type: integer
+      service_area:
+        type: string
+      session_id:
+        type: string
+      snapshot_duration:
+        description: 设置选项
+        type: integer
+      user_agent:
+        type: string
+      user_category:
+        description: 用户类别
+        type: string
+      user_id:
+        description: 基础信息
+        type: string
+      vehicle_category:
+        description: sedan, suv, mpv, van, hatchback
+        type: string
+      vehicle_level:
+        description: economy, comfort, premium, luxury
+        type: string
+    required:
+    - dropoff_latitude
+    - dropoff_longitude
+    - pickup_latitude
+    - pickup_longitude
+    type: object
+  greenride_internal_protocol.AdminResetPasswordRequest:
+    properties:
+      new_password:
+        description: 新密码
+        type: string
+      target_admin_id:
+        description: 目标管理员ID
+        type: string
+    required:
+    - new_password
+    - target_admin_id
+    type: object
+  greenride_internal_protocol.IDRequest:
+    properties:
+      id:
+        description: ID
+        type: string
+    required:
+    - id
+    type: object
+  greenride_internal_protocol.Order:
+    properties:
+      accepted_at:
+        type: integer
+      auto_dispatch_enabled:
+        type: boolean
+      cancel_reason:
+        type: string
+      cancellation_fee:
+        type: number
+      cancelled_at:
+        type: integer
+      cancelled_by:
+        description: 取消信息
+        type: string
+      channel_payment_id:
+        type: string
+      completed_at:
+        type: integer
+      created_at:
+        type: integer
+      currency:
+        type: string
+      current_round:
+        type: integer
+      details:
+        allOf:
+        - $ref: '#/definitions/greenride_internal_protocol.OrderDetail'
+        description: 订单详情（兼容所有订单类型）
+      discount_amount:
+        description: 总优惠金额
+        type: number
+      discounted_amount:
+        description: 优惠后总金额
+        type: number
+      dispatch_started_at:
+        type: integer
+      dispatch_status:
+        description: 派单相关信息
+        type: string
+      dispatch_strategy:
+        type: string
+      driver:
+        $ref: '#/definitions/greenride_internal_protocol.User'
+      driver_ratings:
+        items:
+          $ref: '#/definitions/greenride_internal_protocol.Rating'
+        type: array
+      ended_at:
+        type: integer
+      last_dispatched_at:
+        type: integer
+      max_rounds:
+        type: integer
+      metadata:
+        additionalProperties: {}
+        type: object
+      next_strategy:
+        type: string
+      notes:
+        description: 其他信息
+        type: string
+      order_id:
+        description: 订单基础信息
+        type: string
+      order_type:
+        type: string
+      original_amount:
+        description: 金额信息
+        type: number
+      passenger:
+        $ref: '#/definitions/greenride_internal_protocol.User'
+      passenger_ratings:
+        items:
+          $ref: '#/definitions/greenride_internal_protocol.Rating'
+        type: array
+      payment_amount:
+        description: 最终付款金额
+        type: number
+      payment_id:
+        type: string
+      payment_method:
+        description: 支付信息
+        type: string
+      payment_redirect_url:
+        description: 支付重定向URL
+        type: string
+      payment_result:
+        description: 支付结果详情
+        type: string
+      payment_status:
+        type: string
+      platform_fee:
+        type: number
+      promo_codes:
+        items:
+          type: string
+        type: array
+      promo_discount:
+        type: number
+      provider_id:
+        type: string
+      schedule_type:
+        description: 时间信息
+        type: string
+      scheduled_at:
+        type: integer
+      started_at:
+        type: integer
+      status:
+        type: string
+      user_id:
+        type: string
+      user_promo_discount:
+        description: 用户优惠券折扣金额
+        type: number
+      user_promotion_ids:
+        description: 使用的用户优惠券ID列表
+        items:
+          type: string
+        type: array
+      vehicle:
+        $ref: '#/definitions/greenride_internal_protocol.Vehicle'
+      version:
+        type: integer
+    type: object
+  greenride_internal_protocol.OrderDetail:
+    properties:
+      actual_distance:
+        type: number
+      actual_duration:
+        type: integer
+      courier_id:
+        type: string
+      courier_name:
+        type: string
+      courier_phone:
+        type: string
+      courier_rating:
+        type: number
+      delivery_address:
+        type: string
+      delivery_latitude:
+        type: number
+      delivery_longitude:
+        type: number
+      driver_id:
+        description: 司机信息
+        type: string
+      driver_name:
+        type: string
+      driver_phone:
+        type: string
+      driver_rating:
+        type: number
+      dropoff_address:
+        type: string
+      dropoff_landmark:
+        type: string
+      dropoff_latitude:
+        type: number
+      dropoff_longitude:
+        type: number
+      estimated_distance:
+        type: number
+      estimated_duration:
+        type: integer
+      license_plate:
+        type: string
+      order_id:
+        description: 通用字段
+        type: string
+      order_type:
+        type: string
+      passenger_count:
+        type: integer
+      passenger_id:
+        description: 网约车详情字段（当order_type=ride时使用）
+        type: string
+      passenger_name:
+        type: string
+      passenger_phone:
+        type: string
+      pickup_address:
+        type: string
+      pickup_landmark:
+        type: string
+      pickup_latitude:
+        type: number
+      pickup_longitude:
+        type: number
+      restaurant_address:
+        type: string
+      restaurant_id:
+        description: 外卖详情字段（当order_type=delivery时使用，预留）
+        type: string
+      restaurant_name:
+        type: string
+      restaurant_phone:
+        type: string
+      ride_type:
+        type: string
+      shipping_address:
+        type: string
+      store_address:
+        type: string
+      store_id:
+        description: 购物详情字段（当order_type=shopping时使用，预留）
+        type: string
+      store_name:
+        type: string
+      tracking_number:
+        type: string
+      vehicle_category:
+        type: string
+      vehicle_color:
+        type: string
+      vehicle_id:
+        description: 车辆信息
+        type: string
+      vehicle_level:
+        type: string
+      vehicle_model:
+        type: string
+      vehicle_photo:
+        type: string
+    type: object
+  greenride_internal_protocol.OrderPrice:
+    properties:
+      base_fare:
+        description: 起步价
+        type: number
+      breakdowns:
+        description: 价格明细分解
+        items:
+          $ref: '#/definitions/greenride_internal_protocol.PriceRuleResult'
+        type: array
+      calculation_time_ms:
+        description: 计算元信息（扁平化）
+        type: integer
+      currency:
+        description: 基础价格信息
+        type: string
+      discount_amount:
+        description: 总折扣金额
+        type: number
+      discounted_fare:
+        description: 优惠后折扣费用 (应用所有优惠后的价格)
+        type: number
+      distance:
+        description: 距离（公里）
+        type: number
+      distance_fare:
+        description: 里程费
+        type: number
+      duration:
+        description: 预计用时（分钟）
+        type: integer
+      engine_version:
+        description: 引擎版本
+        type: string
+      expires_at:
+        description: 过期时间戳
+        type: integer
+      is_locked:
+        description: 是否已锁定
+        type: boolean
+      order_type:
+        description: 订单类型
+        type: string
+      original_fare:
+        description: 优惠前原始费用 (所有费用项的总和)
+        type: number
+      price_id:
+        description: 价格锁定信息（扁平化）
+        type: string
+      promo_discount:
+        description: 优惠码折扣金额
+        type: number
+      rules_applied:
+        description: 应用的规则数量
+        type: integer
+      rules_evaluated:
+        description: 评估的规则数量
+        type: integer
+      service_fee:
+        description: 服务费
+        type: number
+      surge_fare:
+        description: 高峰期费用
+        type: number
+      time_fare:
+        description: 时长费
+        type: number
+      user_promo_discount:
+        description: 用户优惠券折扣金额
+        type: number
+      vehicle_category:
+        description: 车辆类别
+        type: string
+      vehicle_level:
+        description: 车辆级别
+        type: string
+    type: object
+  greenride_internal_protocol.OrderSearchRequest:
+    properties:
+      end_date:
+        description: 结束日期 (时间戳毫秒)
+        type: integer
+      keyword:
+        description: 搜索关键字
+        type: string
+      limit:
+        description: 每页数量，默认10
+        type: integer
+      max_amount:
+        description: 最大金额
+        type: number
+      min_amount:
+        description: 最小金额
+        type: number
+      order_id:
+        description: 订单ID
+        type: string
+      order_type:
+        description: 订单类型
+        type: string
+      page:
+        description: 页码，默认1
+        type: integer
+      payment_status:
+        description: 支付状态
+        type: string
+      provider_id:
+        description: 服务提供者ID
+        type: string
+      start_date:
+        description: 开始日期 (时间戳毫秒)
+        type: integer
+      status:
+        description: 订单状态
+        type: string
+      user_id:
+        description: 用户ID
+        type: string
+    type: object
+  greenride_internal_protocol.PageResult:
+    properties:
+      attach:
+        additionalProperties: {}
+        description: 附加数据
+        type: object
+      count:
+        description: 总记录数
+        type: integer
+      current:
+        description: 当前页码
+        type: integer
+      records:
+        description: 记录列表
+      result_type:
+        description: 数据类型
+        type: string
+      size:
+        description: 每页记录数
+        type: integer
+      total:
+        description: 总页数
+        type: integer
+    type: object
+  greenride_internal_protocol.PriceRuleResult:
+    properties:
+      amount:
+        description: 计算结果字段
+        type: number
+      applied:
+        description: 是否应用
+        type: boolean
+      category:
+        type: string
+      ccy:
+        description: 货币
+        type: string
+      description:
+        type: string
+      display_name:
+        type: string
+      reason:
+        description: 原因
+        type: string
+      rule_id:
+        description: 基本规则信息
+        type: string
+      rule_name:
+        type: string
+    type: object
+  greenride_internal_protocol.Rating:
+    properties:
+      comment:
+        type: string
+      created_at:
+        type: integer
+      id:
+        type: integer
+      is_anonymous:
+        type: boolean
+      order_id:
+        type: string
+      ratee_id:
+        type: string
+      ratee_type:
+        description: user, provider
+        type: string
+      rater_id:
+        type: string
+      rater_type:
+        description: user, provider
+        type: string
+      rating:
+        description: 评分 1-5
+        type: number
+      replied_at:
+        type: integer
+      reply:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      updated_at:
+        type: integer
+    type: object
+  greenride_internal_protocol.Result:
+    properties:
+      code:
+        type: string
+      data: {}
+      msg:
+        type: string
+    type: object
+  greenride_internal_protocol.SearchRequest:
+    properties:
+      is_active:
+        description: 是否活跃
+        type: boolean
+      is_email_verified:
+        description: 邮箱是否验证
+        type: boolean
+      is_phone_verified:
+        description: 手机是否验证
+        type: boolean
+      keyword:
+        description: 搜索关键字
+        type: string
+      limit:
+        description: 每页数量，默认10
+        type: integer
+      max_driver_score:
+        description: 最高司机评分 (仅司机)
+        type: number
+      min_driver_score:
+        description: 最低司机评分 (仅司机)
+        type: number
+      min_total_rides:
+        description: 最少接单数 (仅司机)
+        type: integer
+      online_status:
+        description: 在线状态 (仅司机)
+        type: string
+      page:
+        description: 页码，默认1
+        type: integer
+      status:
+        description: 司机相关搜索参数
+        type: string
+      user_type:
+        description: 用户类型 (仅用户搜索)
+        type: string
+    type: object
+  greenride_internal_protocol.User:
+    properties:
+      address:
+        description: 联系信息
+        type: string
+      avatar:
+        type: string
+      birthday:
+        type: integer
+      city:
+        type: string
+      country:
+        type: string
+      country_code:
+        type: string
+      created_at:
+        description: 时间戳
+        type: integer
+      deleted_at:
+        description: 删除时间戳
+        type: integer
+      display_name:
+        type: string
+      email:
+        type: string
+      email_verified_at:
+        type: integer
+      first_name:
+        type: string
+      full_name:
+        type: string
+      gender:
+        type: string
+      invite_code:
+        description: 推荐系统
+        type: string
+      invite_count:
+        type: integer
+      is_active:
+        type: boolean
+      is_email_verified:
+        type: boolean
+      is_phone_verified:
+        type: boolean
+      language:
+        type: string
+      last_login_at:
+        type: integer
+      last_name:
+        type: string
+      latitude:
+        description: 位置信息
+        type: number
+      license_expiry:
+        type: integer
+      license_number:
+        description: 司机相关信息
+        type: string
+      location_updated_at:
+        type: integer
+      longitude:
+        type: number
+      online_status:
+        type: string
+      phone:
+        type: string
+      phone_verified_at:
+        type: integer
+      postal_code:
+        type: string
+      sandbox:
+        description: 沙盒信息
+        type: integer
+      score:
+        type: number
+      state:
+        type: string
+      status:
+        description: 状态信息
+        type: string
+      timezone:
+        type: string
+      total_rides:
+        type: integer
+      updated_at:
+        type: integer
+      user_id:
+        type: string
+      user_type:
+        type: string
+      username:
+        type: string
+      vehicle:
+        $ref: '#/definitions/greenride_internal_protocol.Vehicle'
+    type: object
+  greenride_internal_protocol.UserDispatchsRequest:
+    properties:
+      end_date:
+        description: 结束日期过滤 (时间戳毫秒)
+        type: integer
+      limit:
+        description: 每页数量，默认10
+        type: integer
+      order_type:
+        description: 订单类型过滤
+        type: string
+      page:
+        description: 页码，默认1
+        type: integer
+      start_date:
+        description: 开始日期过滤 (时间戳毫秒)
+        type: integer
+      status:
+        description: 订单状态过滤
+        type: string
+      user_id:
+        description: 用户ID
+        type: string
+      user_type:
+        description: 用户类型：user(乘客), driver(司机)，空则自动识别
+        type: string
+    required:
+    - user_id
+    type: object
+  greenride_internal_protocol.UserIDRequest:
+    properties:
+      user_id:
+        description: 用户ID
+        type: string
+    required:
+    - user_id
+    type: object
+  greenride_internal_protocol.UserRidesRequest:
+    properties:
+      end_date:
+        description: 结束日期过滤 (时间戳毫秒)
+        type: integer
+      limit:
+        description: 每页数量，默认10
+        type: integer
+      order_type:
+        description: 订单类型过滤
+        type: string
+      page:
+        description: 页码，默认1
+        type: integer
+      start_date:
+        description: 开始日期过滤 (时间戳毫秒)
+        type: integer
+      status:
+        description: 订单状态过滤
+        type: string
+      user_id:
+        description: 用户ID
+        type: string
+      user_type:
+        description: 用户类型：user(乘客), driver(司机)，空则自动识别
+        type: string
+    type: object
+  greenride_internal_protocol.UserStatusUpdateRequest:
+    properties:
+      is_active:
+        description: true, false
+        type: boolean
+      status:
+        description: active, inactive, suspended, banned
+        type: string
+      user_id:
+        description: 用户ID
+        type: string
+    required:
+    - is_active
+    - status
+    - user_id
+    type: object
+  greenride_internal_protocol.UserUpdateRequest:
+    properties:
+      address:
+        type: string
+      avatar:
+        type: string
+      birthday:
+        type: integer
+      city:
+        type: string
+      country:
+        type: string
+      country_code:
+        type: string
+      display_name:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      gender:
+        description: male, female, other
+        type: string
+      is_active:
+        type: boolean
+      language:
+        type: string
+      last_name:
+        type: string
+      latitude:
+        type: number
+      longitude:
+        type: number
+      phone:
+        type: string
+      postal_code:
+        type: string
+      state:
+        type: string
+      status:
+        description: active, inactive, suspended, banned
+        type: string
+      timezone:
+        type: string
+      user_id:
+        description: 用户ID
+        type: string
+      user_type:
+        description: user, driver
+        type: string
+      username:
+        type: string
+    required:
+    - user_id
+    type: object
+  greenride_internal_protocol.UserVerifyRequest:
+    properties:
+      is_email_verified:
+        description: 邮箱是否验证
+        type: boolean
+      is_phone_verified:
+        description: 手机是否验证
+        type: boolean
+      user_id:
+        description: 用户ID
+        type: string
+      verified_by:
+        description: 验证者ID
+        type: string
+    required:
+    - user_id
+    type: object
+  greenride_internal_protocol.Vehicle:
+    properties:
+      brand:
+        type: string
+      category:
+        description: sedan, suv, mpv, van, hatchback
+        type: string
+      color:
+        type: string
+      created_at:
+        description: 时间戳
+        type: integer
+      current_latitude:
+        description: 位置信息
+        type: number
+      current_longitude:
+        type: number
+      documents:
+        items:
+          type: string
+        type: array
+      documents_verified:
+        description: 验证状态
+        type: boolean
+      driver:
+        $ref: '#/definitions/greenride_internal_protocol.User'
+      driver_id:
+        type: string
+      engine_size:
+        type: string
+      fuel_type:
+        description: petrol, diesel, electric, hybrid
+        type: string
+      has_air_conditioner:
+        description: 车辆特性
+        type: boolean
+      has_bluetooth:
+        type: boolean
+      has_charger:
+        type: boolean
+      has_gps:
+        type: boolean
+      has_wifi:
+        type: boolean
+      inspection_date:
+        type: string
+      inspection_expiry:
+        type: string
+      inspection_passed:
+        type: boolean
+      insurance_company:
+        type: string
+      insurance_expiry:
+        type: string
+      insurance_policy_number:
+        type: string
+      last_service_date:
+        description: 维护信息
+        type: string
+      last_used_at:
+        description: 使用信息
+        type: integer
+      level:
+        description: economy, comfort, premium, luxury
+        type: string
+      location_updated_at:
+        type: integer
+      model:
+        type: string
+      next_service_due:
+        type: string
+      notes:
+        type: string
+      photos:
+        description: 文档和图片
+        items:
+          type: string
+        type: array
+      plate_number:
+        type: string
+      rating:
+        description: 评价和统计
+        type: number
+      registration_expiry:
+        type: string
+      registration_number:
+        description: 注册和保险信息
+        type: string
+      seat_capacity:
+        type: integer
+      service_mileage:
+        type: integer
+      status:
+        description: 状态信息
+        type: string
+      total_distance:
+        type: number
+      total_mileage:
+        type: integer
+      total_rides:
+        type: integer
+      transmission:
+        description: manual, automatic
+        type: string
+      type_id:
+        description: 车辆类型和配置
+        type: string
+      updated_at:
+        type: integer
+      vehicle_id:
+        description: 基础信息
+        type: string
+      verified_at:
+        type: integer
+      verify_status:
+        description: unverified, pending, active, inactive, maintenance, suspended,
+          banned, retired
+        type: string
+      vin:
+        type: string
+      year:
+        type: integer
+    type: object
+  greenride_internal_protocol.VehicleCreateRequest:
+    properties:
+      brand:
+        description: 品牌
+        type: string
+      category:
+        description: 车辆分类
+        type: string
+      color:
+        description: 颜色
+        type: string
+      documents:
+        description: 车辆文档
+        items:
+          type: string
+        type: array
+      engine_size:
+        description: 引擎大小
+        type: string
+      fuel_type:
+        description: 燃料类型
+        type: string
+      has_air_conditioner:
+        description: 车辆特性
+        type: boolean
+      has_bluetooth:
+        description: 是否有蓝牙
+        type: boolean
+      has_charger:
+        description: 是否有充电器
+        type: boolean
+      has_gps:
+        description: 是否有GPS
+        type: boolean
+      has_wifi:
+        description: 是否有WiFi
+        type: boolean
+      insurance_company:
+        description: 保险公司
+        type: string
+      insurance_expiry:
+        description: 保险到期日
+        type: string
+      insurance_policy_number:
+        description: 保险单号
+        type: string
+      level:
+        description: 服务级别
+        type: string
+      model:
+        description: 型号
+        type: string
+      notes:
+        description: 其他信息
+        type: string
+      photos:
+        description: 文档和图片
+        items:
+          type: string
+        type: array
+      plate_number:
+        description: 车牌号
+        type: string
+      registration_expiry:
+        description: 注册到期日
+        type: string
+      registration_number:
+        description: 注册和保险信息
+        type: string
+      seat_capacity:
+        description: 座位数
+        type: integer
+      transmission:
+        description: 变速箱类型
+        type: string
+      vin:
+        description: 车辆识别号
+        type: string
+      year:
+        description: 年份
+        type: integer
+    required:
+    - brand
+    - category
+    - level
+    - model
+    - plate_number
+    - year
+    type: object
+  greenride_internal_protocol.VehicleDeleteRequest:
+    properties:
+      reason:
+        description: 删除原因
+        type: string
+      vehicle_id:
+        description: 车辆ID
+        type: string
+    required:
+    - vehicle_id
+    type: object
+  greenride_internal_protocol.VehicleDetailRequest:
+    properties:
+      vehicle_id:
+        description: 车辆ID
+        type: string
+    required:
+    - vehicle_id
+    type: object
+  greenride_internal_protocol.VehicleListRequest:
+    properties:
+      category:
+        description: 车辆分类
+        type: string
+      driver_id:
+        description: 司机ID
+        type: string
+      keyword:
+        description: 搜索关键字
+        type: string
+      level:
+        description: 服务级别
+        type: string
+      limit:
+        description: 每页数量，默认10
+        type: integer
+      page:
+        description: 页码，默认1
+        type: integer
+      status:
+        description: 车辆状态
+        type: string
+      type_id:
+        description: 车辆类型ID
+        type: string
+      verify_status:
+        description: 验证状态
+        type: string
+      year_from:
+        description: 年份范围开始
+        type: integer
+      year_to:
+        description: 年份范围结束
+        type: integer
+    type: object
+  greenride_internal_protocol.VehicleSearchRequest:
+    properties:
+      category:
+        description: 车辆分类
+        type: string
+      driver_id:
+        description: 司机ID
+        type: string
+      is_active:
+        description: 是否活跃
+        type: boolean
+      is_verified:
+        description: 是否已验证
+        type: boolean
+      keyword:
+        description: 搜索关键字
+        type: string
+      level:
+        description: 服务级别
+        type: string
+      limit:
+        description: 每页数量，默认10
+        type: integer
+      page:
+        description: 页码，默认1
+        type: integer
+      status:
+        description: 车辆状态
+        type: string
+      type_id:
+        description: 车辆类型ID（关联VehicleType表）
+        type: string
+      year_from:
+        description: 年份范围开始
+        type: integer
+      year_to:
+        description: 年份范围结束
+        type: integer
+    type: object
+  greenride_internal_protocol.VehicleStatusUpdateRequest:
+    properties:
+      status:
+        description: 车辆状态
+        type: string
+      vehicle_id:
+        description: 车辆ID
+        type: string
+      verify_status:
+        description: 验证状态
+        type: string
+    required:
+    - vehicle_id
+    type: object
+  greenride_internal_protocol.VehicleUpdateRequest:
+    properties:
+      brand:
+        description: 基础信息（可选）
+        type: string
+      category:
+        description: 车辆分类
+        type: string
+      color:
+        description: 颜色
+        type: string
+      documents:
+        description: 车辆文档
+        items:
+          type: string
+        type: array
+      engine_size:
+        description: 引擎大小
+        type: string
+      fuel_type:
+        description: 燃料类型
+        type: string
+      has_air_conditioner:
+        description: 车辆特性（可选）
+        type: boolean
+      has_bluetooth:
+        description: 是否有蓝牙
+        type: boolean
+      has_charger:
+        description: 是否有充电器
+        type: boolean
+      has_gps:
+        description: 是否有GPS
+        type: boolean
+      has_wifi:
+        description: 是否有WiFi
+        type: boolean
+      insurance_company:
+        description: 保险公司
+        type: string
+      insurance_expiry:
+        description: 保险到期日
+        type: string
+      insurance_policy_number:
+        description: 保险单号
+        type: string
+      last_service_date:
+        description: 维护信息（可选）
+        type: string
+      level:
+        description: 服务级别
+        type: string
+      model:
+        description: 型号
+        type: string
+      next_service_due:
+        description: 下次保养日期
+        type: string
+      notes:
+        description: 其他信息（可选）
+        type: string
+      photos:
+        description: 文档和图片（可选）
+        items:
+          type: string
+        type: array
+      plate_number:
+        description: 车牌号
+        type: string
+      registration_expiry:
+        description: 注册到期日
+        type: string
+      registration_number:
+        description: 注册和保险信息（可选）
+        type: string
+      seat_capacity:
+        description: 座位数
+        type: integer
+      service_mileage:
+        description: 保养里程
+        type: integer
+      total_mileage:
+        description: 总里程
+        type: integer
+      transmission:
+        description: 变速箱类型
+        type: string
+      type_id:
+        description: 车辆类型和配置（可选）
+        type: string
+      vehicle_id:
+        description: 车辆ID
+        type: string
+      vin:
+        description: 车辆识别号
+        type: string
+      year:
+        description: 年份
+        type: integer
+    required:
+    - vehicle_id
+    type: object
+  greenride_internal_services.DashboardStats:
+    properties:
+      active_trips:
+        type: integer
+      monthly_growth:
+        $ref: '#/definitions/greenride_internal_services.MonthlyGrowth'
+      recent_trips:
+        items:
+          $ref: '#/definitions/greenride_internal_services.RecentTrip'
+        type: array
+      top_drivers:
+        items:
+          $ref: '#/definitions/greenride_internal_services.TopDriver'
+        type: array
+      total_drivers:
+        type: integer
+      total_revenue:
+        type: number
+      total_trips:
+        type: integer
+      total_users:
+        type: integer
+      total_vehicles:
+        type: integer
+      vehicle_utilization:
+        items:
+          $ref: '#/definitions/greenride_internal_services.VehicleUtilization'
+        type: array
+    type: object
+  greenride_internal_services.MonthlyGrowth:
+    properties:
+      revenue:
+        type: number
+      trips:
+        type: number
+      users:
+        type: number
+    type: object
+  greenride_internal_services.RecentTrip:
+    properties:
+      completed_at:
+        type: string
+      created_at:
+        type: string
+      distance:
+        type: number
+      driver_id:
+        type: integer
+      dropoff_location:
+        type: string
+      duration:
+        type: integer
+      fare:
+        type: number
+      id:
+        type: integer
+      payment_method:
+        type: string
+      payment_status:
+        type: string
+      pickup_location:
+        type: string
+      rating:
+        type: integer
+      requested_at:
+        type: string
+      started_at:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+      vehicle_id:
+        type: integer
+    type: object
+  greenride_internal_services.RevenueData:
+    properties:
+      date:
+        type: string
+      revenue:
+        type: number
+      trips:
+        type: integer
+      users:
+        type: integer
+    type: object
+  greenride_internal_services.TopDriver:
+    properties:
+      driver_name:
+        type: string
+      id:
+        type: integer
+      rating:
+        type: number
+      status:
+        type: string
+      total_earnings:
+        type: number
+      total_trips:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  greenride_internal_services.UserGrowthData:
+    properties:
+      date:
+        type: string
+      new_drivers:
+        type: integer
+      new_users:
+        type: integer
+      total_drivers:
+        type: integer
+      total_users:
+        type: integer
+    type: object
+  greenride_internal_services.VehicleUtilization:
+    properties:
+      total_trips:
+        type: integer
+      utilization_rate:
+        type: number
+      vehicle_id:
+        type: integer
+      vehicle_name:
+        type: string
+    type: object
+  internal_handlers.AdminDeleteUserRequest:
+    properties:
+      reason:
+        description: 删除原因（可选）
+        type: string
+      user_id:
+        description: 用户ID
+        type: string
+    required:
+    - user_id
+    type: object
+info:
+  contact: {}
+  description: |-
+    GreenRide API Documentation
+    ## Response Codes:
+    - 0000: Success - 操作成功
+    - 9999: System Error - 系统错误
+    - 1000: Parameter Error - 参数错误
+    - 1001: Authorization Error - 授权失败
+    - 1002: Authentication Expired - 认证过期
+    - 2001: User Error - 用户相关错误
+    - 4001: Business Error - 业务错误
+    - 4002: Data Expired - 数据过期
+  title: GreenRide API
+  version: "1.0"
+paths:
+  /admin/orders/cancel:
+    post:
+      consumes:
+      - application/json
+      description: 管理员取消指定订单
+      parameters:
+      - description: 订单取消信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.AdminOrderCancelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - ApiKeyAuth: []
+      summary: 取消订单
+      tags:
+      - Admin
+      - 管理员-订单
+  /admin/orders/create:
+    post:
+      consumes:
+      - application/json
+      description: 管理员为指定用户创建订单
+      parameters:
+      - description: 创建订单请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.AdminCreateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/greenride_internal_protocol.Result'
+            - properties:
+                data:
+                  $ref: '#/definitions/greenride_internal_protocol.Order'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - ApiKeyAuth: []
+      summary: 管理员代客户创建订单
+      tags:
+      - Admin
+      - 管理员-订单
+  /admin/orders/detail:
+    post:
+      consumes:
+      - application/json
+      description: 管理员获取单个订单的详细信息
+      parameters:
+      - description: 订单ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.IDRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/greenride_internal_protocol.Result'
+            - properties:
+                data:
+                  $ref: '#/definitions/greenride_internal_protocol.Order'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取订单详情
+      tags:
+      - Admin
+      - 管理员-订单
+  /admin/orders/estimate:
+    post:
+      consumes:
+      - application/json
+      description: 管理员进行订单价格预估，无需用户ID
+      parameters:
+      - description: 订单预估信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.AdminOrderEstimateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/greenride_internal_protocol.Result'
+            - properties:
+                data:
+                  $ref: '#/definitions/greenride_internal_protocol.OrderPrice'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - ApiKeyAuth: []
+      summary: 管理员订单价格预估
+      tags:
+      - Admin
+      - 管理员-订单
+  /admin/orders/search:
+    post:
+      consumes:
+      - application/json
+      description: 管理员搜索订单，支持多种条件过滤
+      parameters:
+      - description: 订单搜索条件
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.OrderSearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.PageResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - ApiKeyAuth: []
+      summary: 搜索订单
+      tags:
+      - Admin
+      - 管理员-订单
+  /admin/users/create:
+    post:
+      consumes:
+      - application/json
+      description: 管理员创建新用户，密码为空，直接发放优惠券
+      parameters:
+      - description: 创建用户请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.AdminCreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/greenride_internal_protocol.Result'
+            - properties:
+                data:
+                  $ref: '#/definitions/greenride_internal_protocol.User'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - ApiKeyAuth: []
+      summary: 管理员创建用户
+      tags:
+      - Admin
+      - 管理员-用户
+  /admin/users/delete:
+    post:
+      consumes:
+      - application/json
+      description: 管理员删除用户账户，支持删除所有类型的用户（乘客和司机）
+      parameters:
+      - description: 删除用户请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handlers.AdminDeleteUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "401":
+          description: 认证失败
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: 服务器错误
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - ApiKeyAuth: []
+      summary: 管理员删除用户
+      tags:
+      - Admin
+      - 管理员-用户
+  /admin/users/detail:
+    post:
+      consumes:
+      - application/json
+      description: 管理员获取单个用户的详细信息
+      parameters:
+      - description: 用户ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.UserIDRequest'
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: 获取用户详情
+      tags:
+      - Admin
+      - 管理员-用户
+  /admin/users/dispatches:
+    post:
+      consumes:
+      - application/json
+      description: 管理员获取用户的派单历史记录，包括司机接收到的派单和乘客发起的派单
+      parameters:
+      - description: 用户派单记录查询条件
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.UserDispatchsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.PageResult'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取用户派单记录
+      tags:
+      - Admin
+      - 管理员-用户
+  /admin/users/rides:
+    post:
+      consumes:
+      - application/json
+      description: 管理员获取用户的行程历史记录
+      parameters:
+      - description: 用户行程查询条件
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.UserRidesRequest'
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: 获取用户行程记录
+      tags:
+      - Admin
+      - 管理员-用户
+  /admin/users/search:
+    post:
+      consumes:
+      - application/json
+      description: 管理员获取用户列表，支持分页和过滤
+      parameters:
+      - description: 搜索条件
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.SearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.PageResult'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取用户列表
+      tags:
+      - Admin
+      - 管理员-用户
+  /admin/users/status:
+    post:
+      consumes:
+      - application/json
+      description: 管理员更新用户的状态和活跃状态
+      parameters:
+      - description: 用户状态更新信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.UserStatusUpdateRequest'
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: 更新用户状态
+      tags:
+      - Admin
+      - 管理员-用户
+  /admin/users/update:
+    post:
+      consumes:
+      - application/json
+      description: 管理员更新用户的基本信息
+      parameters:
+      - description: 用户信息更新
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.UserUpdateRequest'
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: 更新用户信息
+      tags:
+      - Admin
+      - 管理员-用户
+  /admin/users/verify:
+    post:
+      consumes:
+      - application/json
+      description: 管理员验证用户的邮箱或手机号
+      parameters:
+      - description: 用户验证信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.UserVerifyRequest'
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - ApiKeyAuth: []
+      summary: 验证用户
+      tags:
+      - Admin
+      - 管理员-用户
+  /admin/vehicle/create:
+    post:
+      consumes:
+      - application/json
+      description: 管理员创建新车辆
+      parameters:
+      - description: 创建请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.VehicleCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建失败
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - BearerAuth: []
+      summary: 创建车辆
+      tags:
+      - Admin
+      - 管理员-车辆
+  /admin/vehicle/delete:
+    post:
+      consumes:
+      - application/json
+      description: 管理员删除车辆（软删除）
+      parameters:
+      - description: 删除请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.VehicleDeleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除失败
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - BearerAuth: []
+      summary: 删除车辆
+      tags:
+      - Admin
+      - 管理员-车辆
+  /admin/vehicle/detail:
+    post:
+      consumes:
+      - application/json
+      description: 管理员获取单个车辆的详细信息
+      parameters:
+      - description: 查询请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.VehicleDetailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取失败
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - BearerAuth: []
+      summary: 获取车辆详情
+      tags:
+      - Admin
+      - 管理员-车辆
+  /admin/vehicle/search:
+    post:
+      consumes:
+      - application/json
+      description: 管理员搜索车辆，支持多种条件过滤
+      parameters:
+      - description: 搜索请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.VehicleSearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 搜索失败
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - BearerAuth: []
+      summary: 搜索车辆
+      tags:
+      - Admin
+      - 管理员-车辆
+  /admin/vehicle/status:
+    post:
+      consumes:
+      - application/json
+      description: 管理员更新车辆状态（激活、验证等）
+      parameters:
+      - description: 状态更新请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.VehicleStatusUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新失败
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - BearerAuth: []
+      summary: 更新车辆状态
+      tags:
+      - Admin
+      - 管理员-车辆
+  /admin/vehicle/update:
+    post:
+      consumes:
+      - application/json
+      description: 管理员更新车辆信息
+      parameters:
+      - description: 更新请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.VehicleUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新失败
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - BearerAuth: []
+      summary: 更新车辆信息
+      tags:
+      - Admin
+      - 管理员-车辆
+  /admin/vehicles:
+    post:
+      consumes:
+      - application/json
+      description: 管理员获取车辆列表，支持分页和过滤
+      parameters:
+      - description: 查询请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.VehicleListRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 获取失败
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - BearerAuth: []
+      summary: 获取车辆列表
+      tags:
+      - Admin
+      - 管理员-车辆
+  /change-password:
+    post:
+      consumes:
+      - application/json
+      description: 管理员修改自己的密码
+      parameters:
+      - description: 密码修改信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.AdminChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - ApiKeyAuth: []
+      summary: 管理员修改密码
+      tags:
+      - Admin
+      - 管理员-认证
+  /dashboard/revenue:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定时间段的收入趋势图表数据
+      parameters:
+      - default: 12m
+        description: 时间段
+        enum:
+        - 7d
+        - 30d
+        - 12m
+        in: query
+        name: period
+        type: string
+      - default: Africa/Kigali
+        description: 时区
+        in: query
+        name: timezone
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/greenride_internal_protocol.Result'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/greenride_internal_services.RevenueData'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取收入图表数据
+      tags:
+      - Admin
+      - Dashboard
+  /dashboard/stats:
+    get:
+      consumes:
+      - application/json
+      description: 获取用户、司机、车辆、行程等核心统计指标
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/greenride_internal_protocol.Result'
+            - properties:
+                data:
+                  $ref: '#/definitions/greenride_internal_services.DashboardStats'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取仪表盘统计数据
+      tags:
+      - Admin
+      - Dashboard
+  /dashboard/user-growth:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定时间段的用户和司机增长趋势图表数据
+      parameters:
+      - default: 12m
+        description: 时间段
+        enum:
+        - 7d
+        - 30d
+        - 12m
+        in: query
+        name: period
+        type: string
+      - default: Africa/Kigali
+        description: 时区
+        in: query
+        name: timezone
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/greenride_internal_protocol.Result'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/greenride_internal_services.UserGrowthData'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取用户增长图表数据
+      tags:
+      - Admin
+      - Dashboard
+  /info:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前登录管理员的详细信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/greenride_internal_protocol.Result'
+            - properties:
+                data:
+                  $ref: '#/definitions/greenride_internal_models.Admin'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取当前管理员信息
+      tags:
+      - Admin
+      - 管理员-认证
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: 管理员用户名密码登录
+      parameters:
+      - description: 登录信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.AdminLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/greenride_internal_protocol.Result'
+            - properties:
+                data:
+                  $ref: '#/definitions/greenride_internal_models.Admin'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      summary: 管理员登录
+      tags:
+      - Admin
+      - 管理员-认证
+  /logout:
+    post:
+      consumes:
+      - application/json
+      description: 管理员退出登录
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - ApiKeyAuth: []
+      summary: 管理员登出
+      tags:
+      - Admin
+      - 管理员-认证
+  /reset-password:
+    post:
+      consumes:
+      - application/json
+      description: 重置指定管理员的密码
+      parameters:
+      - description: 密码重置信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/greenride_internal_protocol.AdminResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/greenride_internal_protocol.Result'
+      security:
+      - ApiKeyAuth: []
+      summary: 重置管理员密码
+      tags:
+      - Admin
+      - 管理员-管理
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
