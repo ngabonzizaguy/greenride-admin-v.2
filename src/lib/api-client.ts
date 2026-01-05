@@ -1046,7 +1046,7 @@ class ApiClient {
 
   /**
    * Get support configuration
-   * GET /config/support
+   * GET /support/config
    */
   async getSupportConfig(): Promise<ApiResponse<{
     phone: string;
@@ -1068,12 +1068,12 @@ class ApiClient {
         },
       };
     }
-    return this.request('/config/support');
+    return this.request('/support/config');
   }
 
   /**
    * Update support configuration
-   * POST /config/support
+   * POST /support/config
    */
   async updateSupportConfig(config: {
     phone?: string;
@@ -1082,7 +1082,7 @@ class ApiClient {
     hours?: string;
     faq_url?: string;
   }): Promise<ApiResponse<unknown>> {
-    return this.request('/config/support', {
+    return this.request('/support/config', {
       method: 'POST',
       body: config,
     });
