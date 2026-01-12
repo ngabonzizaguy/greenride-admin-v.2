@@ -429,15 +429,15 @@ export default function FeedbackPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200/50 dark:divide-gray-700/50">
                   {feedback.length === 0 ? (
-                    <tr>
+                    <tr key="empty-state">
                       <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
                         No feedback found matching your filters.
                       </td>
                     </tr>
                   ) : (
-                    feedback.map((item) => (
+                    feedback.map((item, index) => (
                       <tr 
-                        key={item.id} 
+                        key={item.id || item.feedback_id || `feedback-${index}`} 
                         className={`hover:bg-white/40 dark:hover:bg-white/5 transition-colors group cursor-pointer ${item.severity === 'critical' ? 'bg-red-50/30 dark:bg-red-900/10 border-l-4 border-l-red-500' : ''}`}
                         onClick={() => setSelectedFeedback(item)}
                       >
