@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { 
   TrendingUp, 
   Users, 
@@ -36,31 +36,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { PeakHoursChart } from '@/components/charts/peak-hours-chart';
 import { RidesByDayChart } from '@/components/charts/rides-by-day-chart';
 import { UserGrowthChart } from '@/components/charts/user-growth-chart';
-import { DistanceDistributionChart } from '@/components/charts/distance-distribution-chart';
 import { toast } from 'sonner';
+import { apiClient } from '@/lib/api-client';
 
-// Mock data
-const kpiStats = {
-  ridesThisPeriod: 1234,
-  uniquePassengers: 456,
-  activeDrivers: 24,
-  avgWaitTime: 4.2,
-  cancellationRate: 8.5,
+type KPIStats = {
+  ridesThisPeriod: number;
+  uniquePassengers: number;
+  activeDrivers: number;
+  avgWaitTime: number | null;
+  cancellationRate: number | null;
 };
 
-const popularRoutes = [
-  { rank: 1, origin: 'Kimironko', destination: 'Downtown', rides: 234, avgFare: 4500 },
-  { rank: 2, origin: 'Remera', destination: 'Nyarutarama', rides: 189, avgFare: 3800 },
-  { rank: 3, origin: 'Kicukiro', destination: 'Gisozi', rides: 156, avgFare: 5200 },
-  { rank: 4, origin: 'Nyamirambo', destination: 'Kigali Heights', rides: 134, avgFare: 5800 },
-  { rank: 5, origin: 'Kacyiru', destination: 'Kibagabaga', rides: 121, avgFare: 3200 },
-  { rank: 6, origin: 'Gikondo', destination: 'Remera', rides: 98, avgFare: 4100 },
-  { rank: 7, origin: 'Kanombe', destination: 'CBD', rides: 87, avgFare: 6500 },
-  { rank: 8, origin: 'Kimihurura', destination: 'Kigali Arena', rides: 76, avgFare: 2800 },
-];
+type PopularRouteRow = { rank: number; origin: string; destination: string; rides: number; avgFare: number };
 
 const dateRangeLabels: Record<string, string> = {
   today: 'Today',
@@ -71,6 +60,83 @@ const dateRangeLabels: Record<string, string> = {
 
 export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState('this_week');
+  const [isLoading, setIsLoading] = useState(true);
+  const [kpiStats, setKpiStats] = useState<KPIStats>({
+    ridesThisPeriod: 0,
+    uniquePassengers: 0,
+    activeDrivers: 0,
+    avgWaitTime: null,
+    cancellationRate: null,
+  });
+  const [popularRoutes, setPopularRoutes] = useState<PopularRouteRow[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    const run = async () => {
+      setIsLoading(true);
+      try {
+        const res = await apiClient.getDashboardStats();
+        const data = (res.data ?? {}) as Record<string, unknown>;
+
+        const totalTrips = Number(data.total_trips ?? 0) || 0;
+        const onlineDrivers = Number(data.online_drivers ?? 0) || 0;
+        const recentTrips = (data.recent_trips as Array<Record<string, unknown>>) ?? [];
+
+        const passengerSet = new Set<string>();
+        let cancelled = 0;
+        for (const t of recentTrips) {
+          passengerSet.add(String(t.user_id ?? ''));
+          if (String(t.status ?? '').toLowerCase() === 'cancelled') cancelled += 1;
+        }
+        const cancellationRate =
+          recentTrips.length > 0 ? Math.round((cancelled / recentTrips.length) * 1000) / 10 : null;
+
+        // Popular routes from recent trips (real, but limited sample)
+        const routeMap = new Map<string, { origin: string; destination: string; rides: number; fareSum: number }>();
+        for (const t of recentTrips) {
+          const origin = String(t.pickup_location ?? '').trim();
+          const destination = String(t.dropoff_location ?? '').trim();
+          if (!origin || !destination) continue;
+          const key = `${origin}|||${destination}`;
+          const existing = routeMap.get(key) ?? { origin, destination, rides: 0, fareSum: 0 };
+          existing.rides += 1;
+          existing.fareSum += Number(t.fare ?? 0) || 0;
+          routeMap.set(key, existing);
+        }
+        const routes = Array.from(routeMap.values())
+          .sort((a, b) => b.rides - a.rides)
+          .slice(0, 8)
+          .map((r, idx) => ({
+            rank: idx + 1,
+            origin: r.origin,
+            destination: r.destination,
+            rides: r.rides,
+            avgFare: r.rides > 0 ? Math.round(r.fareSum / r.rides) : 0,
+          }));
+
+        if (!mounted) return;
+        setKpiStats({
+          ridesThisPeriod: totalTrips,
+          uniquePassengers: passengerSet.has('') ? passengerSet.size - 1 : passengerSet.size,
+          activeDrivers: onlineDrivers,
+          avgWaitTime: null, // needs order lifecycle timestamps endpoint
+          cancellationRate,
+        });
+        setPopularRoutes(routes);
+      } catch (e) {
+        console.error('Failed to load analytics:', e);
+        if (!mounted) return;
+        setKpiStats({ ridesThisPeriod: 0, uniquePassengers: 0, activeDrivers: 0, avgWaitTime: null, cancellationRate: null });
+        setPopularRoutes([]);
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, [dateRange]);
 
   // Export to CSV
   const handleExportCSV = () => {
@@ -99,6 +165,11 @@ export default function AnalyticsPage() {
     link.click();
     toast.success('Analytics data exported to CSV!');
   };
+
+  const kpiValue = useMemo(() => {
+    const fmt = (v: number | null) => (v === null ? 'N/A' : String(v));
+    return { fmt };
+  }, []);
 
   // Export to PDF
   const handleExportPDF = () => {
@@ -322,7 +393,7 @@ export default function AnalyticsPage() {
               <Clock className="h-5 w-5 text-yellow-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Avg. Wait Time</p>
-                <p className="text-2xl font-bold">{kpiStats.avgWaitTime} min</p>
+                <p className="text-2xl font-bold">{kpiStats.avgWaitTime === null ? 'N/A' : `${kpiStats.avgWaitTime} min`}</p>
               </div>
             </div>
           </CardContent>
@@ -333,7 +404,7 @@ export default function AnalyticsPage() {
               <AlertTriangle className="h-5 w-5 text-red-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Cancellation Rate</p>
-                <p className="text-2xl font-bold">{kpiStats.cancellationRate}%</p>
+                <p className="text-2xl font-bold">{kpiStats.cancellationRate === null ? 'N/A' : `${kpiStats.cancellationRate}%`}</p>
               </div>
             </div>
           </CardContent>
@@ -345,10 +416,12 @@ export default function AnalyticsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Peak Hours</CardTitle>
-            <CardDescription>Ride demand by hour and day of week</CardDescription>
+            <CardDescription>Coming soon (needs a dedicated analytics endpoint)</CardDescription>
           </CardHeader>
           <CardContent>
-            <PeakHoursChart />
+            <div className="h-[300px] w-full flex items-center justify-center text-sm text-muted-foreground">
+              Not available yet.
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -381,25 +454,39 @@ export default function AnalyticsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {popularRoutes.map((route) => (
-                  <TableRow key={route.rank}>
-                    <TableCell>
-                      <Badge 
-                        variant={route.rank <= 3 ? 'default' : 'secondary'}
-                        className={route.rank === 1 ? 'bg-yellow-500' : route.rank === 2 ? 'bg-gray-400' : route.rank === 3 ? 'bg-amber-600' : ''}
-                      >
-                        {route.rank}
-                      </Badge>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      Loading…
                     </TableCell>
-                    <TableCell>
-                      <span className="text-muted-foreground">{route.origin}</span>
-                      <span className="mx-1">→</span>
-                      <span>{route.destination}</span>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">{route.rides}</TableCell>
-                    <TableCell className="text-right">RWF {route.avgFare.toLocaleString()}</TableCell>
                   </TableRow>
-                ))}
+                ) : popularRoutes.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      No route data yet (needs more completed trips with pickup/dropoff).
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  popularRoutes.map((route) => (
+                    <TableRow key={route.rank}>
+                      <TableCell>
+                        <Badge 
+                          variant={route.rank <= 3 ? 'default' : 'secondary'}
+                          className={route.rank === 1 ? 'bg-yellow-500' : route.rank === 2 ? 'bg-gray-400' : route.rank === 3 ? 'bg-amber-600' : ''}
+                        >
+                          {route.rank}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-muted-foreground">{route.origin}</span>
+                        <span className="mx-1">→</span>
+                        <span>{route.destination}</span>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">{route.rides}</TableCell>
+                      <TableCell className="text-right">RWF {route.avgFare.toLocaleString()}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -421,10 +508,12 @@ export default function AnalyticsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Trip Distance Distribution</CardTitle>
-          <CardDescription>How trip distances are distributed across all rides</CardDescription>
+          <CardDescription>Coming soon (needs a dedicated analytics endpoint)</CardDescription>
         </CardHeader>
         <CardContent>
-          <DistanceDistributionChart />
+          <div className="h-[300px] w-full flex items-center justify-center text-sm text-muted-foreground">
+            Not available yet.
+          </div>
         </CardContent>
       </Card>
     </div>

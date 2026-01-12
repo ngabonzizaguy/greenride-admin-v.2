@@ -465,16 +465,24 @@ class ApiClient {
    * Get revenue chart data
    * GET /dashboard/revenue
    */
-  async getRevenueChart(): Promise<ApiResponse<unknown>> {
-    return this.request('/dashboard/revenue');
+  async getRevenueChart(params: { period?: '7d' | '30d' | '12m'; timezone?: string } = {}): Promise<ApiResponse<unknown>> {
+    const qs = new URLSearchParams();
+    if (params.period) qs.set('period', params.period);
+    if (params.timezone) qs.set('timezone', params.timezone);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return this.request(`/dashboard/revenue${suffix}`);
   }
 
   /**
    * Get user growth chart data
    * GET /dashboard/user-growth
    */
-  async getUserGrowthChart(): Promise<ApiResponse<unknown>> {
-    return this.request('/dashboard/user-growth');
+  async getUserGrowthChart(params: { period?: '7d' | '30d' | '12m'; timezone?: string } = {}): Promise<ApiResponse<unknown>> {
+    const qs = new URLSearchParams();
+    if (params.period) qs.set('period', params.period);
+    if (params.timezone) qs.set('timezone', params.timezone);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return this.request(`/dashboard/user-growth${suffix}`);
   }
 
   // ============================================

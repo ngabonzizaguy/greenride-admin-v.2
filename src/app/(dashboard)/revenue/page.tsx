@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -43,30 +43,30 @@ import {
 import { RevenueChart } from '@/components/charts/revenue-chart';
 import { PaymentMethodsChart } from '@/components/charts/payment-methods-chart';
 import { toast } from 'sonner';
+import { apiClient } from '@/lib/api-client';
 
-// Mock revenue data
-const revenueStats = {
-  totalRevenue: 1245000,
-  revenueChange: 12,
-  completedRides: 342,
-  averageFare: 3640,
-  platformCommission: 186750,
-  cashPayments: { amount: 560250, percentage: 45 },
-  momoPayments: { amount: 498000, percentage: 40 },
-  cardPayments: { amount: 186750, percentage: 15 },
-  pendingPayments: { amount: 24500, count: 8 },
+type RevenueStats = {
+  totalRevenue: number;
+  revenueChange: number; // keep 0 unless you add a historical comparison endpoint
+  completedRides: number;
+  averageFare: number;
+  platformCommission: number;
+  cashPayments: { amount: number; percentage: number };
+  momoPayments: { amount: number; percentage: number };
+  cardPayments: { amount: number; percentage: number };
+  pendingPayments: { amount: number; count: number };
 };
 
-const transactions = [
-  { id: 'TXN-2024122812345', rideId: 'R001', date: '2024-12-28 14:30', passenger: 'John Doe', driver: 'Peter M.', amount: 4500, method: 'momo', status: 'completed' },
-  { id: 'TXN-2024122812344', rideId: 'R002', date: '2024-12-28 14:15', passenger: 'Jane Smith', driver: 'David K.', amount: 3200, method: 'cash', status: 'completed' },
-  { id: 'TXN-2024122812343', rideId: 'R003', date: '2024-12-28 14:00', passenger: 'Mike Johnson', driver: 'Claude U.', amount: 6800, method: 'momo', status: 'pending' },
-  { id: 'TXN-2024122812342', rideId: 'R004', date: '2024-12-28 13:55', passenger: 'Sarah Wilson', driver: 'Emmanuel H.', amount: 2500, method: 'cash', status: 'completed' },
-  { id: 'TXN-2024122812341', rideId: 'R005', date: '2024-12-28 13:50', passenger: 'Chris Brown', driver: 'Jean P.', amount: 3600, method: 'card', status: 'completed' },
-  { id: 'TXN-2024122812340', rideId: 'R006', date: '2024-12-28 13:30', passenger: 'Emma Davis', driver: 'Patrick N.', amount: 5400, method: 'momo', status: 'failed' },
-  { id: 'TXN-2024122812339', rideId: 'R007', date: '2024-12-28 13:15', passenger: 'Tom Harris', driver: 'David K.', amount: 4200, method: 'cash', status: 'completed' },
-  { id: 'TXN-2024122812338', rideId: 'R008', date: '2024-12-28 13:00', passenger: 'Lisa Brown', driver: 'Peter M.', amount: 3800, method: 'momo', status: 'refunded' },
-];
+type TransactionRow = {
+  id: string;
+  rideId: string;
+  date: string;
+  passenger: string;
+  driver: string;
+  amount: number;
+  method: string;
+  status: string;
+};
 
 const getMethodIcon = (method: string) => {
   switch (method) {
@@ -107,6 +107,90 @@ const dateRangeLabels: Record<string, string> = {
 
 export default function RevenuePage() {
   const [dateRange, setDateRange] = useState('today');
+  const [isLoading, setIsLoading] = useState(true);
+  const [revenueStats, setRevenueStats] = useState<RevenueStats>({
+    totalRevenue: 0,
+    revenueChange: 0,
+    completedRides: 0,
+    averageFare: 0,
+    platformCommission: 0,
+    cashPayments: { amount: 0, percentage: 0 },
+    momoPayments: { amount: 0, percentage: 0 },
+    cardPayments: { amount: 0, percentage: 0 },
+    pendingPayments: { amount: 0, count: 0 },
+  });
+  const [transactions, setTransactions] = useState<TransactionRow[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    const run = async () => {
+      setIsLoading(true);
+      try {
+        const res = await apiClient.getDashboardStats();
+        const data = (res.data ?? {}) as Record<string, unknown>;
+
+        const totalRevenue = Number(data.total_revenue ?? 0) || 0;
+        const totalTrips = Number(data.total_trips ?? 0) || 0;
+        const averageFare = totalTrips > 0 ? Math.round(totalRevenue / totalTrips) : 0;
+        const platformCommission = Math.round(totalRevenue * 0.15);
+
+        const recentTrips = (data.recent_trips as Array<Record<string, unknown>>) ?? [];
+        const txns: TransactionRow[] = recentTrips.slice(0, 20).map((t) => ({
+          id: String(t.id ?? ''),
+          rideId: String(t.id ?? ''),
+          date: new Date(String(t.created_at ?? t.requested_at ?? new Date().toISOString())).toLocaleString(),
+          passenger: String(t.user_id ?? ''),
+          driver: String(t.driver_id ?? ''),
+          amount: Number(t.fare ?? 0) || 0,
+          method: String(t.payment_method ?? 'unknown'),
+          status: String(t.payment_status ?? t.status ?? 'unknown'),
+        }));
+
+        const sums: Record<string, number> = { cash: 0, momo: 0, card: 0 };
+        for (const txn of txns) {
+          const key = txn.method.toLowerCase();
+          if (key in sums) sums[key] += txn.amount;
+        }
+        const totalByMethod = Object.values(sums).reduce((a, b) => a + b, 0);
+        const pct = (n: number) => (totalByMethod > 0 ? Math.round((n / totalByMethod) * 100) : 0);
+
+        if (!mounted) return;
+        setTransactions(txns);
+        setRevenueStats({
+          totalRevenue,
+          revenueChange: 0, // avoid fake numbers
+          completedRides: totalTrips,
+          averageFare,
+          platformCommission,
+          cashPayments: { amount: sums.cash, percentage: pct(sums.cash) },
+          momoPayments: { amount: sums.momo, percentage: pct(sums.momo) },
+          cardPayments: { amount: sums.card, percentage: pct(sums.card) },
+          pendingPayments: { amount: 0, count: 0 }, // needs payments endpoint
+        });
+      } catch (e) {
+        console.error('Failed to load revenue data:', e);
+        if (!mounted) return;
+        setTransactions([]);
+        setRevenueStats({
+          totalRevenue: 0,
+          revenueChange: 0,
+          completedRides: 0,
+          averageFare: 0,
+          platformCommission: 0,
+          cashPayments: { amount: 0, percentage: 0 },
+          momoPayments: { amount: 0, percentage: 0 },
+          cardPayments: { amount: 0, percentage: 0 },
+          pendingPayments: { amount: 0, count: 0 },
+        });
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, [dateRange]);
 
   // Export to CSV
   const handleExportCSV = () => {
@@ -502,25 +586,39 @@ export default function RevenuePage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {transactions.map((txn) => (
-                <TableRow key={txn.id}>
-                  <TableCell className="font-mono text-sm">{txn.id}</TableCell>
-                  <TableCell className="text-muted-foreground">{txn.date}</TableCell>
-                  <TableCell className="font-medium">{txn.rideId}</TableCell>
-                  <TableCell>{txn.passenger}</TableCell>
-                  <TableCell>{txn.driver}</TableCell>
-                  <TableCell className="text-right font-medium">
-                    RWF {txn.amount.toLocaleString()}
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                    Loading…
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {getMethodIcon(txn.method)}
-                      <span className="capitalize">{txn.method}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{getStatusBadge(txn.status)}</TableCell>
                 </TableRow>
-              ))}
+              ) : transactions.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                    No transactions yet.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                transactions.map((txn) => (
+                  <TableRow key={txn.id || txn.rideId}>
+                    <TableCell className="font-mono text-sm">{txn.id}</TableCell>
+                    <TableCell className="text-muted-foreground">{txn.date}</TableCell>
+                    <TableCell className="font-medium">{txn.rideId}</TableCell>
+                    <TableCell>{txn.passenger}</TableCell>
+                    <TableCell>{txn.driver}</TableCell>
+                    <TableCell className="text-right font-medium">
+                      RWF {txn.amount.toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {getMethodIcon(txn.method)}
+                        <span className="capitalize">{txn.method}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{getStatusBadge(txn.status)}</TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

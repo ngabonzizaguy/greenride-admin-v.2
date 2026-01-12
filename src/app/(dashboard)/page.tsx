@@ -33,14 +33,28 @@ import { PaymentMethodsChart } from '@/components/charts/payment-methods-chart';
 import { apiClient } from '@/lib/api-client';
 import type { DashboardStats } from '@/types';
 
-// Mock recent activity (will be replaced when backend provides this endpoint)
-const mockRecentActivity = [
-  { id: 1, time: '2 min ago', event: 'Ride completed', user: 'John Doe', driver: 'Peter M.', status: 'completed', amount: 5200 },
-  { id: 2, time: '5 min ago', event: 'Payment received', user: 'Jane Smith', driver: 'David K.', status: 'paid', amount: 3800 },
-  { id: 3, time: '8 min ago', event: 'Ride started', user: 'Mike Johnson', driver: 'Paul R.', status: 'in_progress', amount: 4500 },
-  { id: 4, time: '12 min ago', event: 'Ride cancelled', user: 'Sarah Wilson', driver: 'James T.', status: 'cancelled', amount: 0 },
-  { id: 5, time: '15 min ago', event: 'Ride completed', user: 'Chris Brown', driver: 'Alex M.', status: 'completed', amount: 6100 },
-];
+// Recent activity type
+interface RecentActivity {
+  id: string | number;
+  time: string;
+  event: string;
+  user: string;
+  driver: string;
+  status: string;
+  amount: number;
+}
+
+// Helper to format time ago
+const formatTimeAgo = (timestamp: number): string => {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return `${seconds} sec ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+};
 
 const getStatusBadge = (status: string) => {
   switch (status) {
@@ -75,6 +89,7 @@ const defaultStats: DashboardStats = {
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>(defaultStats);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,6 +98,7 @@ export default function DashboardPage() {
     setError(null);
     
     try {
+      // Fetch dashboard stats
       const response = await apiClient.getDashboardStats();
       // Map backend response to frontend format with fallbacks
       const backendData = response.data as Record<string, unknown>;
@@ -96,6 +112,68 @@ export default function DashboardPage() {
         total_users: (backendData.total_users as number) ?? 0,
         total_drivers: (backendData.total_drivers as number) ?? 0,
       });
+
+      // Recent Activity: Prefer backend-provided recent trips (real data), fallback to orders search.
+      const toMillis = (value: unknown): number => {
+        if (typeof value === 'number') {
+          // Heuristic: seconds vs milliseconds
+          return value < 10_000_000_000 ? value * 1000 : value;
+        }
+        if (typeof value === 'string') {
+          const parsed = Date.parse(value);
+          return Number.isFinite(parsed) ? parsed : Date.now();
+        }
+        return Date.now();
+      };
+
+      const recentTrips = (backendData.recent_trips as Array<Record<string, unknown>>) ?? [];
+      if (Array.isArray(recentTrips) && recentTrips.length > 0) {
+        const activities: RecentActivity[] = recentTrips.slice(0, 5).map((trip) => {
+          const status = (trip.status as string) || 'pending';
+          const createdAt = toMillis(trip.created_at ?? trip.requested_at ?? trip.updated_at);
+          return {
+            id: (trip.id as number) ?? Math.random(),
+            time: formatTimeAgo(createdAt),
+            event:
+              status === 'completed' ? 'Ride completed' :
+              status === 'cancelled' ? 'Ride cancelled' :
+              status === 'in_progress' ? 'Ride in progress' :
+              status === 'pending' ? 'New ride request' : 'Ride update',
+            user: String(trip.user_id ?? 'Customer'),
+            driver: String(trip.driver_id ?? 'Driver'),
+            status,
+            amount: (trip.fare as number) ?? 0,
+          };
+        });
+        setRecentActivity(activities);
+      } else {
+        try {
+          const ordersResponse = await apiClient.searchOrders({ page: 1, limit: 5 });
+          if (ordersResponse.code === '0000' && ordersResponse.data?.records) {
+            const orders = ordersResponse.data.records as Array<Record<string, unknown>>;
+            const activities: RecentActivity[] = orders.map((order, idx) => {
+              const status = (order.status as string) || 'pending';
+              const createdAt = toMillis(order.created_at ?? order.updated_at);
+              return {
+                id: (order.order_id as string) ?? (order.id as string) ?? idx,
+                time: formatTimeAgo(createdAt),
+                event:
+                  status === 'completed' ? 'Ride completed' :
+                  status === 'cancelled' ? 'Ride cancelled' :
+                  status === 'in_progress' ? 'Ride in progress' :
+                  status === 'pending' ? 'New ride request' : 'Ride update',
+                user: String(order.user_id ?? order.customer_id ?? 'Customer'),
+                driver: String(order.provider_id ?? order.driver_id ?? 'Driver'),
+                status,
+                amount: (order.payment_amount as number) ?? (order.fare as number) ?? 0,
+              };
+            });
+            setRecentActivity(activities);
+          }
+        } catch (orderErr) {
+          console.error('Failed to fetch recent activity:', orderErr);
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch dashboard stats:', err);
       setError('Failed to load dashboard data. Using cached data.');
@@ -298,7 +376,13 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockRecentActivity.map((activity) => (
+                {recentActivity.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      {isLoading ? 'Loading recent activity...' : 'No recent activity'}
+                    </TableCell>
+                  </TableRow>
+                ) : recentActivity.map((activity) => (
                   <TableRow key={activity.id}>
                     <TableCell className="text-muted-foreground text-sm">
                       {activity.time}
@@ -315,7 +399,7 @@ export default function DashboardPage() {
               </TableBody>
             </Table>
             <p className="text-xs text-muted-foreground mt-4 text-center">
-              Real-time activity feed coming soon
+              Showing last 5 orders • Auto-refreshes every 30 seconds
             </p>
           </CardContent>
         </Card>

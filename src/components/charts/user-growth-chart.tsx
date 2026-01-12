@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -10,18 +11,64 @@ import {
   Legend,
 } from 'recharts';
 
-const data = [
-  { date: 'Week 1', newUsers: 45, returningUsers: 120 },
-  { date: 'Week 2', newUsers: 52, returningUsers: 135 },
-  { date: 'Week 3', newUsers: 38, returningUsers: 142 },
-  { date: 'Week 4', newUsers: 67, returningUsers: 158 },
-  { date: 'Week 5', newUsers: 54, returningUsers: 175 },
-  { date: 'Week 6', newUsers: 72, returningUsers: 189 },
-  { date: 'Week 7', newUsers: 48, returningUsers: 195 },
-  { date: 'Week 8', newUsers: 63, returningUsers: 210 },
-];
+import { apiClient } from '@/lib/api-client';
+
+type Point = { date: string; newUsers: number; totalUsers: number };
+
+const labelFromDate = (dateStr: string) => {
+  const d = new Date(dateStr);
+  if (!Number.isFinite(d.getTime())) return dateStr;
+  return d.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
+};
 
 export function UserGrowthChart() {
+  const [data, setData] = useState<Point[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const run = async () => {
+      setIsLoading(true);
+      try {
+        const res = await apiClient.getUserGrowthChart({ period: '30d' });
+        if (res.code === '0000' && Array.isArray(res.data) && mounted) {
+          const points = (res.data as Array<{ date: string; new_users: number; total_users: number }>).map((p) => ({
+            date: labelFromDate(p.date),
+            newUsers: Number(p.new_users) || 0,
+            totalUsers: Number(p.total_users) || 0,
+          }));
+          setData(points);
+        } else if (mounted) {
+          setData([]);
+        }
+      } catch {
+        if (mounted) setData([]);
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const legendFormatter = useMemo(
+    () => (value: string) => (
+      <span className="text-sm text-muted-foreground">
+        {value === 'newUsers' ? 'New Users' : value === 'totalUsers' ? 'Total Users' : value}
+      </span>
+    ),
+    []
+  );
+
+  if (isLoading) {
+    return <div className="h-[300px] w-full flex items-center justify-center text-sm text-muted-foreground">Loading…</div>;
+  }
+  if (data.length === 0) {
+    return <div className="h-[300px] w-full flex items-center justify-center text-sm text-muted-foreground">No user growth data yet.</div>;
+  }
+
   return (
     <div className="h-[300px] w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -57,7 +104,7 @@ export function UserGrowthChart() {
                       New: {payload[0].value}
                     </p>
                     <p className="text-sm text-blue-600">
-                      Returning: {payload[1].value}
+                      Total: {payload[1].value}
                     </p>
                   </div>
                 );
@@ -68,11 +115,7 @@ export function UserGrowthChart() {
           <Legend
             verticalAlign="bottom"
             height={36}
-            formatter={(value) => (
-              <span className="text-sm text-muted-foreground">
-                {value === 'newUsers' ? 'New Users' : 'Returning Users'}
-              </span>
-            )}
+            formatter={legendFormatter}
           />
           <Area
             type="monotone"
@@ -83,7 +126,7 @@ export function UserGrowthChart() {
           />
           <Area
             type="monotone"
-            dataKey="returningUsers"
+            dataKey="totalUsers"
             stroke="#3B82F6"
             strokeWidth={2}
             fill="url(#colorReturning)"

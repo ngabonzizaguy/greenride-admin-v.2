@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -9,17 +10,57 @@ import {
   YAxis,
 } from 'recharts';
 
-const data = [
-  { day: 'Mon', revenue: 185000 },
-  { day: 'Tue', revenue: 210000 },
-  { day: 'Wed', revenue: 195000 },
-  { day: 'Thu', revenue: 230000 },
-  { day: 'Fri', revenue: 280000 },
-  { day: 'Sat', revenue: 320000 },
-  { day: 'Sun', revenue: 245000 },
-];
+import { apiClient } from '@/lib/api-client';
+
+type RevenuePoint = { day: string; revenue: number };
+
+const labelFromDate = (dateStr: string) => {
+  const d = new Date(dateStr);
+  if (!Number.isFinite(d.getTime())) return dateStr;
+  return d.toLocaleDateString(undefined, { weekday: 'short' });
+};
 
 export function RevenueChart() {
+  const [data, setData] = useState<RevenuePoint[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    const run = async () => {
+      setIsLoading(true);
+      try {
+        const res = await apiClient.getRevenueChart({ period: '7d' });
+        if (res.code === '0000' && Array.isArray(res.data) && mounted) {
+          const points = (res.data as Array<{ date: string; revenue: number }>).map((p) => ({
+            day: labelFromDate(p.date),
+            revenue: Number(p.revenue) || 0,
+          }));
+          setData(points);
+        } else if (mounted) {
+          setData([]);
+        }
+      } catch {
+        if (mounted) setData([]);
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const yTick = useMemo(() => (value: number) => `${(value / 1000).toFixed(0)}K`, []);
+
+  if (isLoading) {
+    return <div className="h-[300px] w-full flex items-center justify-center text-sm text-muted-foreground">Loading…</div>;
+  }
+
+  if (data.length === 0) {
+    return <div className="h-[300px] w-full flex items-center justify-center text-sm text-muted-foreground">No revenue data yet.</div>;
+  }
+
   return (
     <div className="h-[300px] w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -40,7 +81,7 @@ export function RevenueChart() {
             axisLine={false}
             tickLine={false}
             tick={{ fill: '#64748B', fontSize: 12 }}
-            tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
+            tickFormatter={yTick}
           />
           <Tooltip
             content={({ active, payload }) => {
