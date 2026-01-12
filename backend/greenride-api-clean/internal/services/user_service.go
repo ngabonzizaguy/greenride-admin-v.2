@@ -850,8 +850,8 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 			u.last_name,
 			u.display_name,
 			u.avatar,
-			u.latitude,
-			u.longitude,
+			COALESCE(dl.latitude, u.latitude) as latitude,
+			COALESCE(dl.longitude, u.longitude) as longitude,
 			u.score,
 			u.total_rides,
 			v.brand,
@@ -861,17 +861,18 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 			v.category,
 			(6371 * acos(
 				LEAST(1.0, GREATEST(-1.0,
-					cos(radians(?)) * cos(radians(u.latitude)) * cos(radians(u.longitude) - radians(?)) +
-					sin(radians(?)) * sin(radians(u.latitude))
+					cos(radians(?)) * cos(radians(COALESCE(dl.latitude, u.latitude))) * cos(radians(COALESCE(dl.longitude, u.longitude)) - radians(?)) +
+					sin(radians(?)) * sin(radians(COALESCE(dl.latitude, u.latitude)))
 				))
 			)) AS distance_km
-		FROM users u
-		LEFT JOIN vehicles v ON u.user_id = v.driver_id AND v.status = 'active'
+		FROM t_users u
+		LEFT JOIN t_driver_locations dl ON u.user_id = dl.driver_id AND dl.recorded_at > (UNIX_TIMESTAMP(NOW()) * 1000 - 300000)
+		LEFT JOIN t_vehicles v ON u.user_id = v.driver_id AND v.status = 'active'
 		WHERE u.user_type = 'driver'
-			AND u.online_status = 'online'
+			AND (u.online_status = 'online' OR dl.online_status = 'online')
 			AND u.status = 'active'
-			AND u.latitude IS NOT NULL
-			AND u.longitude IS NOT NULL
+			AND (u.latitude IS NOT NULL OR dl.latitude IS NOT NULL)
+			AND (u.longitude IS NOT NULL OR dl.longitude IS NOT NULL)
 			AND u.deleted_at IS NULL
 		HAVING distance_km <= ?
 		ORDER BY distance_km ASC
