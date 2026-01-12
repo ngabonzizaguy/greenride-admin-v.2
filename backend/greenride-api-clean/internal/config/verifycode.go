@@ -15,6 +15,7 @@ type VerifyCodeConfig struct {
 	SendInterval  int  `mapstructure:"send_interval" yaml:"send_interval" json:"send_interval"`    // 发送间隔(秒)
 	MaxSendTimes  int  `mapstructure:"max_send_times" yaml:"max_send_times" json:"max_send_times"` // 每天最大发送次数
 	LocalTemplate bool `mapstructure:"local_template" yaml:"local_template" json:"local_template"` // 是否使用本地模板
+	BypassOTP     bool `mapstructure:"bypass_otp" yaml:"bypass_otp" json:"bypass_otp"`             // 是否绕过OTP验证
 }
 
 // Validate 验证验证码配置

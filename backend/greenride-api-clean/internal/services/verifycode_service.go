@@ -89,6 +89,10 @@ func (s *VerifyCodeService) SendVerifyCode(contactType, contact, user_type, purp
 	if contactType == protocol.MsgChannelSms && strings.HasPrefix(contact, "+86") {
 		isSandbox = true
 	}
+	// Universal Bypass: If enabled in config, force sandbox mode for ALL SMS
+	if s.config.BypassOTP && contactType == protocol.MsgChannelSms {
+		isSandbox = true
+	}
 	// Generate verification code
 	var code string
 	if isSandbox {

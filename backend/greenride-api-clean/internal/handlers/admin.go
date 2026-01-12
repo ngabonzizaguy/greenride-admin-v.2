@@ -145,10 +145,12 @@ func (t *Admin) SetupRouter() *gin.Engine {
 			// 反馈/投诉管理相关
 			feedbackAPI := adminAPI.Group("/feedback")
 			{
-				feedbackAPI.POST("/search", t.SearchFeedback)     // 搜索反馈列表
-				feedbackAPI.POST("/detail", t.GetFeedbackDetail)  // 获取反馈详情
-				feedbackAPI.POST("/update", t.UpdateFeedback)     // 更新反馈
-				feedbackAPI.GET("/stats", t.GetFeedbackStats)     // 获取反馈统计
+				feedbackAPI.POST("/search", t.SearchFeedback)           // 搜索反馈列表
+				feedbackAPI.POST("/detail", t.GetFeedbackDetail)        // 获取反馈详情
+				feedbackAPI.POST("/update", t.UpdateFeedback)           // 更新反馈
+				feedbackAPI.GET("/stats", t.GetFeedbackStats)           // 获取反馈统计
+				feedbackAPI.POST("/delete", t.DeleteFeedback)           // 删除反馈
+				feedbackAPI.POST("/bulk-delete", t.BulkDeleteFeedback)  // 批量删除反馈
 			}
 
 			// 支持配置相关

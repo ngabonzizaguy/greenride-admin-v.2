@@ -322,6 +322,44 @@ func (s *FeedbackService) GetFeedbackStats() (*protocol.FeedbackStats, error) {
 	return stats, nil
 }
 
+// DeleteFeedback 删除单个反馈
+func (s *FeedbackService) DeleteFeedback(feedbackID string) protocol.ErrorCode {
+	db := models.GetDB()
+	if db == nil {
+		return protocol.SystemError
+	}
+
+	result := db.Where("feedback_id = ?", feedbackID).Delete(&models.Feedback{})
+	if result.Error != nil {
+		return protocol.SystemError
+	}
+
+	if result.RowsAffected == 0 {
+		return protocol.InvalidParams // feedback not found
+	}
+
+	return protocol.Success
+}
+
+// BulkDeleteFeedback 批量删除反馈
+func (s *FeedbackService) BulkDeleteFeedback(feedbackIDs []string) (int64, protocol.ErrorCode) {
+	if len(feedbackIDs) == 0 {
+		return 0, protocol.InvalidParams
+	}
+
+	db := models.GetDB()
+	if db == nil {
+		return 0, protocol.SystemError
+	}
+
+	result := db.Where("feedback_id IN ?", feedbackIDs).Delete(&models.Feedback{})
+	if result.Error != nil {
+		return 0, protocol.SystemError
+	}
+
+	return result.RowsAffected, protocol.Success
+}
+
 // GetFeedbackService 获取反馈服务实例
 func GetFeedbackService() *FeedbackService {
 	return &FeedbackService{}

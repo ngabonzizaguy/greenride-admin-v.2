@@ -21,7 +21,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  RefreshCw
+  RefreshCw,
+  Trash2,
+  Phone,
+  ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,6 +64,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Sheet,
   SheetContent,
@@ -195,6 +209,22 @@ export default function FeedbackPage() {
   const [responseText, setResponseText] = useState('');
   const [newStatus, setNewStatus] = useState<FeedbackStatus>('reviewing');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // New state for delete functionality
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [feedbackToDelete, setFeedbackToDelete] = useState<string | null>(null);
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Stats from API
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    reviewing: 0,
+    resolved: 0,
+    critical: 0,
+  });
 
   // Fetch feedback data
   const fetchFeedback = useCallback(async () => {
@@ -224,21 +254,33 @@ export default function FeedbackPage() {
     }
   }, [page, limit, search, categoryFilter, statusFilter, severityFilter]);
 
+  // Fetch stats from API
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await apiClient.getFeedbackStats();
+      if (response.code === '0000' && response.data) {
+        setStats({
+          total: response.data.total_feedback || 0,
+          pending: response.data.pending_count || 0,
+          reviewing: response.data.in_progress_count || 0,
+          resolved: response.data.resolved_count || 0,
+          critical: feedback.filter(f => f.severity === 'critical').length,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  }, [feedback]);
+
   // Initial fetch and on filter change
   useEffect(() => {
     fetchFeedback();
   }, [fetchFeedback]);
 
-  // Stats (in a real app, these should come from a separate API endpoint)
-  // For demo, we'll calculate from the current filtered list or fetch separately if needed
-  // Using a simplified stats object for now based on loaded data or a separate fetch
-  const stats = {
-    total: totalCount || 0, // This might be just the filtered total
-    pending: 0, // Hard to get accurate global stats without dedicated endpoint
-    reviewing: 0,
-    resolved: 0,
-    critical: 0,
-  };
+  // Fetch stats on load and when feedback changes
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
 
   // Open detail view
   const openDetail = (item: Feedback) => {
@@ -298,6 +340,86 @@ export default function FeedbackPage() {
       console.error('Failed to update status:', error);
       toast.error('Failed to update status');
     }
+  };
+
+  // Delete single feedback
+  const handleDeleteClick = (feedbackId: string) => {
+    setFeedbackToDelete(feedbackId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!feedbackToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      const response = await apiClient.deleteFeedback(feedbackToDelete);
+      if (response.code === '0000') {
+        toast.success('Feedback deleted successfully');
+        fetchFeedback();
+        fetchStats();
+      } else {
+        toast.error(response.msg || 'Failed to delete feedback');
+      }
+    } catch (error) {
+      console.error('Failed to delete feedback:', error);
+      toast.error('Failed to delete feedback');
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setFeedbackToDelete(null);
+    }
+  };
+
+  // Bulk delete
+  const handleBulkDeleteClick = () => {
+    if (selectedIds.size === 0) {
+      toast.error('Please select feedback to delete');
+      return;
+    }
+    setIsBulkDeleteDialogOpen(true);
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    
+    setIsDeleting(true);
+    try {
+      const response = await apiClient.bulkDeleteFeedback(Array.from(selectedIds));
+      if (response.code === '0000') {
+        toast.success(`${response.data?.deleted_count || selectedIds.size} feedback items deleted`);
+        setSelectedIds(new Set());
+        fetchFeedback();
+        fetchStats();
+      } else {
+        toast.error(response.msg || 'Failed to delete feedback');
+      }
+    } catch (error) {
+      console.error('Failed to bulk delete:', error);
+      toast.error('Failed to delete feedback');
+    } finally {
+      setIsDeleting(false);
+      setIsBulkDeleteDialogOpen(false);
+    }
+  };
+
+  // Checkbox selection
+  const toggleSelectAll = () => {
+    if (selectedIds.size === feedback.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(feedback.map(f => f.feedback_id || f.id)));
+    }
+  };
+
+  const toggleSelectItem = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
   };
 
   // Export to CSV
@@ -413,79 +535,148 @@ export default function FeedbackPage() {
             </div>
           </div>
 
+          {/* Bulk Actions Bar */}
+          {selectedIds.size > 0 && (
+            <div className="glass-panel p-3 rounded-xl flex items-center justify-between">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {selectedIds.size} item{selectedIds.size > 1 ? 's' : ''} selected
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDeleteClick}
+                className="flex items-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Selected
+              </Button>
+            </div>
+          )}
+
           {/* Table */}
           <div className="glass-panel rounded-xl overflow-hidden shadow-lg mb-6">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200/50 dark:divide-gray-700/50">
                 <thead className="bg-gray-50/50 dark:bg-gray-800/30">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">ID</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Issue</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Action</th>
+                    <th className="px-3 py-4 text-left">
+                      <Checkbox
+                        checked={feedback.length > 0 && selectedIds.size === feedback.length}
+                        onCheckedChange={toggleSelectAll}
+                        aria-label="Select all"
+                      />
+                    </th>
+                    <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">ID</th>
+                    <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Issue</th>
+                    <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
+                    <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
+                    <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200/50 dark:divide-gray-700/50">
                   {feedback.length === 0 ? (
                     <tr key="empty-state">
-                      <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
+                      <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
                         No feedback found matching your filters.
                       </td>
                     </tr>
                   ) : (
-                    feedback.map((item, index) => (
-                      <tr 
-                        key={item.id || item.feedback_id || `feedback-${index}`} 
-                        className={`hover:bg-white/40 dark:hover:bg-white/5 transition-colors group cursor-pointer ${item.severity === 'critical' ? 'bg-red-50/30 dark:bg-red-900/10 border-l-4 border-l-red-500' : ''}`}
-                        onClick={() => setSelectedFeedback(item)}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">{item.feedback_id || 'N/A'}</td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-primary transition-colors">{item.title || 'No Title'}</span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xs">{item.content || 'No content'}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-800 flex items-center justify-center text-green-700 dark:text-green-300 text-xs font-bold mr-2 shadow-sm">
-                              {(item.user_name || 'Unknown').split(' ').map(n => n[0]).join('')}
-                            </div>
-                            <div className="text-sm text-gray-900 dark:text-white">{item.user_name || 'Unknown User'}</div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                            item.category === 'safety' ? 'bg-red-100/80 text-red-800 border-red-200' :
-                            item.category === 'driver' ? 'bg-blue-100/80 text-blue-800 border-blue-200' :
-                            item.category === 'vehicle' ? 'bg-purple-100/80 text-purple-800 border-purple-200' :
-                            'bg-gray-100/80 text-gray-800 border-gray-200'
-                          }`}>
-                            {(item.category || 'general').charAt(0).toUpperCase() + (item.category || 'general').slice(1)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                            item.status === 'resolved' ? 'bg-green-100/80 text-green-800 border-green-200' :
-                            item.status === 'reviewing' ? 'bg-blue-100/80 text-blue-800 border-blue-200' :
-                            item.status === 'pending' ? 'bg-yellow-100/80 text-yellow-800 border-yellow-200' :
-                            'bg-gray-100/80 text-gray-800 border-gray-200'
-                          }`}>
-                            {(item.status || 'pending').charAt(0).toUpperCase() + (item.status || 'pending').slice(1)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button 
-                            className="text-gray-400 hover:text-primary transition-colors hover:scale-110 transform"
-                            onClick={(e) => { e.stopPropagation(); setSelectedFeedback(item); }}
+                    feedback.map((item, index) => {
+                      const itemId = item.feedback_id || item.id;
+                      return (
+                        <tr 
+                          key={itemId || `feedback-${index}`} 
+                          className={`hover:bg-white/40 dark:hover:bg-white/5 transition-colors group ${item.severity === 'critical' ? 'bg-red-50/30 dark:bg-red-900/10 border-l-4 border-l-red-500' : ''} ${selectedIds.has(itemId) ? 'bg-primary/5' : ''}`}
+                        >
+                          <td className="px-3 py-4" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedIds.has(itemId)}
+                              onCheckedChange={() => toggleSelectItem(itemId)}
+                              aria-label={`Select ${item.feedback_id}`}
+                            />
+                          </td>
+                          <td 
+                            className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono cursor-pointer"
+                            onClick={() => setSelectedFeedback(item)}
                           >
-                            <ChevronRight className="h-5 w-5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                            {item.feedback_id || 'N/A'}
+                          </td>
+                          <td className="px-4 py-4 cursor-pointer" onClick={() => setSelectedFeedback(item)}>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-primary transition-colors">{item.title || 'No Title'}</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xs">{item.content || 'No content'}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex flex-col">
+                              <div className="flex items-center">
+                                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-800 flex items-center justify-center text-green-700 dark:text-green-300 text-xs font-bold mr-2 shadow-sm">
+                                  {(item.user_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2)}
+                                </div>
+                                <div className="flex flex-col">
+                                  <span className="text-sm text-gray-900 dark:text-white">{item.user_name || 'Unknown User'}</span>
+                                  {item.user_phone && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                                      <Phone className="h-3 w-3" />
+                                      {item.user_phone}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {item.user_id && (
+                                <a 
+                                  href={`/users?search=${item.user_id}`}
+                                  className="text-xs text-primary hover:underline flex items-center gap-1 mt-1 ml-9"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  View Profile
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                              item.category === 'safety' ? 'bg-red-100/80 text-red-800 border-red-200' :
+                              item.category === 'driver' ? 'bg-blue-100/80 text-blue-800 border-blue-200' :
+                              item.category === 'vehicle' ? 'bg-purple-100/80 text-purple-800 border-purple-200' :
+                              'bg-gray-100/80 text-gray-800 border-gray-200'
+                            }`}>
+                              {(item.category || 'general').charAt(0).toUpperCase() + (item.category || 'general').slice(1)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                              item.status === 'resolved' ? 'bg-green-100/80 text-green-800 border-green-200' :
+                              item.status === 'reviewing' ? 'bg-blue-100/80 text-blue-800 border-blue-200' :
+                              item.status === 'pending' ? 'bg-yellow-100/80 text-yellow-800 border-yellow-200' :
+                              'bg-gray-100/80 text-gray-800 border-gray-200'
+                            }`}>
+                              {(item.status || 'pending').charAt(0).toUpperCase() + (item.status || 'pending').slice(1)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex items-center justify-end gap-2">
+                              <button 
+                                className="text-gray-400 hover:text-primary transition-colors hover:scale-110 transform p-1"
+                                onClick={(e) => { e.stopPropagation(); setSelectedFeedback(item); }}
+                                title="View Details"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                              <button 
+                                className="text-gray-400 hover:text-red-500 transition-colors hover:scale-110 transform p-1"
+                                onClick={(e) => { e.stopPropagation(); handleDeleteClick(itemId); }}
+                                title="Delete"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -675,6 +866,51 @@ export default function FeedbackPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Feedback</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this feedback? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} Feedback Items</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedIds.size} selected feedback item{selectedIds.size > 1 ? 's' : ''}? 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmBulkDelete}
+              disabled={isDeleting}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              {isDeleting ? 'Deleting...' : `Delete ${selectedIds.size} Items`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,26 +1,211 @@
-# Server Configuration
-server:
-  api_port: 8610
-  admin_port: 8611
-  ws_port: 8612
-  jwt_secret: "grd_prod_secret_2025_9a64" # You can change this to something more random later
+# 
 
-# Database Configuration (Docker service name is 'db')
-database:
-  dsn: "greenride:GreenRide2024!@tcp(db:3306)/greenride?charset=utf8mb4&parseTime=True&loc=Local"
-
-# Redis Configuration (Docker service name is 'redis')
-redis:
-  addr: "redis:6379"
-  password: ""
-  db: 0
-
-# Log Configuration
-log:
-  level: "info"
-  path: "/app/logs"
-  format: "json"
-
-# Internal Configuration
-env: production
+env: prod
 debug: false
+
+# 服务器配置
+server:
+  api:
+    port: 8610
+    read_timeout: 60
+    write_timeout: 60
+    # JWT配置
+    jwt:
+      secret: "bNmyXE11LPEXf8pbx9FHoaU2MPRHVeq9XPmnHIPi0WQwfz0CGyA9XFFuK0cQIhx635XRwC4Clrl083qttng"
+      expiration: "336h"  # 2周
+      issuer: "Greenride"
+      audience: "greenride-users"
+  admin:
+    port: 8611
+    read_timeout: 60
+    write_timeout: 60
+    # JWT配置
+    jwt:
+      secret: "bNmyXE11LPEXf8pbx9FHoaU2MPRHVeq9XPmnHIPi0WQwfz0CGyA9XFFuK0cQIhx635XRwC4Clrl083qttng"
+      expiration: "24h"
+      issuer: "Greenride"
+      audience: "greenride-admin"
+# 数据库配置
+database:
+  dsn: "greenride:GreenRide2024!@tcp(18.143.118.157:3306)/greenride?charset=utf8mb4&parseTime=True&loc=Local"
+  max_idle_conns: 5
+  max_open_conns: 25
+  conn_max_lifetime: "300s"
+  conn_max_idle_time: "600s"
+  debug: false
+
+# Redis配置
+redis:
+  dsn: "redis://:GreenRideRedis2025!@18.143.118.157:6379"
+
+# 日志配置
+log:
+  path: "/logs"
+  level: "info"
+  format: "json"
+  output: "both"  # stdout, file, both
+  
+  # Grafana Loki 配置 (混合方案)
+  loki:
+    enabled: true                    # 总开关
+    hook: true              # 开发环境启用 Hook
+    promtail: false            # 生产环境禁用 Hook (使用 Promtail)
+    url: "https://logs-prod-020.grafana.net/loki/api/v1/push"
+    username: "1366625"     # 你的 Grafana Cloud User ID
+    password: "glc_eyJvIjoiMTU2MzUyNCIsIm4iOiJzdGFjay0xNDA4ODMxLWhsLXdyaXRlLWRldiIsImsiOiJxMVdVa3BQNlNrdDRONUM3VTBQWDI2OTUiLCJtIjp7InIiOiJwcm9kLWFwLXNvdXRoZWFzdC0xIn19"     # 你的 Grafana Cloud API Key
+    batch_wait: "1s"
+    batch_size: 1048576  # 1MB
+    labels:
+      application: "greenride-api"
+      environment: "prod"
+      version: "1.0.0"
+      team: "greenride"
+
+# 国际化配置
+i18n:
+  locales_dir: "internal/locales"  # 本地开发环境路径
+  default_language: "en"
+  supported_langs: ["en", "fr", "rw"]
+
+google:
+  maps_api_key: "AIzaSyDn6dJYuB7a2VvY4KStOfFwPNgL8DS4PgE"
+
+task:
+  enabled: true
+
+# Firebase配置 (使用YAML格式)
+firebase:
+  type: "service_account"
+  project_id: "greenride-ac56a"
+  private_key_id: "b6be13fe30658ca1f15a8b6c33d5ef7d797b6b0e"
+  private_key: |
+    -----BEGIN PRIVATE KEY-----
+    MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDXRJUNtHz4dFGX
+    cHgN/83Wpr/cpq9rSJtFBG/ONxHoX+HnUxg8wjyg1CWzRkr+wO+0dk4oQ1blnFw9
+    k2L66aZyxEL2LcvOtvW46pwmzkyb1IA1jl1ePia9FDdOq/KJcYuB0kpMpsJ32n7W
+    5DirX7pAOdw6De7Ivr1qJOSDyK44uYEKbLq4d22oitQrzG8R1Z/uQ7oVAKYVNxCF
+    40H/ySZJWC7lOS6QZnoS8LsdMzj9gDFRA5fdnLyB/KzDgK7CAH2LhmgihO2LFz5P
+    UdiVjIFGXAL5hHNAgOAVWIrWYM6Bq+x4DU6Dh5ctEIslnoEuh73vORFIqzoyxJI7
+    G/V5DEgxAgMBAAECggEAVd3L7NcRQFO5lgQtRzxBwXzrLBsq/srL8JhH9sQ9tujE
+    Je8dzGKYJ3jn/t4rnPmdw+iq3WGbAGTB4Gfxg+9+TuodYbA7yx1s35Fprwr8QO5f
+    I73BXY3CCwrM0utAh/WMNcEJlRCxong7vwDy390D4ImT4G5dUKLQ0E2d/zkl0Ybl
+    9Wjw/m+X+htJ+LtK3xVdoCwcowKk5iJVts3tb3abtiwB1KtpeP4wI5CNhBvs8Ig0
+    xpichQmG8aRu3Z5F1ZVNb8MqglaiijwQTtup9nltvNRvE8fmfLP/pner4TYFs8Mw
+    a9VGWqtwmnsK6luw7ADCYANmbyzXOWWfEppm1EO03wKBgQDus1cYD7NDxZpV9eX0
+    71NREuLc+xarrIFGnsEKvagC8irmW4zgWJbqZztdiqwBcLO7OqdKciEy6f6E/EcK
+    IdoXVWn8YwRBS0kNipMkK6car0uHdsAvpBMXWgkYIwLte2t/IelsPv/cp0LReIev
+    rbvhUBtmzJTcjU+yMpePozYpAwKBgQDm3n3Ii0s2f2q6CPBO4EXPg+B57YFpMWIQ
+    7dmkvli191yGKZpODC1Ym6Bv+Ljdxj395EkvhVNRgiQoD8x2hG9TlG9QlSbppthJ
+    WXCiB/az4LC4EVdSIgIqu+oS6bfRRRLsO2xfp+9Cy8RrD16E2P0xzBJ7p49gjC2D
+    zoxxe3ZxuwKBgQCY537J5fzCVAk6OUs17DyluYBjZ+As1lL1Zupns/e082WxrEGA
+    0J7Txo8Lq7HlNkmbjMXu9U7461Vj4Kqs/eRTgB5lUxQ9szk3mGYLDH99o36xZstT
+    eTnVgpJCyOKuN5ozlQiOk4iY0vgFcL0SNysb+JGk9zYAVfEQSEI3+6fM+wKBgF+l
+    R3kg9C0ExqOB9oTG90UMfqAk3FtHQTiAQY216iyg6S0P6URyWQr/lo0s/vGqIp6f
+    yA4u7yCyiOYr/WoQXcrDkQZSdIeSPsLMkhQetn85FB192a5GNp2bslLZjvTc6AUE
+    bVaHzWDf6GTuPhtNhj/uKq4d8hFuoaCcnqSZIK3nAoGBANWbwldwXecVqd3A3Mex
+    tJu7zxbMXdO1z4r3BK3luqkeT94fvvHL55w6kCdbYUBCYNI63XhRndeoFspIXTPO
+    GKRsY/Sc2ByUwFbz41ZncFTamUmSP9AlOSL/LJg6xGyDMY52EXXZ295+cEyUVWg4
+    3tRzWjKQRqcl5L8WacwOd8iT
+    -----END PRIVATE KEY-----
+  client_email: "firebase-adminsdk-1xxqt@greenride-ac56a.iam.gserviceaccount.com"
+  client_id: "102053469870607011178"
+  auth_uri: "https://accounts.google.com/o/oauth2/auth"
+  token_uri: "https://oauth2.googleapis.com/token"
+  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs"
+  client_x509_cert_url: "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-1xxqt%40greenride-ac56a.iam.gserviceaccount.com"
+  universe_domain: "googleapis.com"
+
+# AWS配置
+aws:
+  # S3存储配置
+  s3_region: "af-south-1"
+  s3_bucket: "greenride-prod"
+  
+  # 可选：如果配置了CloudFront CDN
+  cloudfront_url: ""
+
+# SMS配置
+sms:
+  # 服务类型：twilio, 后续可扩展其他服务商
+  service_name: "innopaas"
+  
+# Twilio配置
+twilio:
+  # Twilio账户配置（支持多账号，可用于不同区域或业务线）
+  accounts:
+    # 主账号 - 用于默认发送
+    - name: "primary"
+      account_sid: "AC67e59ab2092ad2e5d9839c16ff1e1372"
+      service_sid: "VAd9a138c03d20b4ca69fde9c17b57d039"
+      auth_token: "46e32b8b761e924156ca87eb96e7ae4d"
+      # 发送号码列表（可配置多个号码，用于不同类型消息或轮换发送）
+      phones:
+        - "+18447401619"  
+      priority: 1  # 优先级，数字越小优先级越高
+      enabled: true
+# 验证码配置
+verify_code:
+  length: 4          # 验证码长度
+  expiration: 5      # 过期时间（分钟）
+  send_interval: 60  # 发送间隔（秒）
+  max_send_times: 10 # 每日最大发送次数
+  bypass_otp: true   # Enable OTP bypass to ensure uninterrupted access
+
+innopaas:
+  endpoint: "https://api.innopaas.com/api/otp/v3/msg/send/verify"
+  app_key: "KaunIJesBYOVrM29"
+  authorization: "3u1K73"
+  sender_id: "GreenRide" # Optional if used
+
+
+# 派单系统配置
+dispatch:
+  # 基础配置
+  enabled: true
+  # 司机筛选配置
+  driver_selection:
+    fetch_all_online: true      # 获取所有在线司机，不管有单无单
+    max_candidates: 100         # 最大候选司机数量
+    use_geolocation: false      # 是否启用地理位置限制
+    
+  # 时间窗口分析配置（统一处理空闲和有单司机）
+  time_window:
+    enabled: true
+    # 时间窗口计算参数
+    time_buffer_minutes: 5              # 时间缓冲，分钟
+    eta_calculation_method: "haversine" # ETA计算方法
+    # 有单司机判断标准
+    max_additional_distance_km: 2.0     # 最大额外距离，公里
+    max_additional_time_minutes: 10     # 最大额外时间，分钟
+      
+  # 多因子评分配置
+  scoring:
+    enabled: true
+    normalize_scores: true  # 是否标准化评分到[0,1]范围，确保各因子权重公平
+    # 评分因子权重（动态调整，空闲司机某些因子权重为0）
+    factors:
+      rating: 0.25                    # 司机评分权重
+      accept_rate: 0.25               # 接单率权重  
+      distance: 0.30                  # 距离权重（空闲司机）
+      eta_to_pickup: 0.20             # 到达上车点ETA权重
+      current_order_eta: 0.15         # 当前订单完成ETA权重（仅有单司机）
+      route_compatibility: 0.10       # 路线兼容性权重（仅有单司机）
+      
+  # 派单轮次配置
+  rounds:
+    max_rounds: 1                   # 默认最大1轮
+    drivers_per_round: 0            # 每轮派发司机数，0表示全部
+    response_timeout_seconds: 30
+    round_interval_seconds: 60      # 轮次间隔（多轮时有效）
+
+payment:
+  sandbox: 0
+  callback_host: https://api.greenrideafrica.com
+  redirect_url: https://www.greenrideafrica.com/payment_result
+  timeout: 30
+
+kpay:
+  logo_url: 
+  callback_url: /webhook/kpay
+  redirect_url:
+  timeout: 30

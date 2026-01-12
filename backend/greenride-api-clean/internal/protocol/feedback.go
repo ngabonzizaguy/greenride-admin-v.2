@@ -40,6 +40,11 @@ type FeedbackIDRequest struct {
 	FeedbackID string `json:"feedback_id" binding:"required"`
 }
 
+// BulkFeedbackRequest 批量反馈请求
+type BulkFeedbackRequest struct {
+	FeedbackIDs []string `json:"feedback_ids" binding:"required"`
+}
+
 // FeedbackUpdateRequest 反馈更新请求
 type FeedbackUpdateRequest struct {
 	FeedbackID     string  `json:"feedback_id" binding:"required"` // 反馈ID

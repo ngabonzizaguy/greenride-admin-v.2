@@ -1054,6 +1054,85 @@ class ApiClient {
     });
   }
 
+  /**
+   * Delete single feedback
+   * POST /feedback/delete
+   */
+  async deleteFeedback(feedbackId: string): Promise<ApiResponse<unknown>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 300));
+      const index = MOCK_FEEDBACK.findIndex(f => f.feedback_id === feedbackId || String(f.id) === feedbackId);
+      if (index !== -1) {
+        MOCK_FEEDBACK.splice(index, 1);
+        return { code: API_CODES.SUCCESS, msg: 'Feedback deleted successfully', data: null };
+      }
+      return { code: API_CODES.BUSINESS_ERROR, msg: 'Feedback not found', data: null };
+    }
+    return this.request('/feedback/delete', {
+      method: 'POST',
+      body: { feedback_id: feedbackId },
+    });
+  }
+
+  /**
+   * Bulk delete feedback
+   * POST /feedback/bulk-delete
+   */
+  async bulkDeleteFeedback(feedbackIds: string[]): Promise<ApiResponse<{ deleted_count: number }>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 500));
+      let deletedCount = 0;
+      feedbackIds.forEach(id => {
+        const index = MOCK_FEEDBACK.findIndex(f => f.feedback_id === id || String(f.id) === id);
+        if (index !== -1) {
+          MOCK_FEEDBACK.splice(index, 1);
+          deletedCount++;
+        }
+      });
+      return { code: API_CODES.SUCCESS, msg: 'Feedback deleted successfully', data: { deleted_count: deletedCount } };
+    }
+    return this.request('/feedback/bulk-delete', {
+      method: 'POST',
+      body: { feedback_ids: feedbackIds },
+    });
+  }
+
+  /**
+   * Get feedback statistics
+   * GET /feedback/stats
+   */
+  async getFeedbackStats(): Promise<ApiResponse<{
+    total_feedback: number;
+    pending_count: number;
+    in_progress_count: number;
+    resolved_count: number;
+    complaint_count: number;
+    suggestion_count: number;
+    avg_response_time: number;
+    avg_resolution_time: number;
+  }>> {
+    if (DEMO_MODE) {
+      const pending = MOCK_FEEDBACK.filter(f => f.status === 'pending').length;
+      const reviewing = MOCK_FEEDBACK.filter(f => f.status === 'reviewing').length;
+      const resolved = MOCK_FEEDBACK.filter(f => f.status === 'resolved' || f.status === 'closed').length;
+      return {
+        code: API_CODES.SUCCESS,
+        msg: 'Success',
+        data: {
+          total_feedback: MOCK_FEEDBACK.length,
+          pending_count: pending,
+          in_progress_count: reviewing,
+          resolved_count: resolved,
+          complaint_count: Math.floor(MOCK_FEEDBACK.length * 0.4),
+          suggestion_count: Math.floor(MOCK_FEEDBACK.length * 0.6),
+          avg_response_time: 2.5,
+          avg_resolution_time: 24.0,
+        },
+      };
+    }
+    return this.request('/feedback/stats');
+  }
+
   // ============================================
   // SUPPORT CONFIG ENDPOINTS
   // ============================================

@@ -181,6 +181,69 @@ func (t *Admin) GetFeedbackStats(c *gin.Context) {
 	c.JSON(http.StatusOK, protocol.NewSuccessResult(stats))
 }
 
+// DeleteFeedback 删除反馈
+// @Summary 删除反馈
+// @Description 管理员删除单个反馈记录
+// @Tags Admin,Feedback
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body protocol.FeedbackIDRequest true "反馈ID"
+// @Success 200 {object} protocol.Result
+// @Router /feedback/delete [post]
+func (t *Admin) DeleteFeedback(c *gin.Context) {
+	lang := middleware.GetLanguageFromContext(c)
+
+	var req protocol.FeedbackIDRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, protocol.NewErrorResult(protocol.InvalidJSON, lang, err.Error()))
+		return
+	}
+
+	errCode := services.GetFeedbackService().DeleteFeedback(req.FeedbackID)
+	if errCode != protocol.Success {
+		log.Printf("Error deleting feedback: %v", errCode)
+		c.JSON(http.StatusInternalServerError, protocol.NewErrorResult(errCode, lang))
+		return
+	}
+
+	c.JSON(http.StatusOK, protocol.NewSuccessResult("Feedback deleted successfully"))
+}
+
+// BulkDeleteFeedback 批量删除反馈
+// @Summary 批量删除反馈
+// @Description 管理员批量删除多个反馈记录
+// @Tags Admin,Feedback
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body protocol.BulkFeedbackRequest true "反馈ID列表"
+// @Success 200 {object} protocol.Result
+// @Router /feedback/bulk-delete [post]
+func (t *Admin) BulkDeleteFeedback(c *gin.Context) {
+	lang := middleware.GetLanguageFromContext(c)
+
+	var req protocol.BulkFeedbackRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, protocol.NewErrorResult(protocol.InvalidJSON, lang, err.Error()))
+		return
+	}
+
+	if len(req.FeedbackIDs) == 0 {
+		c.JSON(http.StatusBadRequest, protocol.NewErrorResult(protocol.InvalidParams, lang, "No feedback IDs provided"))
+		return
+	}
+
+	deleted, errCode := services.GetFeedbackService().BulkDeleteFeedback(req.FeedbackIDs)
+	if errCode != protocol.Success {
+		log.Printf("Error bulk deleting feedback: %v", errCode)
+		c.JSON(http.StatusInternalServerError, protocol.NewErrorResult(errCode, lang))
+		return
+	}
+
+	c.JSON(http.StatusOK, protocol.NewSuccessResult(map[string]int64{"deleted_count": deleted}))
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================

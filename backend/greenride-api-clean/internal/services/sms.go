@@ -48,7 +48,8 @@ func GetSMSServiceHandler() SmsMessage {
 	switch cfg.ServiceName {
 	case "twilio":
 		return GetTwilioService()
-		// Add other SMS service providers here
+	case "innopaas":
+		return GetInnoPaaSService()
 	}
 
 	return nil

@@ -43,6 +43,7 @@ type Config struct {
 	Payment    *PaymentConfig    `mapstructure:"payment"`     // 支付配置
 	KPay       *KPayConfig       `mapstructure:"kpay"`        //KPay支付配置
 	Order      *OrderConfig      `mapstructure:"order"`       // 订单配置
+	InnoPaaS   *InnoPaaSConfig   `mapstructure:"innopaas"`    // InnoPaaS SMS配置
 }
 
 func (c *Config) IsSandbox() bool {
@@ -294,6 +295,20 @@ func (c *AWSConfig) ValidateAWS() error {
 		return fmt.Errorf("AWS S3 Bucket is required")
 	}
 	return nil
+}
+
+type InnoPaaSConfig struct {
+	Endpoint      string `mapstructure:"endpoint" yaml:"endpoint" json:"endpoint"`
+	AppKey        string `mapstructure:"app_key" yaml:"app_key" json:"app_key"`
+	Authorization string `mapstructure:"authorization" yaml:"authorization" json:"authorization"`
+	SenderID      string `mapstructure:"sender_id" yaml:"sender_id" json:"sender_id"`
+}
+
+// Validate 验证InnoPaaS配置
+func (c *InnoPaaSConfig) Validate() {
+	if c.Endpoint == "" {
+		c.Endpoint = "https://api.innopaas.com/api/otp/v3/msg/send/verify"
+	}
 }
 
 // PromotionConfig 优惠券配置
