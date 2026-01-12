@@ -250,7 +250,7 @@ export default function FeedbackPage() {
   const openResponseDialog = (item: Feedback) => {
     setSelectedFeedback(item);
     setResponseText(item.admin_response || '');
-    setNewStatus(item.status === 'pending' ? 'reviewing' : item.status);
+    setNewStatus((item.status || 'pending') === 'pending' ? 'reviewing' : (item.status || 'pending'));
     setIsResponseDialogOpen(true);
   };
 
@@ -441,19 +441,19 @@ export default function FeedbackPage() {
                         className={`hover:bg-white/40 dark:hover:bg-white/5 transition-colors group cursor-pointer ${item.severity === 'critical' ? 'bg-red-50/30 dark:bg-red-900/10 border-l-4 border-l-red-500' : ''}`}
                         onClick={() => setSelectedFeedback(item)}
                       >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">{item.feedback_id}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">{item.feedback_id || 'N/A'}</td>
                         <td className="px-6 py-4">
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-primary transition-colors">{item.title}</span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xs">{item.content}</span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-primary transition-colors">{item.title || 'No Title'}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xs">{item.content || 'No content'}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="h-8 w-8 rounded-full bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-800 flex items-center justify-center text-green-700 dark:text-green-300 text-xs font-bold mr-2 shadow-sm">
-                              {item.user_name.split(' ').map(n => n[0]).join('')}
+                              {(item.user_name || 'Unknown').split(' ').map(n => n[0]).join('')}
                             </div>
-                            <div className="text-sm text-gray-900 dark:text-white">{item.user_name}</div>
+                            <div className="text-sm text-gray-900 dark:text-white">{item.user_name || 'Unknown User'}</div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -463,7 +463,7 @@ export default function FeedbackPage() {
                             item.category === 'vehicle' ? 'bg-purple-100/80 text-purple-800 border-purple-200' :
                             'bg-gray-100/80 text-gray-800 border-gray-200'
                           }`}>
-                            {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
+                            {(item.category || 'general').charAt(0).toUpperCase() + (item.category || 'general').slice(1)}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -473,7 +473,7 @@ export default function FeedbackPage() {
                             item.status === 'pending' ? 'bg-yellow-100/80 text-yellow-800 border-yellow-200' :
                             'bg-gray-100/80 text-gray-800 border-gray-200'
                           }`}>
-                            {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                            {(item.status || 'pending').charAt(0).toUpperCase() + (item.status || 'pending').slice(1)}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
