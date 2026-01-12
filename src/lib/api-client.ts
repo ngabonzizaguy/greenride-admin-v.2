@@ -341,11 +341,17 @@ class ApiClient {
     }
 
     try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       method,
       headers: requestHeaders,
       body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
     });
+    
+    clearTimeout(timeoutId);
 
       const data: ApiResponse<T> = await response.json();
 
@@ -368,6 +374,14 @@ class ApiClient {
     } catch (error) {
       if (error instanceof ApiError) {
         throw error;
+      }
+      // Handle abort/timeout errors
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new ApiError(
+          'Request timeout - server took too long to respond',
+          API_CODES.SYSTEM_ERROR,
+          'The request timed out. Please check your connection or try again.'
+        );
       }
       // Network or parsing error
       throw new ApiError(
