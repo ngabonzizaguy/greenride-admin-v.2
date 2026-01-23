@@ -59,9 +59,14 @@ func GetVerifyCodeService() *VerifyCodeService {
 
 // GenerateCode generates a random verification code
 func (s *VerifyCodeService) GenerateCode() string {
+	// Defensive nil check
+	length := 4
+	if s.config != nil {
+		length = s.config.Length
+	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	var result string
-	for i := 0; i < s.config.Length; i++ {
+	for i := 0; i < length; i++ {
 		result += fmt.Sprintf("%d", r.Intn(10))
 	}
 	return result
@@ -83,6 +88,17 @@ func (s *VerifyCodeService) setInt64ToCache(key string, value int64, expiration 
 
 // SendVerifyCode sends verification code via email or SMS
 func (s *VerifyCodeService) SendVerifyCode(contactType, contact, user_type, purpose, language string) (protocol.ErrorCode, int) {
+	// Defensive nil check - ensure config is always initialized
+	if s.config == nil {
+		s.config = &config.VerifyCodeConfig{
+			Length:       4,
+			Expiration:   5,
+			SendInterval: 60,
+			MaxSendTimes: 10,
+			BypassOTP:    true,
+		}
+	}
+
 	// Validate contact type
 	if contactType != protocol.MsgChannelEmail && contactType != protocol.MsgChannelSms {
 		return protocol.InvalidVerificationMethod, 0
