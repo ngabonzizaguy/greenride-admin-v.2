@@ -43,4 +43,4 @@ bin/
 **/logs
 main/main
 greenride-api
-temp*
+temp*greenride-api-linux

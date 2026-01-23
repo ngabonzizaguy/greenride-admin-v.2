@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   ArrowLeft, 
@@ -11,7 +11,8 @@ import {
   Ban,
   Calendar,
   CreditCard,
-  Star
+  Star,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,38 +28,144 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { apiClient } from '@/lib/api-client';
 
-// Mock user data
-const mockUser = {
-  id: '1',
-  name: 'John Doe',
-  email: 'john.doe@email.com',
-  phone: '+250 788 111 222',
-  avatar: null,
-  status: 'active',
-  totalTrips: 45,
-  totalSpent: 185000,
-  avgRating: 4.8,
-  lastTrip: '2024-12-28',
-  joinedAt: '2024-03-15',
-  address: 'Kimironko, Kigali',
-};
+interface UserData {
+  id: string;
+  user_id?: string;
+  name: string;
+  display_name?: string;
+  first_name?: string;
+  last_name?: string;
+  email: string;
+  phone: string;
+  avatar?: string | null;
+  status: string;
+  totalTrips: number;
+  total_trips?: number;
+  totalSpent: number;
+  total_spent?: number;
+  avgRating: number;
+  score?: number;
+  lastTrip?: string;
+  joinedAt: string;
+  created_at?: number;
+  address?: string;
+}
 
-const recentTrips = [
-  { id: 'T001', date: '2024-12-28', driver: 'Peter M.', pickup: 'Kimironko', dropoff: 'Downtown', fare: 4500, rating: 5, status: 'completed' },
-  { id: 'T002', date: '2024-12-27', driver: 'David K.', pickup: 'Remera', dropoff: 'Nyarutarama', fare: 3200, rating: 4, status: 'completed' },
-  { id: 'T003', date: '2024-12-26', driver: 'Jean P.', pickup: 'Kicukiro', dropoff: 'Gisozi', fare: 6800, rating: 5, status: 'completed' },
-  { id: 'T004', date: '2024-12-25', driver: 'Claude U.', pickup: 'Downtown', dropoff: 'Kimihurura', fare: 2500, rating: null, status: 'cancelled' },
-];
-
-const paymentMethods = [
-  { type: 'MoMo', number: '**** 1234', isDefault: true },
-  { type: 'Card', number: '**** 5678', isDefault: false },
-];
+interface Trip {
+  id: string;
+  order_id?: string;
+  date: string;
+  created_at?: number;
+  driver: string;
+  provider_name?: string;
+  pickup: string;
+  pickup_address?: string;
+  dropoff: string;
+  dropoff_address?: string;
+  fare: number;
+  payment_amount?: number;
+  rating?: number | null;
+  status: string;
+}
 
 export default function UserDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const user = mockUser;
+  const [user, setUser] = useState<UserData | null>(null);
+  const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        // Fetch user details
+        const response = await apiClient.getUserDetail(id);
+        if (response.code === '0000' && response.data) {
+          const userData = response.data as Record<string, unknown>;
+          setUser({
+            id: (userData.user_id as string) || id,
+            name: (userData.display_name as string) || 
+                  `${userData.first_name || ''} ${userData.last_name || ''}`.trim() || 
+                  'Unknown User',
+            email: (userData.email as string) || '',
+            phone: (userData.phone as string) || '',
+            avatar: userData.avatar as string | null,
+            status: (userData.status as string) || 'active',
+            totalTrips: (userData.total_trips as number) || 0,
+            totalSpent: (userData.total_spent as number) || 0,
+            avgRating: (userData.score as number) || 0,
+            joinedAt: userData.created_at 
+              ? new Date(userData.created_at as number).toISOString().split('T')[0]
+              : 'N/A',
+            address: (userData.address as string) || '',
+          });
+        } else {
+          setError('User not found');
+        }
+
+        // Fetch user's trips
+        try {
+          const ordersResponse = await apiClient.searchOrders({ user_id: id, page: 1, limit: 10 });
+          if (ordersResponse.code === '0000' && ordersResponse.data?.records) {
+            const orders = ordersResponse.data.records as Array<Record<string, unknown>>;
+            setRecentTrips(orders.map((order) => ({
+              id: (order.order_id as string) || String(order.id),
+              date: order.created_at 
+                ? new Date(order.created_at as number).toISOString().split('T')[0]
+                : 'N/A',
+              driver: (order.provider_name as string) || 'Driver',
+              pickup: (order.pickup_address as string) || 'N/A',
+              dropoff: (order.dropoff_address as string) || 'N/A',
+              fare: (order.payment_amount as number) || 0,
+              rating: order.rating as number | null,
+              status: (order.status as string) || 'pending',
+            })));
+          }
+        } catch {
+          // Silently fail - trips are optional
+        }
+      } catch (err) {
+        console.error('Failed to fetch user:', err);
+        setError('Failed to load user details');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !user) {
+    return (
+      <div className="space-y-6">
+        <Link href="/users" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Users
+        </Link>
+        <Card>
+          <CardContent className="p-6 text-center text-muted-foreground">
+            {error || 'User not found'}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const paymentMethods = [
+    { type: 'MoMo', number: '**** ****', isDefault: true },
+  ];
 
   return (
     <div className="space-y-6">
@@ -158,7 +265,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
               <CardContent className="p-4">
                 <p className="text-sm text-muted-foreground">Last Trip</p>
                 <p className="text-2xl font-bold">
-                  {new Date(user.lastTrip).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  {user.lastTrip ? new Date(user.lastTrip).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'N/A'}
                 </p>
               </CardContent>
             </Card>

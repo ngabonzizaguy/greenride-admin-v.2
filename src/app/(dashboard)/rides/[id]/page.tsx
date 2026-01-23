@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   ArrowLeft, 
@@ -12,70 +12,69 @@ import {
   Star,
   Phone,
   Navigation,
-  XCircle
+  XCircle,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
+import { apiClient } from '@/lib/api-client';
+import { toast } from 'sonner';
 
-// Mock ride data
-const mockRide = {
-  id: 'R001',
-  status: 'completed',
-  passenger: {
-    id: '1',
-    name: 'John Doe',
-    phone: '+250 788 111 222',
-    rating: 4.8,
-  },
-  driver: {
-    id: '1',
-    name: 'Peter Mugisha',
-    phone: '+250 788 123 456',
-    rating: 4.9,
-    vehicle: 'Toyota Corolla • RAD 123A',
-  },
-  pickup: {
-    address: 'Kimironko Market, Kigali',
-    lat: -1.9403,
-    lng: 29.8739,
-    time: '2024-12-28 14:30',
-  },
-  dropoff: {
-    address: 'Downtown Kigali, City Center',
-    lat: -1.9453,
-    lng: 29.8789,
-    time: '2024-12-28 14:48',
-  },
-  distance: 5.2,
-  duration: 18,
-  fare: {
-    baseFare: 1000,
-    distanceFare: 2600,
-    timeFare: 360,
-    total: 4500,
-    discount: 0,
-    final: 4500,
-  },
-  paymentMethod: 'momo',
-  paymentStatus: 'paid',
-  rating: 5,
-  review: 'Great driver, very professional!',
-  createdAt: '2024-12-28 14:25',
-  completedAt: '2024-12-28 14:48',
-};
-
-const timeline = [
-  { time: '14:25', event: 'Ride requested', status: 'completed' },
-  { time: '14:26', event: 'Driver assigned - Peter Mugisha', status: 'completed' },
-  { time: '14:28', event: 'Driver arriving', status: 'completed' },
-  { time: '14:30', event: 'Driver arrived at pickup', status: 'completed' },
-  { time: '14:30', event: 'Trip started', status: 'completed' },
-  { time: '14:48', event: 'Trip ended', status: 'completed' },
-  { time: '14:48', event: 'Payment received via MoMo', status: 'completed' },
-];
+interface RideData {
+  order_id: string;
+  status: string;
+  passenger?: {
+    user_id?: string;
+    display_name?: string;
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    email?: string;
+    avatar?: string;
+    score?: number;
+  };
+  driver?: {
+    user_id?: string;
+    display_name?: string;
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    email?: string;
+    avatar?: string;
+    score?: number;
+  };
+  vehicle?: {
+    plate_number?: string;
+    brand?: string;
+    model?: string;
+    color?: string;
+  };
+  pickup_address?: string;
+  pickup_latitude?: number;
+  pickup_longitude?: number;
+  dropoff_address?: string;
+  dropoff_latitude?: number;
+  dropoff_longitude?: number;
+  estimated_distance?: number;
+  actual_distance?: number;
+  estimated_duration?: number;
+  actual_duration?: number;
+  payment_amount?: number;
+  payment_method?: string;
+  payment_status?: string;
+  base_fare?: number;
+  distance_fare?: number;
+  time_fare?: number;
+  total_fare?: number;
+  created_at?: number;
+  started_at?: number;
+  completed_at?: number;
+  cancelled_at?: number;
+  driver_ratings?: Array<{ rating?: number; comment?: string }>;
+}
 
 const getStatusBadge = (status: string) => {
   switch (status) {
@@ -92,7 +91,140 @@ const getStatusBadge = (status: string) => {
 
 export default function RideDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const ride = mockRide;
+  const [ride, setRide] = useState<RideData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchRideData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await apiClient.getOrderDetail(id);
+        if (response.code === '0000' && response.data) {
+          const data = response.data as Record<string, unknown>;
+          setRide({
+            order_id: (data.order_id as string) || id,
+            status: (data.status as string) || 'pending',
+            passenger: data.passenger as RideData['passenger'],
+            driver: data.driver as RideData['driver'],
+            vehicle: data.vehicle as RideData['vehicle'],
+            pickup_address: data.pickup_address as string,
+            pickup_latitude: data.pickup_latitude as number,
+            pickup_longitude: data.pickup_longitude as number,
+            dropoff_address: data.dropoff_address as string,
+            dropoff_latitude: data.dropoff_latitude as number,
+            dropoff_longitude: data.dropoff_longitude as number,
+            estimated_distance: data.estimated_distance as number,
+            actual_distance: data.actual_distance as number,
+            estimated_duration: data.estimated_duration as number,
+            actual_duration: data.actual_duration as number,
+            payment_amount: data.payment_amount as number,
+            payment_method: data.payment_method as string,
+            payment_status: data.payment_status as string,
+            base_fare: data.base_fare as number,
+            distance_fare: data.distance_fare as number,
+            time_fare: data.time_fare as number,
+            total_fare: data.total_fare as number,
+            created_at: data.created_at as number,
+            started_at: data.started_at as number,
+            completed_at: data.completed_at as number,
+            cancelled_at: data.cancelled_at as number,
+            driver_ratings: data.driver_ratings as Array<{ rating?: number; comment?: string }>,
+          });
+        } else {
+          setError('Ride not found');
+        }
+      } catch (err) {
+        console.error('Failed to fetch ride:', err);
+        setError('Failed to load ride details');
+        toast.error('Failed to load ride details');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRideData();
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !ride) {
+    return (
+      <div className="space-y-6">
+        <Link
+          href="/rides"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Rides
+        </Link>
+        <Card>
+          <CardContent className="p-12 text-center">
+            <p className="text-muted-foreground">{error || 'Ride not found'}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Build timeline from order timestamps
+  const timeline: Array<{ time: string; event: string; status: string }> = [];
+  if (ride.created_at) {
+    timeline.push({
+      time: new Date(ride.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      event: 'Ride requested',
+      status: 'completed',
+    });
+  }
+  if (ride.started_at) {
+    timeline.push({
+      time: new Date(ride.started_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      event: 'Trip started',
+      status: 'completed',
+    });
+  }
+  if (ride.completed_at) {
+    timeline.push({
+      time: new Date(ride.completed_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      event: 'Trip ended',
+      status: 'completed',
+    });
+  }
+  if (ride.payment_status === 'paid' && ride.completed_at) {
+    timeline.push({
+      time: new Date(ride.completed_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      event: `Payment received via ${ride.payment_method || 'payment'}`,
+      status: 'completed',
+    });
+  }
+  if (ride.cancelled_at) {
+    timeline.push({
+      time: new Date(ride.cancelled_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      event: 'Ride cancelled',
+      status: 'cancelled',
+    });
+  }
+
+  const passengerName = ride.passenger?.display_name || 
+    `${ride.passenger?.first_name || ''} ${ride.passenger?.last_name || ''}`.trim() || 
+    'Passenger';
+  const driverName = ride.driver?.display_name || 
+    `${ride.driver?.first_name || ''} ${ride.driver?.last_name || ''}`.trim() || 
+    'Driver';
+  const vehicleInfo = ride.vehicle 
+    ? `${ride.vehicle.brand || ''} ${ride.vehicle.model || ''} • ${ride.vehicle.plate_number || 'N/A'}`.trim()
+    : 'N/A';
+  const distance = ride.actual_distance || ride.estimated_distance || 0;
+  const duration = ride.actual_duration || ride.estimated_duration || 0;
+  const rating = ride.driver_ratings?.[0]?.rating || 0;
+  const review = ride.driver_ratings?.[0]?.comment || '';
 
   return (
     <div className="space-y-6">
@@ -109,11 +241,11 @@ export default function RideDetailPage({ params }: { params: Promise<{ id: strin
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">Ride {ride.id}</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Ride {ride.order_id}</h1>
             {getStatusBadge(ride.status)}
           </div>
           <p className="text-muted-foreground">
-            {new Date(ride.createdAt).toLocaleString()}
+            {ride.created_at ? new Date(ride.created_at).toLocaleString() : 'N/A'}
           </p>
         </div>
         {ride.status !== 'completed' && ride.status !== 'cancelled' && (
@@ -140,7 +272,7 @@ export default function RideDetailPage({ params }: { params: Promise<{ id: strin
                   <div className="text-center">
                     <Navigation className="h-12 w-12 text-primary mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground">Route Map</p>
-                    <p className="text-xs text-muted-foreground">{ride.distance} km • {ride.duration} min</p>
+                    <p className="text-xs text-muted-foreground">{distance.toFixed(1)} km • {duration} min</p>
                   </div>
                 </div>
               </div>
@@ -153,12 +285,20 @@ export default function RideDetailPage({ params }: { params: Promise<{ id: strin
                   </div>
                   <div className="flex-1 space-y-4">
                     <div>
-                      <p className="font-medium">{ride.pickup.address}</p>
-                      <p className="text-sm text-muted-foreground">{ride.pickup.time}</p>
+                      <p className="font-medium">{ride.pickup_address || 'N/A'}</p>
+                      {ride.created_at && (
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(ride.created_at).toLocaleString()}
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <p className="font-medium">{ride.dropoff.address}</p>
-                      <p className="text-sm text-muted-foreground">{ride.dropoff.time}</p>
+                      <p className="font-medium">{ride.dropoff_address || 'N/A'}</p>
+                      {ride.completed_at && (
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(ride.completed_at).toLocaleString()}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -172,42 +312,46 @@ export default function RideDetailPage({ params }: { params: Promise<{ id: strin
               <CardTitle>Fare Breakdown</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Base Fare</span>
-                <span>RWF {ride.fare.baseFare.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Distance ({ride.distance} km)</span>
-                <span>RWF {ride.fare.distanceFare.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Time ({ride.duration} min)</span>
-                <span>RWF {ride.fare.timeFare.toLocaleString()}</span>
-              </div>
-              {ride.fare.discount > 0 && (
-                <div className="flex justify-between text-green-600">
-                  <span>Discount</span>
-                  <span>-RWF {ride.fare.discount.toLocaleString()}</span>
+              {ride.base_fare !== undefined && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Base Fare</span>
+                  <span>RWF {(ride.base_fare || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {ride.distance_fare !== undefined && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Distance ({distance.toFixed(1)} km)</span>
+                  <span>RWF {(ride.distance_fare || 0).toLocaleString()}</span>
+                </div>
+              )}
+              {ride.time_fare !== undefined && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Time ({duration} min)</span>
+                  <span>RWF {(ride.time_fare || 0).toLocaleString()}</span>
                 </div>
               )}
               <Separator />
               <div className="flex justify-between font-bold text-lg">
                 <span>Total</span>
-                <span>RWF {ride.fare.final.toLocaleString()}</span>
+                <span>RWF {(ride.payment_amount || ride.total_fare || 0).toLocaleString()}</span>
               </div>
               <div className="flex items-center gap-2 mt-4">
-                <Badge variant="outline" className="capitalize">
-                  {ride.paymentMethod}
-                </Badge>
-                <Badge className="bg-green-100 text-green-700">
-                  {ride.paymentStatus}
-                </Badge>
+                {ride.payment_method && (
+                  <Badge variant="outline" className="capitalize">
+                    {ride.payment_method}
+                  </Badge>
+                )}
+                {ride.payment_status && (
+                  <Badge className={ride.payment_status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>
+                    {ride.payment_status}
+                  </Badge>
+                )}
               </div>
             </CardContent>
           </Card>
 
           {/* Rating & Review */}
-          {ride.rating && (
+          {rating > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Rating & Review</CardTitle>
@@ -218,15 +362,15 @@ export default function RideDetailPage({ params }: { params: Promise<{ id: strin
                     <Star
                       key={i}
                       className={`h-5 w-5 ${
-                        i < ride.rating!
+                        i < rating
                           ? 'fill-yellow-400 text-yellow-400'
                           : 'text-gray-200'
                       }`}
                     />
                   ))}
                 </div>
-                {ride.review && (
-                  <p className="text-muted-foreground italic">&quot;{ride.review}&quot;</p>
+                {review && (
+                  <p className="text-muted-foreground italic">&quot;{review}&quot;</p>
                 )}
               </CardContent>
             </Card>
@@ -236,65 +380,103 @@ export default function RideDetailPage({ params }: { params: Promise<{ id: strin
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Passenger Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-4 w-4" />
-                Passenger
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-3">
-                <Avatar className="h-12 w-12">
-                  <AvatarFallback className="bg-blue-100 text-blue-600">
-                    {ride.passenger.name.split(' ').map(n => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium">{ride.passenger.name}</p>
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                    {ride.passenger.rating}
+          {ride.passenger && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Passenger
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-12 w-12">
+                    {ride.passenger.avatar ? (
+                      <img src={ride.passenger.avatar} alt={passengerName} />
+                    ) : (
+                      <AvatarFallback className="bg-blue-100 text-blue-600">
+                        {passengerName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  <div>
+                    <p className="font-medium">{passengerName}</p>
+                    {ride.passenger.score !== undefined && (
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        {ride.passenger.score.toFixed(1)}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-              <Button variant="outline" size="sm" className="w-full mt-4 gap-2">
-                <Phone className="h-4 w-4" />
-                {ride.passenger.phone}
-              </Button>
-            </CardContent>
-          </Card>
+                {ride.passenger.user_id && (
+                  <Link href={`/users/${ride.passenger.user_id}`}>
+                    <Button variant="outline" size="sm" className="w-full mt-4 gap-2">
+                      <User className="h-4 w-4" />
+                      View Profile
+                    </Button>
+                  </Link>
+                )}
+                {ride.passenger.phone && (
+                  <Button variant="outline" size="sm" className="w-full mt-2 gap-2">
+                    <Phone className="h-4 w-4" />
+                    {ride.passenger.phone}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Driver Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Car className="h-4 w-4" />
-                Driver
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-3">
-                <Avatar className="h-12 w-12">
-                  <AvatarFallback className="bg-primary/10 text-primary">
-                    {ride.driver.name.split(' ').map(n => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium">{ride.driver.name}</p>
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                    {ride.driver.rating}
+          {ride.driver && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Car className="h-4 w-4" />
+                  Driver
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-12 w-12">
+                    {ride.driver.avatar ? (
+                      <img src={ride.driver.avatar} alt={driverName} />
+                    ) : (
+                      <AvatarFallback className="bg-primary/10 text-primary">
+                        {driverName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  <div>
+                    <p className="font-medium">{driverName}</p>
+                    {ride.driver.score !== undefined && (
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        {ride.driver.score.toFixed(1)}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-              <p className="text-sm text-muted-foreground mt-2">{ride.driver.vehicle}</p>
-              <Button variant="outline" size="sm" className="w-full mt-4 gap-2">
-                <Phone className="h-4 w-4" />
-                {ride.driver.phone}
-              </Button>
-            </CardContent>
-          </Card>
+                {vehicleInfo && vehicleInfo !== 'N/A' && (
+                  <p className="text-sm text-muted-foreground mt-2">{vehicleInfo}</p>
+                )}
+                {ride.driver.user_id && (
+                  <Link href={`/drivers/${ride.driver.user_id}`}>
+                    <Button variant="outline" size="sm" className="w-full mt-4 gap-2">
+                      <User className="h-4 w-4" />
+                      View Profile
+                    </Button>
+                  </Link>
+                )}
+                {ride.driver.phone && (
+                  <Button variant="outline" size="sm" className="w-full mt-2 gap-2">
+                    <Phone className="h-4 w-4" />
+                    {ride.driver.phone}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Timeline */}
           <Card>

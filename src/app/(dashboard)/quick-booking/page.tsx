@@ -40,16 +40,9 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiClient } from '@/lib/api-client';
-import type { Driver, User as UserType, PageResult } from '@/types';
+import type { User as UserType, PageResult } from '@/types';
 
-// Mock nearby drivers for demo
-const MOCK_NEARBY_DRIVERS = [
-  { id: 'DRV001', name: 'Peter Mutombo', vehicle: 'Toyota Corolla - RAD 123A', rating: 4.8, distance: '0.5 km', eta: '3 min', status: 'online' },
-  { id: 'DRV002', name: 'David Kagame', vehicle: 'Honda Fit - RAC 456B', rating: 4.6, distance: '1.2 km', eta: '5 min', status: 'online' },
-  { id: 'DRV005', name: 'Alex Munyaneza', vehicle: 'Suzuki Swift - RAB 789C', rating: 4.5, distance: '2.0 km', eta: '8 min', status: 'online' },
-];
-
-type BookingStep = 'passenger' | 'locations' | 'driver' | 'confirm';
+type BookingStep = 'passenger' | 'locations' | 'confirm';
 
 export default function QuickBookingPage() {
   // Step tracking
@@ -70,11 +63,6 @@ export default function QuickBookingPage() {
   // Location info
   const [pickupLocation, setPickupLocation] = useState('');
   const [dropoffLocation, setDropoffLocation] = useState('');
-  
-  // Driver selection
-  const [nearbyDrivers, setNearbyDrivers] = useState<typeof MOCK_NEARBY_DRIVERS>([]);
-  const [selectedDriver, setSelectedDriver] = useState<typeof MOCK_NEARBY_DRIVERS[0] | null>(null);
-  const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
   
   // Booking state
   const [isBooking, setIsBooking] = useState(false);
@@ -178,31 +166,14 @@ export default function QuickBookingPage() {
     }
   };
 
-  // Load nearby drivers
-  const loadNearbyDrivers = useCallback(async () => {
-    setIsLoadingDrivers(true);
-    try {
-      // In demo mode, use mock nearby drivers
-      await new Promise(r => setTimeout(r, 500));
-      setNearbyDrivers(MOCK_NEARBY_DRIVERS);
-    } catch (err) {
-      setError('Failed to load nearby drivers');
-    } finally {
-      setIsLoadingDrivers(false);
-    }
-  }, []);
-
   // Move to next step
   const goToStep = (step: BookingStep) => {
-    if (step === 'driver') {
-      loadNearbyDrivers();
-    }
     setCurrentStep(step);
   };
 
   // Confirm booking
   const confirmBooking = async () => {
-    if (!foundPassenger || !selectedDriver || !pickupLocation || !dropoffLocation) {
+    if (!foundPassenger || !pickupLocation || !dropoffLocation) {
       setError('Please complete all booking details');
       return;
     }
@@ -211,25 +182,39 @@ export default function QuickBookingPage() {
     setError(null);
 
     try {
-      // Simulate booking creation
-      await new Promise(r => setTimeout(r, 1000));
+      // Create order via API
+      const orderData = {
+        user_id: foundPassenger.user_id,
+        order_type: 'ride',
+        pickup_address: pickupLocation,
+        dropoff_address: dropoffLocation,
+        // Driver will be auto-assigned by the system
+      };
+
+      const response = await apiClient.createOrder(orderData);
       
-      const orderId = `ORD${Date.now().toString().slice(-6)}`;
-      
-      setBookingDetails({
-        orderId,
-        passenger: foundPassenger.full_name || foundPassenger.first_name || 'Passenger',
-        driver: selectedDriver.name,
-        pickup: pickupLocation,
-        dropoff: dropoffLocation,
-        eta: selectedDriver.eta,
-      });
-      
-      setBookingComplete(true);
-      setSuccessMessage('Booking created successfully!');
+      if (response.code === '0000' && response.data) {
+        const orderData = response.data as Record<string, unknown>;
+        const orderId = (orderData.order_id as string) || 'N/A';
+        
+        setBookingDetails({
+          orderId,
+          passenger: foundPassenger.full_name || foundPassenger.first_name || 'Passenger',
+          driver: 'Auto-assigned',
+          pickup: pickupLocation,
+          dropoff: dropoffLocation,
+          eta: 'Estimated',
+        });
+        
+        setBookingComplete(true);
+        setSuccessMessage('Booking created successfully! Driver will be auto-assigned.');
+      } else {
+        throw new Error(response.msg || 'Failed to create booking');
+      }
     } catch (err) {
       console.error('Booking failed:', err);
       setError('Failed to create booking. Please try again.');
+      setSuccessMessage(null);
     } finally {
       setIsBooking(false);
     }
@@ -243,46 +228,47 @@ export default function QuickBookingPage() {
     setIsNewPassenger(false);
     setPickupLocation('');
     setDropoffLocation('');
-    setSelectedDriver(null);
-    setNearbyDrivers([]);
     setBookingComplete(false);
     setBookingDetails(null);
     setNewPassengerForm({ first_name: '', last_name: '', phone: '', email: '' });
   };
 
   // Render step indicator
-  const renderStepIndicator = () => (
-    <div className="flex items-center justify-center gap-2 mb-8">
-      {(['passenger', 'locations', 'driver', 'confirm'] as BookingStep[]).map((step, index) => (
-        <div key={step} className="flex items-center">
-          <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-              currentStep === step
-                ? 'bg-primary text-primary-foreground'
-                : index < ['passenger', 'locations', 'driver', 'confirm'].indexOf(currentStep)
-                ? 'bg-green-500 text-white'
-                : 'bg-muted text-muted-foreground'
-            }`}
-          >
-            {index < ['passenger', 'locations', 'driver', 'confirm'].indexOf(currentStep) ? (
-              <CheckCircle className="h-4 w-4" />
-            ) : (
-              index + 1
+  const renderStepIndicator = () => {
+    const steps: BookingStep[] = ['passenger', 'locations', 'confirm'];
+    return (
+      <div className="flex items-center justify-center gap-2 mb-8">
+        {steps.map((step, index) => (
+          <div key={step} className="flex items-center">
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                currentStep === step
+                  ? 'bg-primary text-primary-foreground'
+                  : index < steps.indexOf(currentStep)
+                  ? 'bg-green-500 text-white'
+                  : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              {index < steps.indexOf(currentStep) ? (
+                <CheckCircle className="h-4 w-4" />
+              ) : (
+                index + 1
+              )}
+            </div>
+            {index < steps.length - 1 && (
+              <div
+                className={`w-12 h-0.5 ${
+                  index < steps.indexOf(currentStep)
+                    ? 'bg-green-500'
+                    : 'bg-muted'
+                }`}
+              />
             )}
           </div>
-          {index < 3 && (
-            <div
-              className={`w-12 h-0.5 ${
-                index < ['passenger', 'locations', 'driver', 'confirm'].indexOf(currentStep)
-                  ? 'bg-green-500'
-                  : 'bg-muted'
-              }`}
-            />
-          )}
-        </div>
-      ))}
-    </div>
-  );
+        ))}
+      </div>
+    );
+  };
 
   // Booking complete view
   if (bookingComplete && bookingDetails) {
@@ -526,106 +512,25 @@ export default function QuickBookingPage() {
                 Back
               </Button>
               <Button 
-                onClick={() => goToStep('driver')} 
+                onClick={() => goToStep('confirm')} 
                 className="flex-1"
                 disabled={!pickupLocation || !dropoffLocation}
               >
-                Find Nearby Drivers
-                <Car className="h-4 w-4 ml-2" />
+                Continue to Review
+                <CheckCircle className="h-4 w-4 ml-2" />
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Step 3: Select Driver */}
-      {currentStep === 'driver' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Car className="h-5 w-5" />
-              Step 3: Assign Driver
-            </CardTitle>
-            <CardDescription>
-              Select an available driver near the pickup location
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {isLoadingDrivers ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="flex items-center gap-3 p-3 border rounded-lg">
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <div className="flex-1 space-y-2">
-                      <Skeleton className="h-4 w-32" />
-                      <Skeleton className="h-3 w-48" />
-                    </div>
-                    <Skeleton className="h-8 w-20" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {nearbyDrivers.map(driver => (
-                  <div
-                    key={driver.id}
-                    className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-                      selectedDriver?.id === driver.id
-                        ? 'border-primary bg-primary/5'
-                        : 'hover:bg-muted/50'
-                    }`}
-                    onClick={() => setSelectedDriver(driver)}
-                  >
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback className="bg-primary/10 text-primary">
-                        {driver.name[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{driver.name}</p>
-                        <div className="flex items-center gap-1 text-sm text-yellow-600">
-                          <Star className="h-3 w-3 fill-current" />
-                          {driver.rating}
-                        </div>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{driver.vehicle}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-green-600">{driver.eta}</p>
-                      <p className="text-xs text-muted-foreground">{driver.distance}</p>
-                    </div>
-                    {selectedDriver?.id === driver.id && (
-                      <CheckCircle className="h-5 w-5 text-primary" />
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setCurrentStep('locations')} className="flex-1">
-                Back
-              </Button>
-              <Button 
-                onClick={() => goToStep('confirm')} 
-                className="flex-1"
-                disabled={!selectedDriver}
-              >
-                Review Booking
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Step 4: Confirm Booking */}
+      {/* Step 3: Confirm Booking */}
       {currentStep === 'confirm' && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5" />
-              Step 4: Confirm Booking
+              Step 3: Confirm Booking
             </CardTitle>
             <CardDescription>
               Review the booking details before confirmation
@@ -657,32 +562,21 @@ export default function QuickBookingPage() {
               </div>
             </div>
 
-            {/* Driver */}
-            {selectedDriver && (
-              <div className="p-4 rounded-lg bg-muted/50">
-                <p className="text-sm text-muted-foreground mb-2">Assigned Driver</p>
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-primary/10 text-primary">
-                      {selectedDriver.name[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium">{selectedDriver.name}</p>
-                    <p className="text-sm text-muted-foreground">{selectedDriver.vehicle}</p>
-                  </div>
-                  <Badge variant="outline" className="ml-auto">
-                    <Clock className="h-3 w-3 mr-1" />
-                    ETA: {selectedDriver.eta}
-                  </Badge>
+            {/* Driver Assignment Note */}
+            <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+              <div className="flex items-start gap-2">
+                <Car className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-blue-900">Driver Assignment</p>
+                  <p className="text-sm text-blue-700">A driver will be automatically assigned by the system when the booking is confirmed.</p>
                 </div>
               </div>
-            )}
+            </div>
 
             <Separator />
 
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setCurrentStep('driver')} className="flex-1">
+              <Button variant="outline" onClick={() => setCurrentStep('locations')} className="flex-1">
                 Back
               </Button>
               <Button 

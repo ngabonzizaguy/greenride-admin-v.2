@@ -29,8 +29,8 @@ import {
 } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
-// Google Maps API Key
-const GOOGLE_MAPS_API_KEY = 'AIzaSyDif39v3Gx4YXonS3-A8pINUMi3hxRfC3U';
+// Google Maps API Key - from environment variable
+const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || 'AIzaSyDif39v3Gx4YXonS3-A8pINUMi3hxRfC3U';
 
 // Kigali center coordinates
 const KIGALI_CENTER = { lat: -1.9403, lng: 29.8739 };

@@ -66,3 +66,35 @@ func (a *Api) SubmitFeedback(c *gin.Context) {
 		FeedbackID: feedback.FeedbackID,
 	}))
 }
+
+// GetSupportConfig 获取支持配置（移动端API - 无需认证）
+// @Summary 获取支持配置
+// @Description 获取当前的客服支持配置信息，供移动端使用
+// @Tags Feedback,Support
+// @Accept json
+// @Produce json
+// @Success 200 {object} protocol.Result{data=protocol.SupportConfigResponse}
+// @Failure 500 {object} protocol.Result
+// @Router /support/config [get]
+func (a *Api) GetSupportConfig(c *gin.Context) {
+	config, err := services.GetSupportService().GetConfig()
+	if err != nil {
+		log.Errorf("Error getting support config: %v", err)
+		// Return default config on error
+		defaultConfig := &protocol.SupportConfigResponse{
+			SupportEmail:       "support@greenride.rw",
+			SupportPhone:       "+250 788 000 000",
+			SupportHours:       "Mon-Fri 8:00 AM - 6:00 PM",
+			EmergencyPhone:     "+250 788 000 001",
+			WhatsAppNumber:      "+250 788 000 000",
+			ResponseTimeTarget:  24,
+			AutoReplyEnabled:    true,
+			EscalationEnabled:   true,
+			EscalationTimeout:   48,
+		}
+		c.JSON(http.StatusOK, protocol.NewSuccessResult(defaultConfig))
+		return
+	}
+
+	c.JSON(http.StatusOK, protocol.NewSuccessResult(config))
+}

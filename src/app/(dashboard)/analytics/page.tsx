@@ -279,7 +279,7 @@ export default function AnalyticsPage() {
             <ul>
               <li>The <strong>Kimironko → Downtown</strong> route is the most popular with ${popularRoutes[0].rides} rides this period.</li>
               <li>Average wait time of <strong>${kpiStats.avgWaitTime} minutes</strong> is within optimal range (&lt;5 min).</li>
-              <li>Cancellation rate of <strong>${kpiStats.cancellationRate}%</strong> ${kpiStats.cancellationRate < 10 ? 'is healthy' : 'needs attention'}.</li>
+              <li>Cancellation rate of <strong>${kpiStats.cancellationRate ?? 'N/A'}%</strong> ${kpiStats.cancellationRate !== null && kpiStats.cancellationRate < 10 ? 'is healthy' : 'needs attention'}.</li>
               <li><strong>${kpiStats.activeDrivers} drivers</strong> are actively serving <strong>${kpiStats.uniquePassengers} unique passengers</strong>.</li>
             </ul>
           </div>

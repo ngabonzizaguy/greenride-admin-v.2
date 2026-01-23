@@ -104,6 +104,7 @@ func (a *Api) SetupRouter() *gin.Engine {
 		api.POST("/verify-code", a.VerifyCode)
 		api.POST("/reset-password", a.ResetPassword)
 		api.POST("/feedback/submit", a.SubmitFeedback) // 提交反馈 - 无需认证
+		api.GET("/support/config", a.GetSupportConfig)  // 获取支持配置 - 无需认证（公共信息）
 
 		// Checkout 状态查询接口
 		api.POST("/checkout/status", a.GetCheckoutStatus) // 查询checkout状态

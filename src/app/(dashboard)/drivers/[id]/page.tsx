@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   ArrowLeft, 
@@ -16,7 +16,8 @@ import {
   TrendingUp,
   CheckCircle,
   XCircle,
-  Clock
+  Clock,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,65 +34,67 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { DriverPerformanceChart } from '@/components/charts/driver-performance-chart';
+import { apiClient } from '@/lib/api-client';
 
-// Mock driver data
-const mockDriver = {
-  id: '1',
-  name: 'Peter Mugisha',
-  email: 'peter.m@email.com',
-  phone: '+250 788 123 456',
-  avatar: null,
-  status: 'online',
-  rating: 4.8,
-  totalTrips: 1234,
-  acceptanceRate: 92,
-  completionRate: 98,
-  cancellationRate: 2,
-  todayTrips: 8,
-  todayEarnings: 45000,
-  weekEarnings: 285000,
-  monthEarnings: 1150000,
-  lifetimeEarnings: 4800000,
+interface DriverData {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  avatar: string | null;
+  status: string;
+  rating: number;
+  totalTrips: number;
+  acceptanceRate: number;
+  completionRate: number;
+  cancellationRate: number;
+  todayTrips: number;
+  todayEarnings: number;
+  weekEarnings: number;
+  monthEarnings: number;
+  lifetimeEarnings: number;
   vehicle: {
-    plate: 'RAD 123A',
-    model: 'Toyota Corolla',
-    make: 'Toyota',
-    year: 2019,
-    color: 'Silver',
-    type: 'Sedan',
-  },
+    plate: string;
+    model: string;
+    make: string;
+    year: number;
+    color: string;
+    type: string;
+  };
   documents: {
-    license: { status: 'valid', expiry: '2025-06-15' },
-    insurance: { status: 'valid', expiry: '2025-03-20' },
-    registration: { status: 'valid', expiry: '2025-12-01' },
-  },
-  joinedAt: '2024-06-15',
-  address: 'Kigali, Gasabo District',
-};
+    license: { status: string; expiry: string };
+    insurance: { status: string; expiry: string };
+    registration: { status: string; expiry: string };
+  };
+  joinedAt: string;
+  address: string;
+}
 
-const recentTrips = [
-  { id: 'T001', date: '2024-12-28', passenger: 'John Doe', pickup: 'Kimironko', dropoff: 'Downtown', distance: 5.2, fare: 4500, rating: 5, status: 'completed' },
-  { id: 'T002', date: '2024-12-28', passenger: 'Jane Smith', pickup: 'Remera', dropoff: 'Nyarutarama', distance: 3.8, fare: 3200, rating: 4, status: 'completed' },
-  { id: 'T003', date: '2024-12-28', passenger: 'Mike Johnson', pickup: 'Kicukiro', dropoff: 'Gisozi', distance: 8.1, fare: 6800, rating: 5, status: 'completed' },
-  { id: 'T004', date: '2024-12-27', passenger: 'Sarah Wilson', pickup: 'Downtown', dropoff: 'Kimihurura', distance: 2.5, fare: 2500, rating: null, status: 'cancelled' },
-  { id: 'T005', date: '2024-12-27', passenger: 'Chris Brown', pickup: 'Kacyiru', dropoff: 'Kibagabaga', distance: 4.0, fare: 3600, rating: 5, status: 'completed' },
-];
+interface Trip {
+  id: string;
+  date: string;
+  passenger: string;
+  pickup: string;
+  dropoff: string;
+  distance: number;
+  fare: number;
+  rating: number | null;
+  status: string;
+}
 
-const reviews = [
-  { id: 1, passenger: 'John Doe', rating: 5, comment: 'Excellent driver! Very professional and punctual.', date: '2024-12-28' },
-  { id: 2, passenger: 'Jane Smith', rating: 4, comment: 'Good service, car was clean.', date: '2024-12-28' },
-  { id: 3, passenger: 'Mike Johnson', rating: 5, comment: 'Best driver I have had so far. Highly recommended!', date: '2024-12-28' },
-  { id: 4, passenger: 'Chris Brown', rating: 5, comment: 'Very friendly and knows the city well.', date: '2024-12-27' },
-];
+interface Review {
+  id: number;
+  passenger: string;
+  rating: number;
+  comment: string;
+  date: string;
+}
 
-const activityLog = [
-  { id: 1, event: 'Completed trip #T003', time: '2 hours ago' },
-  { id: 2, event: 'Started trip #T003', time: '2 hours ago' },
-  { id: 3, event: 'Completed trip #T002', time: '3 hours ago' },
-  { id: 4, event: 'Started trip #T002', time: '3 hours ago' },
-  { id: 5, event: 'Went online', time: '4 hours ago' },
-  { id: 6, event: 'Completed trip #T001', time: 'Yesterday' },
-];
+interface ActivityLogItem {
+  id: number;
+  event: string;
+  time: string;
+}
 
 const getStatusBadge = (status: string) => {
   switch (status) {
@@ -130,7 +133,120 @@ const getStatusBadge = (status: string) => {
 
 export default function DriverDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const driver = mockDriver; // In real app, fetch by id
+  const [driver, setDriver] = useState<DriverData | null>(null);
+  const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [activityLog, setActivityLog] = useState<ActivityLogItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchDriverData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await apiClient.getUserDetail(id);
+        if (response.code === '0000' && response.data) {
+          const data = response.data as Record<string, unknown>;
+          const vehicleData = data.vehicle as Record<string, unknown> | undefined;
+          
+          setDriver({
+            id: (data.user_id as string) || id,
+            name: (data.display_name as string) || 
+                  `${data.first_name || ''} ${data.last_name || ''}`.trim() || 
+                  'Unknown Driver',
+            email: (data.email as string) || '',
+            phone: (data.phone as string) || '',
+            avatar: data.avatar as string | null,
+            status: (data.online_status as string) || (data.status as string) || 'offline',
+            rating: (data.score as number) || 0,
+            totalTrips: (data.total_trips as number) || 0,
+            acceptanceRate: (data.acceptance_rate as number) || 0,
+            completionRate: (data.completion_rate as number) || 100,
+            cancellationRate: (data.cancellation_rate as number) || 0,
+            todayTrips: (data.today_trips as number) || 0,
+            todayEarnings: (data.today_earnings as number) || 0,
+            weekEarnings: (data.week_earnings as number) || 0,
+            monthEarnings: (data.month_earnings as number) || 0,
+            lifetimeEarnings: (data.total_earnings as number) || 0,
+            vehicle: {
+              plate: (vehicleData?.plate_number as string) || 'N/A',
+              model: (vehicleData?.model as string) || 'N/A',
+              make: (vehicleData?.brand as string) || 'N/A',
+              year: (vehicleData?.year as number) || 0,
+              color: (vehicleData?.color as string) || 'N/A',
+              type: (vehicleData?.vehicle_type as string) || 'car',
+            },
+            documents: {
+              license: { status: 'valid', expiry: 'N/A' },
+              insurance: { status: 'valid', expiry: 'N/A' },
+              registration: { status: 'valid', expiry: 'N/A' },
+            },
+            joinedAt: data.created_at 
+              ? new Date(data.created_at as number).toISOString().split('T')[0]
+              : 'N/A',
+            address: (data.address as string) || 'N/A',
+          });
+
+          // Fetch driver's trips
+          try {
+            const ordersResponse = await apiClient.searchOrders({ provider_id: id, page: 1, limit: 5 });
+            if (ordersResponse.code === '0000' && ordersResponse.data?.records) {
+              const orders = ordersResponse.data.records as Array<Record<string, unknown>>;
+              setRecentTrips(orders.map((order) => ({
+                id: (order.order_id as string) || String(order.id),
+                date: order.created_at 
+                  ? new Date(order.created_at as number).toISOString().split('T')[0]
+                  : 'N/A',
+                passenger: (order.customer_name as string) || 'Customer',
+                pickup: (order.pickup_address as string) || 'N/A',
+                dropoff: (order.dropoff_address as string) || 'N/A',
+                distance: (order.distance as number) || 0,
+                fare: (order.payment_amount as number) || 0,
+                rating: order.rating as number | null,
+                status: (order.status as string) || 'pending',
+              })));
+            }
+          } catch {
+            // Silently fail
+          }
+        } else {
+          setError('Driver not found');
+        }
+      } catch (err) {
+        console.error('Failed to fetch driver:', err);
+        setError('Failed to load driver details');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDriverData();
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (error || !driver) {
+    return (
+      <div className="space-y-6">
+        <Link href="/drivers" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Drivers
+        </Link>
+        <Card>
+          <CardContent className="p-6 text-center text-muted-foreground">
+            {error || 'Driver not found'}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

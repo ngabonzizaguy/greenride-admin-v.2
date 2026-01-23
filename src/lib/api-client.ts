@@ -330,6 +330,7 @@ class ApiClient {
     const { method = 'GET', body, headers = {} } = options;
 
     const token = this.getToken();
+    const url = `${this.baseUrl}${endpoint}`;
     const requestHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept-Language': 'en',
@@ -340,18 +341,57 @@ class ApiClient {
       requestHeaders['Authorization'] = `Bearer ${token}`;
     }
 
+    if (typeof window !== 'undefined') {
+      console.debug('[API Client] Request', {
+        url,
+        method,
+        hasToken: Boolean(token),
+        headers: Object.keys(requestHeaders),
+        body: body ?? null,
+      });
+    }
+
     try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-    
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method,
-      headers: requestHeaders,
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    });
-    
-    clearTimeout(timeoutId);
+      const controller = new AbortController();
+      // Increased timeout to 60 seconds for slow database queries
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+
+      const response = await fetch(url, {
+        method,
+        headers: requestHeaders,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (typeof window !== 'undefined') {
+        console.debug('[API Client] Response', {
+          url,
+          status: response.status,
+          ok: response.ok,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries()),
+        });
+      }
+
+      // Check if response is OK before parsing
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unable to read error response');
+        if (typeof window !== 'undefined') {
+          console.error('[API Client] Non-OK response', {
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText,
+          });
+        }
+        throw new ApiError(
+          `Request failed with status ${response.status}: ${response.statusText}`,
+          response.status === 401 ? API_CODES.AUTH_ERROR : API_CODES.SYSTEM_ERROR,
+          errorText
+        );
+      }
 
       const data: ApiResponse<T> = await response.json();
 
@@ -372,6 +412,15 @@ class ApiClient {
 
       return data;
     } catch (error) {
+      if (typeof window !== 'undefined') {
+        console.error('[API Client] Request failed', {
+          url,
+          method,
+          hasToken: Boolean(token),
+          error: error instanceof Error ? error.message : error,
+          errorStack: error instanceof Error ? error.stack : undefined,
+        });
+      }
       if (error instanceof ApiError) {
         throw error;
       }

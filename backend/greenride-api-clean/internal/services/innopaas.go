@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 
@@ -69,14 +70,27 @@ func (s *InnoPaaSService) SendSmsMessage(message *Message) error {
 		return fmt.Errorf("missing recipient phone number")
 	}
 
-	// Extract content. For this specific API, we need the "code"
-	// The message content usually comes in as "Your code is 1234"
-	// We need to either pass just the code in the 'content' param or extract it.
-	// Assumption: The caller (VerifyCodeService) will pass the code as 'content'
-	// OR we assume the content IS the code if it's numeric.
-	content, ok := message.Params["content"].(string)
-	if !ok || content == "" {
-		return fmt.Errorf("missing message content")
+	// Extract OTP code from params
+	// The code is available directly in Params["code"] from VerifyCodeService
+	// If not available, try to extract from content (fallback)
+	var code string
+	if codeVal, ok := message.Params["code"]; ok && codeVal != nil {
+		code = fmt.Sprintf("%v", codeVal)
+	} else {
+		// Fallback: try to extract from content if code param is missing
+		content, ok := message.Params["content"].(string)
+		if !ok || content == "" {
+			return fmt.Errorf("missing OTP code in message params")
+		}
+		// Try to extract numeric code from content (e.g., "Your code is 1234" -> "1234")
+		code = extractCodeFromContent(content)
+		if code == "" {
+			return fmt.Errorf("failed to extract OTP code from message content")
+		}
+	}
+
+	if code == "" {
+		return fmt.Errorf("missing OTP code")
 	}
 
 	// Prepare request body
@@ -88,7 +102,7 @@ func (s *InnoPaaSService) SendSmsMessage(message *Message) error {
 		To:       cleanTo,
 		Type:     "3",
 		Language: "en",
-		Code:     content, // Assuming content is the OTP code
+		Code:     code,
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
@@ -147,4 +161,17 @@ func cleanPhoneNumber(phone string) string {
 		}
 	}
 	return string(result)
+}
+
+// extractCodeFromContent extracts numeric OTP code from formatted message content
+// Handles formats like "Your code is 1234", "Code: 1234", "1234", etc.
+func extractCodeFromContent(content string) string {
+	// First, try to find a sequence of 4-6 digits (typical OTP length)
+	re := regexp.MustCompile(`\b\d{4,6}\b`)
+	matches := re.FindString(content)
+	if matches != "" {
+		return matches
+	}
+	// If no match, return empty string
+	return ""
 }

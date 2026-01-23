@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -29,15 +30,17 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useAuthStore } from '@/stores/auth-store';
+import { apiClient } from '@/lib/api-client';
 
-const navItems = [
+// Dynamic nav items - badges will be updated from API
+const getNavItems = (counts: { feedback: number; drivers: number; rides: number }) => [
   { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/quick-booking', icon: PhoneCall, label: 'Quick Booking', highlight: true },
-  { href: '/feedback', icon: MessageSquare, label: 'Feedback', badge: '3' },
+  { href: '/feedback', icon: MessageSquare, label: 'Feedback', badge: counts.feedback > 0 ? String(counts.feedback) : undefined },
   { href: '/map', icon: Map, label: 'Live Map' },
-  { href: '/drivers', icon: Car, label: 'Drivers', badge: '24' },
+  { href: '/drivers', icon: Car, label: 'Drivers', badge: counts.drivers > 0 ? String(counts.drivers) : undefined },
   { href: '/users', icon: Users, label: 'Users' },
-  { href: '/rides', icon: Car, label: 'Rides', badge: '12' },
+  { href: '/rides', icon: Car, label: 'Rides', badge: counts.rides > 0 ? String(counts.rides) : undefined },
   { href: '/revenue', icon: DollarSign, label: 'Revenue' },
   { href: '/analytics', icon: BarChart3, label: 'Analytics' },
   { href: '/promotions', icon: Tag, label: 'Promotions' },
@@ -52,6 +55,37 @@ export function Sidebar() {
   const pathname = usePathname();
   const { isCollapsed, toggleCollapsed } = useSidebarStore();
   const { user, logout } = useAuthStore();
+  const [counts, setCounts] = useState({ feedback: 0, drivers: 0, rides: 0 });
+
+  // Fetch counts from API
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const statsResponse = await apiClient.getDashboardStats();
+        if (statsResponse.code === '0000' && statsResponse.data) {
+          const data = statsResponse.data as Record<string, unknown>;
+          setCounts({
+            feedback: (data.pending_feedback as number) ?? 0,
+            drivers: (data.online_drivers as number) ?? 0,
+            rides: (data.active_trips as number) ?? 0,
+          });
+        }
+      } catch (error) {
+        // Silently fail - badges will just not show
+        // Timeout errors are expected if backend is slow - don't spam console
+        if (error instanceof Error && !error.message.includes('timeout')) {
+          console.error('Failed to fetch sidebar counts:', error);
+        }
+      }
+    };
+
+    fetchCounts();
+    // Refresh every 60 seconds
+    const interval = setInterval(fetchCounts, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const navItems = getNavItems(counts);
 
   return (
     <TooltipProvider delayDuration={0}>
