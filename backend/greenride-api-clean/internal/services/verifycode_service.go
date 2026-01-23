@@ -54,6 +54,10 @@ func GetVerifyCodeService() *VerifyCodeService {
 	serviceLock.Do(func() {
 		SetupVerifyCodeService()
 	})
+	// If setup failed, try again (sync.Once won't retry)
+	if verifyCodeService == nil {
+		SetupVerifyCodeService()
+	}
 	return verifyCodeService
 }
 
@@ -88,6 +92,11 @@ func (s *VerifyCodeService) setInt64ToCache(key string, value int64, expiration 
 
 // SendVerifyCode sends verification code via email or SMS
 func (s *VerifyCodeService) SendVerifyCode(contactType, contact, user_type, purpose, language string) (protocol.ErrorCode, int) {
+	// CRITICAL: Check if service itself is nil (happens if setup failed)
+	if s == nil {
+		log.Get().Error("VerifyCodeService is nil - service not initialized")
+		return protocol.SystemError, 0
+	}
 	// Defensive nil check - ensure config is always initialized
 	if s.config == nil {
 		s.config = &config.VerifyCodeConfig{
