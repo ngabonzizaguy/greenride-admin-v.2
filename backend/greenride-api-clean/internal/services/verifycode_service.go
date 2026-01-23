@@ -32,8 +32,20 @@ func SetupVerifyCodeService() {
 	// Setup email service
 	SetupEmailService()
 
+	// Ensure VerifyCode config exists with defaults
+	verifyCodeConfig := cfg.VerifyCode
+	if verifyCodeConfig == nil {
+		verifyCodeConfig = &config.VerifyCodeConfig{
+			Length:       4,
+			Expiration:   5,
+			SendInterval: 60,
+			MaxSendTimes: 10,
+			BypassOTP:    true,
+		}
+	}
+
 	verifyCodeService = &VerifyCodeService{
-		config:     cfg.VerifyCode,
+		config:     verifyCodeConfig,
 		msgService: GetMessageService(),
 	}
 }
