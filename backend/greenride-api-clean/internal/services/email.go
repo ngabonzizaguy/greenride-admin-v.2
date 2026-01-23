@@ -28,6 +28,11 @@ func SetupEmailService() {
 func GetEmailServiceHandler() EmailMessage {
 	cfg := config.Get().Email
 
+	// Check if email config exists
+	if cfg == nil {
+		return nil
+	}
+
 	// 根据配置选择邮件服务
 	switch cfg.ServiceName {
 	case "account":
