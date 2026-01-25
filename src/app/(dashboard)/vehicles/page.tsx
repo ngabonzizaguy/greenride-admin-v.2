@@ -940,7 +940,7 @@ export default function VehiclesPage() {
                     variant="destructive"
                     size="icon"
                     className="absolute top-2 right-2 h-6 w-6"
-                    onClick={clearPhotoSelection}
+                    onClick={() => clearPhotoSelection()}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -1147,7 +1147,7 @@ export default function VehiclesPage() {
                     variant="destructive"
                     size="icon"
                     className="absolute top-2 right-2 h-6 w-6"
-                    onClick={clearPhotoSelection}
+                    onClick={() => clearPhotoSelection()}
                   >
                     <X className="h-4 w-4" />
                   </Button>
