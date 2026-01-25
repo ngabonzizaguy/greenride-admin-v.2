@@ -384,22 +384,45 @@ func (s *UserService) UpdateUserLocation(req *protocol.UpdateLocationRequest) pr
 		timestamp = utils.TimeNowMilli()
 	}
 
+	// Determine online status
+	onlineStatus := protocol.StatusOnline
+	if req.OnlineStatus != "" {
+		onlineStatus = req.OnlineStatus
+	}
+
 	// 1. 更新用户表中的最新位置
 	values := &models.UserValues{}
 	values.SetLatitude(req.Latitude).
 		SetLongitude(req.Longitude).
 		SetLocationUpdatedAt(timestamp).
-		SetOnlineStatus(protocol.StatusOnline)
+		SetOnlineStatus(onlineStatus)
 
 	if err := models.GetDB().Model(&models.User{}).Where("user_id = ?", req.UserID).UpdateColumns(values).Error; err != nil {
 		log.Printf("Failed to update driver location: %v", err)
 		return protocol.SystemError
 	}
-	// 2. 插入位置历史记录
-	locationHistory := models.NewUserLocationHistory(req.UserID, req.Latitude, req.Longitude, protocol.StatusOnline, timestamp)
+
+	// 2. 插入位置历史记录 (with extended data for Live Map)
+	locationHistory := models.NewUserLocationHistory(req.UserID, req.Latitude, req.Longitude, onlineStatus, timestamp)
+	
+	// Add optional location data if provided
+	if req.Heading > 0 {
+		locationHistory.SetHeading(req.Heading)
+	}
+	if req.Speed > 0 {
+		locationHistory.SetSpeed(req.Speed)
+	}
+	if req.Accuracy > 0 {
+		locationHistory.SetAccuracy(req.Accuracy)
+	}
+	if req.Altitude != 0 {
+		locationHistory.SetAltitude(req.Altitude)
+	}
+
 	if err := models.GetDB().Create(locationHistory).Error; err != nil {
 		log.Printf("Failed to insert driver location history: %v", err)
 	}
+
 	if user.IsDriver() {
 		go s.RefreshDriverLocationRuntimeCache(req.UserID)
 	}

@@ -226,10 +226,15 @@ type GetNearbyOrdersResponse struct {
 
 // UpdateLocationRequest 位置更新请求
 type UpdateLocationRequest struct {
-	UserID    string  `json:"user_id"` // 内部设置
-	Latitude  float64 `json:"latitude" binding:"required,min=-90,max=90"`
-	Longitude float64 `json:"longitude" binding:"required,min=-180,max=180"`
-	UpdatedAt int64   `json:"updated_at,omitempty"` // 时间戳，毫秒
+	UserID       string  `json:"user_id"`                                      // 内部设置
+	Latitude     float64 `json:"latitude" binding:"required,min=-90,max=90"`   // 纬度
+	Longitude    float64 `json:"longitude" binding:"required,min=-180,max=180"` // 经度
+	Heading      float64 `json:"heading,omitempty"`                            // 行驶方向 (0-360度)
+	Speed        float64 `json:"speed,omitempty"`                              // 速度 km/h
+	Accuracy     float64 `json:"accuracy,omitempty"`                           // GPS精度 (米)
+	Altitude     float64 `json:"altitude,omitempty"`                           // 海拔 (米)
+	OnlineStatus string  `json:"online_status,omitempty"`                      // online, busy, offline
+	UpdatedAt    int64   `json:"updated_at,omitempty"`                         // 时间戳，毫秒
 }
 
 type UserPromotionsRequest struct {
