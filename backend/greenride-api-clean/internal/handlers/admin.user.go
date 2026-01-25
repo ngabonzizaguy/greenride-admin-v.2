@@ -410,3 +410,61 @@ func (t *Admin) DeleteUser(c *gin.Context) {
 		admin.AdminID, req.UserID, req.Reason)
 	c.JSON(http.StatusOK, protocol.NewSuccessResult(""))
 }
+
+// @Summary 获取附近司机列表
+// @Description 管理员获取附近在线司机列表，用于Live Map显示
+// @Tags Admin,管理员-司机
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param latitude query number true "中心纬度"
+// @Param longitude query number true "中心经度"
+// @Param radius_km query number false "搜索半径（公里），默认50km"
+// @Param limit query int false "返回数量限制，默认100"
+// @Success 200 {object} protocol.Result "成功返回司机列表"
+// @Failure 400 {object} protocol.Result "请求参数错误"
+// @Failure 401 {object} protocol.Result "认证失败"
+// @Failure 500 {object} protocol.Result "服务器错误"
+// @Router /admin/drivers/nearby [get]
+func (t *Admin) GetNearbyDrivers(c *gin.Context) {
+	lang := middleware.GetLanguageFromContext(c)
+
+	// 解析请求参数
+	var req protocol.GetNearbyDriversRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, protocol.NewErrorResult(protocol.InvalidParams, lang))
+		return
+	}
+
+	// 验证经纬度范围
+	if req.Latitude < -90 || req.Latitude > 90 || req.Longitude < -180 || req.Longitude > 180 {
+		c.JSON(http.StatusBadRequest, protocol.NewErrorResult(protocol.InvalidParams, lang))
+		return
+	}
+
+	// 设置默认值 - Admin需要更大的范围和更多结果
+	radiusKm := req.RadiusKm
+	if radiusKm <= 0 {
+		radiusKm = 50.0 // 默认50km半径（比乘客端大）
+	}
+	limit := req.Limit
+	if limit <= 0 || limit > 200 {
+		limit = 100 // 默认100个，最多200个
+	}
+
+	// 调用服务获取附近司机
+	drivers, err := services.GetUserService().GetNearbyDrivers(req.Latitude, req.Longitude, radiusKm, limit)
+	if err != nil {
+		log.Printf("Admin GetNearbyDrivers failed: %v", err)
+		c.JSON(http.StatusInternalServerError, protocol.NewErrorResult(protocol.SystemError, lang))
+		return
+	}
+
+	// 构造响应
+	response := &protocol.GetNearbyDriversResponse{
+		Drivers: drivers,
+		Count:   len(drivers),
+	}
+
+	c.JSON(http.StatusOK, protocol.NewSuccessResult(response))
+}

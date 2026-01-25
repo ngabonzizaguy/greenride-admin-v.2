@@ -256,21 +256,25 @@ type GetNearbyDriversRequest struct {
 
 // NearbyDriver 附近司机信息
 type NearbyDriver struct {
-	DriverID     string  `json:"driver_id"`
-	Name         string  `json:"name"`
-	PhotoURL     string  `json:"photo_url,omitempty"`
-	Latitude     float64 `json:"latitude"`
-	Longitude    float64 `json:"longitude"`
-	DistanceKm   float64 `json:"distance_km"`
-	ETAMinutes   int     `json:"eta_minutes"`
-	VehicleType  string  `json:"vehicle_type"`
-	VehicleBrand string  `json:"vehicle_brand"`
-	VehicleModel string  `json:"vehicle_model"`
-	PlateNumber  string  `json:"plate_number"`
-	VehicleColor string  `json:"vehicle_color"`
-	Rating       float64 `json:"rating"`
-	TotalRides   int     `json:"total_rides"`
-	IsOnline     bool    `json:"is_online"`
+	DriverID        string  `json:"driver_id"`
+	Name            string  `json:"name"`
+	PhotoURL        string  `json:"photo_url,omitempty"`
+	Latitude        float64 `json:"latitude"`
+	Longitude       float64 `json:"longitude"`
+	DistanceKm      float64 `json:"distance_km"`
+	ETAMinutes      int     `json:"eta_minutes"`
+	VehicleType     string  `json:"vehicle_type"`
+	VehicleCategory string  `json:"vehicle_category"` // sedan, suv, moto
+	VehicleBrand    string  `json:"vehicle_brand"`
+	VehicleModel    string  `json:"vehicle_model"`
+	PlateNumber     string  `json:"plate_number"`
+	VehicleColor    string  `json:"vehicle_color"`
+	Rating          float64 `json:"rating"`
+	TotalRides      int     `json:"total_rides"`
+	IsOnline        bool    `json:"is_online"`
+	IsBusy          bool    `json:"is_busy"`   // 是否正在接单
+	Heading         float64 `json:"heading"`   // 行驶方向角度 (0-360)
+	Phone           string  `json:"phone,omitempty"` // 联系电话
 }
 
 // GetNearbyDriversResponse 附近司机响应

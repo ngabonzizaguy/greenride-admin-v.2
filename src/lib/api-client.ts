@@ -272,7 +272,11 @@ export interface NearbyDriverLocation {
   rating?: number;
   is_online: boolean;
   is_busy?: boolean;
+  vehicle_type?: string;
   vehicle_category?: string;
+  vehicle_brand?: string;
+  vehicle_model?: string;
+  vehicle_color?: string;
   plate_number?: string;
   heading?: number;
   total_rides?: number;

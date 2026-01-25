@@ -843,6 +843,7 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 
 	// Query online drivers within radius using Haversine formula
 	// Distance in km = 6371 * acos(cos(radians(lat1)) * cos(radians(lat2)) * cos(radians(lng2) - radians(lng1)) + sin(radians(lat1)) * sin(radians(lat2)))
+	// Uses t_user_location_history for recent location updates (within last 5 minutes = 300000ms)
 	query := `
 		SELECT 
 			u.user_id,
@@ -850,8 +851,11 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 			u.last_name,
 			u.display_name,
 			u.avatar,
-			COALESCE(dl.latitude, u.latitude) as latitude,
-			COALESCE(dl.longitude, u.longitude) as longitude,
+			u.phone,
+			COALESCE(ulh.latitude, u.latitude) as latitude,
+			COALESCE(ulh.longitude, u.longitude) as longitude,
+			COALESCE(ulh.heading, 0) as heading,
+			COALESCE(ulh.online_status, u.online_status) as online_status,
 			u.score,
 			u.total_rides,
 			v.brand,
@@ -861,18 +865,23 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 			v.category,
 			(6371 * acos(
 				LEAST(1.0, GREATEST(-1.0,
-					cos(radians(?)) * cos(radians(COALESCE(dl.latitude, u.latitude))) * cos(radians(COALESCE(dl.longitude, u.longitude)) - radians(?)) +
-					sin(radians(?)) * sin(radians(COALESCE(dl.latitude, u.latitude)))
+					cos(radians(?)) * cos(radians(COALESCE(ulh.latitude, u.latitude))) * cos(radians(COALESCE(ulh.longitude, u.longitude)) - radians(?)) +
+					sin(radians(?)) * sin(radians(COALESCE(ulh.latitude, u.latitude)))
 				))
 			)) AS distance_km
 		FROM t_users u
-		LEFT JOIN t_driver_locations dl ON u.user_id = dl.driver_id AND dl.recorded_at > (UNIX_TIMESTAMP(NOW()) * 1000 - 300000)
+		LEFT JOIN (
+			SELECT user_id, latitude, longitude, heading, online_status, recorded_at,
+				ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY recorded_at DESC) as rn
+			FROM t_user_location_history
+			WHERE recorded_at > (UNIX_TIMESTAMP(NOW()) * 1000 - 300000)
+		) ulh ON u.user_id = ulh.user_id AND ulh.rn = 1
 		LEFT JOIN t_vehicles v ON u.user_id = v.driver_id AND v.status = 'active'
 		WHERE u.user_type = 'driver'
-			AND (u.online_status = 'online' OR dl.online_status = 'online')
+			AND (u.online_status = 'online' OR u.online_status = 'busy' OR ulh.online_status = 'online' OR ulh.online_status = 'busy')
 			AND u.status = 'active'
-			AND (u.latitude IS NOT NULL OR dl.latitude IS NOT NULL)
-			AND (u.longitude IS NOT NULL OR dl.longitude IS NOT NULL)
+			AND (u.latitude IS NOT NULL OR ulh.latitude IS NOT NULL)
+			AND (u.longitude IS NOT NULL OR ulh.longitude IS NOT NULL)
 			AND u.deleted_at IS NULL
 		HAVING distance_km <= ?
 		ORDER BY distance_km ASC
@@ -880,21 +889,24 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 	`
 
 	type driverRow struct {
-		UserID      string   `gorm:"column:user_id"`
-		FirstName   *string  `gorm:"column:first_name"`
-		LastName    *string  `gorm:"column:last_name"`
-		DisplayName *string  `gorm:"column:display_name"`
-		Avatar      *string  `gorm:"column:avatar"`
-		Latitude    *float64 `gorm:"column:latitude"`
-		Longitude   *float64 `gorm:"column:longitude"`
-		Score       *float64 `gorm:"column:score"`
-		TotalRides  *int     `gorm:"column:total_rides"`
-		Brand       *string  `gorm:"column:brand"`
-		Model       *string  `gorm:"column:model"`
-		PlateNumber *string  `gorm:"column:plate_number"`
-		Color       *string  `gorm:"column:color"`
-		Category    *string  `gorm:"column:category"`
-		DistanceKm  float64  `gorm:"column:distance_km"`
+		UserID       string   `gorm:"column:user_id"`
+		FirstName    *string  `gorm:"column:first_name"`
+		LastName     *string  `gorm:"column:last_name"`
+		DisplayName  *string  `gorm:"column:display_name"`
+		Avatar       *string  `gorm:"column:avatar"`
+		Phone        *string  `gorm:"column:phone"`
+		Latitude     *float64 `gorm:"column:latitude"`
+		Longitude    *float64 `gorm:"column:longitude"`
+		Heading      float64  `gorm:"column:heading"`
+		OnlineStatus *string  `gorm:"column:online_status"`
+		Score        *float64 `gorm:"column:score"`
+		TotalRides   *int     `gorm:"column:total_rides"`
+		Brand        *string  `gorm:"column:brand"`
+		Model        *string  `gorm:"column:model"`
+		PlateNumber  *string  `gorm:"column:plate_number"`
+		Color        *string  `gorm:"column:color"`
+		Category     *string  `gorm:"column:category"`
+		DistanceKm   float64  `gorm:"column:distance_km"`
 	}
 
 	var rows []driverRow
@@ -930,12 +942,22 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 			etaMinutes = 1
 		}
 
+		// Determine online/busy status
+		isOnline := true
+		isBusy := false
+		if row.OnlineStatus != nil {
+			isOnline = *row.OnlineStatus == "online" || *row.OnlineStatus == "busy"
+			isBusy = *row.OnlineStatus == "busy"
+		}
+
 		driver := &protocol.NearbyDriver{
-			DriverID:     row.UserID,
-			Name:         name,
-			DistanceKm:   row.DistanceKm,
-			ETAMinutes:   etaMinutes,
-			IsOnline:     true,
+			DriverID:   row.UserID,
+			Name:       name,
+			DistanceKm: row.DistanceKm,
+			ETAMinutes: etaMinutes,
+			IsOnline:   isOnline,
+			IsBusy:     isBusy,
+			Heading:    row.Heading,
 		}
 
 		// Set optional fields
@@ -943,6 +965,9 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 			driver.PhotoURL = *row.Avatar
 		} else {
 			driver.PhotoURL = protocol.GenerateDefaultAvatar(row.UserID)
+		}
+		if row.Phone != nil {
+			driver.Phone = *row.Phone
 		}
 		if row.Latitude != nil {
 			driver.Latitude = *row.Latitude
@@ -972,8 +997,10 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 		}
 		if row.Category != nil {
 			driver.VehicleType = *row.Category
+			driver.VehicleCategory = *row.Category
 		} else {
-			driver.VehicleType = "car"
+			driver.VehicleType = "sedan"
+			driver.VehicleCategory = "sedan"
 		}
 
 		drivers = append(drivers, driver)

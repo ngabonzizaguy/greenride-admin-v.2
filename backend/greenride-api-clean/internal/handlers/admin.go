@@ -122,6 +122,12 @@ func (t *Admin) SetupRouter() *gin.Engine {
 				userAPI.POST("/rides", t.GetUserRides)      // 获取用户行程历史
 			}
 
+			// 司机位置管理相关 (用于Live Map)
+			driversAPI := adminAPI.Group("/drivers")
+			{
+				driversAPI.GET("/nearby", t.GetNearbyDrivers) // 获取附近司机（带实时位置）
+			}
+
 			// 车辆管理相关
 			vehicleAPI := adminAPI.Group("/vehicles")
 			{
