@@ -6,17 +6,20 @@ on:
       - main
 
 jobs:
-  deploy:
+  # Job 1: Deploy Frontend
+  deploy-frontend:
     runs-on: ubuntu-latest
+    name: Deploy Frontend
 
     steps:
-      - name: Deploy to Singapore Server
+      - name: Deploy Frontend to Singapore Server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: 18.143.118.157
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            echo "=== Deploying Frontend ==="
             cd /home/ubuntu/greenride-admin-v.2
             git pull origin main
             docker stop greenride-admin-v2 || true
@@ -24,4 +27,95 @@ jobs:
             docker build -t greenride-admin-v2 .
             docker run -d --name greenride-admin-v2 -p 3601:3000 --restart unless-stopped greenride-admin-v2
             docker image prune -f
-            echo "Deployment complete at $(date)"
+            echo "Frontend deployment complete at $(date)"
+
+  # Job 2: Deploy Backend API
+  deploy-backend:
+    runs-on: ubuntu-latest
+    name: Deploy Backend API
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build Linux binary
+        working-directory: ./backend/greenride-api-clean
+        run: |
+          echo "Building Go binary for Linux..."
+          GOOS=linux GOARCH=amd64 go build -o greenride-api-linux ./main
+          ls -la greenride-api-linux
+
+      - name: Copy binary to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 18.143.118.157
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "backend/greenride-api-clean/greenride-api-linux"
+          target: "/home/ubuntu/greenride-api-temp/"
+          strip_components: 2
+
+      - name: Deploy Backend to Singapore Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 18.143.118.157
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "=== Deploying Backend API ==="
+            
+            # Define paths
+            BACKEND_DIR="/home/ubuntu/greenride-api"
+            TEMP_DIR="/home/ubuntu/greenride-api-temp"
+            
+            # Create backend directory if it doesn't exist
+            mkdir -p $BACKEND_DIR
+            
+            # Copy new binary
+            cp $TEMP_DIR/greenride-api-linux $BACKEND_DIR/greenride-api-linux
+            chmod +x $BACKEND_DIR/greenride-api-linux
+            
+            # Pull latest code for configs
+            cd /home/ubuntu/greenride-admin-v.2
+            git pull origin main
+            
+            # Copy config files to backend directory
+            cp -r backend/greenride-api-clean/internal/locales $BACKEND_DIR/internal/ 2>/dev/null || mkdir -p $BACKEND_DIR/internal/locales && cp -r backend/greenride-api-clean/internal/locales/* $BACKEND_DIR/internal/locales/
+            cp backend/greenride-api-clean/config.yaml $BACKEND_DIR/ 2>/dev/null || true
+            
+            # Rebuild and restart the API container
+            cd $BACKEND_DIR
+            
+            # Check if docker-compose exists, otherwise use docker
+            if [ -f "docker-compose.yml" ]; then
+              docker-compose down greenride-api || true
+              docker-compose up -d --build greenride-api
+            else
+              # Fallback: restart using systemd if configured
+              sudo systemctl restart greenride-api 2>/dev/null || echo "No systemd service found, trying docker..."
+              
+              # Or restart docker container directly
+              docker stop greenride-api || true
+              docker rm greenride-api || true
+              docker build -t greenride-api .
+              docker run -d --name greenride-api \
+                -p 8610:8610 -p 8611:8611 -p 8612:8612 \
+                --restart unless-stopped \
+                -v $BACKEND_DIR/config.yaml:/app/config.yaml \
+                -v $BACKEND_DIR/prod.yaml:/app/prod.yaml \
+                greenride-api
+            fi
+            
+            # Cleanup temp files
+            rm -rf $TEMP_DIR
+            
+            echo "Backend deployment complete at $(date)"
+            
+            # Health check
+            sleep 5
+            curl -s http://localhost:8611/health || echo "Health check pending..."
