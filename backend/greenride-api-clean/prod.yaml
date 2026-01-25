@@ -127,7 +127,7 @@ aws:
 # SMS配置
 sms:
   # 服务类型：twilio, 后续可扩展其他服务商
-  service_name: "innopaas"
+  service_name: "twilio"
   
 # Twilio配置
 twilio:
@@ -149,7 +149,7 @@ verify_code:
   expiration: 5      # 过期时间（分钟）
   send_interval: 60  # 发送间隔（秒）
   max_send_times: 10 # 每日最大发送次数
-  bypass_otp: true   # Enable OTP bypass to ensure uninterrupted access
+  bypass_otp: false   # Enable OTP bypass to ensure uninterrupted access
 
 innopaas:
   endpoint: "https://api.innopaas.com/api/otp/v3/msg/send/verify"
