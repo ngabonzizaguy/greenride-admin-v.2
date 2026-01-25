@@ -18,9 +18,11 @@ import {
   CheckCircle,
   Mail,
   Download,
+  Upload,
   Edit,
   Trash2,
-  X
+  X,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,6 +61,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
 import { apiClient } from '@/lib/api-client';
 import type { User, PageResult, UserStatus } from '@/types';
 
@@ -108,6 +111,7 @@ export default function UsersPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   
   // Pagination
   const [page, setPage] = useState(1);
@@ -128,9 +132,18 @@ export default function UsersPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [isBulkSuspendModalOpen, setIsBulkSuspendModalOpen] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [formData, setFormData] = useState(emptyUserForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // CSV Upload states
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadPreview, setUploadPreview] = useState<Array<Record<string, string>>>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -340,6 +353,214 @@ export default function UsersPage() {
     setSuccessMessage('Users exported to CSV!');
   };
 
+  // Selection handlers
+  const toggleSelectAll = () => {
+    if (selectedUsers.length === users.length) {
+      setSelectedUsers([]);
+    } else {
+      setSelectedUsers(users.map((u) => u.user_id));
+    }
+  };
+
+  const toggleSelectUser = (id: string) => {
+    setSelectedUsers((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const clearSelection = () => {
+    setSelectedUsers([]);
+  };
+
+  // Bulk Delete Users
+  const handleBulkDelete = async () => {
+    if (selectedUsers.length === 0) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const results = await Promise.allSettled(
+        selectedUsers.map(userId => apiClient.updateUserStatus(userId, 'banned'))
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failCount = results.filter(r => r.status === 'rejected').length;
+
+      if (failCount > 0) {
+        setError(`${failCount} user(s) failed to delete. ${successCount} deleted successfully.`);
+      } else {
+        setSuccessMessage(`${successCount} user(s) deleted successfully!`);
+      }
+
+      setIsBulkDeleteModalOpen(false);
+      setSelectedUsers([]);
+      fetchUsers();
+    } catch (err) {
+      console.error('Failed to bulk delete:', err);
+      setError('Failed to delete users. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Bulk Suspend/Activate Users
+  const handleBulkSuspend = async (suspend: boolean) => {
+    if (selectedUsers.length === 0) return;
+
+    setIsSubmitting(true);
+    setError(null);
+
+    const newStatus = suspend ? 'suspended' : 'active';
+
+    try {
+      const results = await Promise.allSettled(
+        selectedUsers.map(userId => apiClient.updateUserStatus(userId, newStatus))
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failCount = results.filter(r => r.status === 'rejected').length;
+
+      if (failCount > 0) {
+        setError(`${failCount} user(s) failed to ${suspend ? 'suspend' : 'activate'}. ${successCount} updated successfully.`);
+      } else {
+        setSuccessMessage(`${successCount} user(s) ${suspend ? 'suspended' : 'activated'} successfully!`);
+      }
+
+      setIsBulkSuspendModalOpen(false);
+      setSelectedUsers([]);
+      fetchUsers();
+    } catch (err) {
+      console.error('Failed to bulk update status:', err);
+      setError(`Failed to ${suspend ? 'suspend' : 'activate'} users. Please try again.`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Parse CSV file
+  const parseCSV = (text: string): Array<Record<string, string>> => {
+    const lines = text.split('\n').filter(line => line.trim());
+    if (lines.length < 2) return [];
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/["']/g, ''));
+    const rows: Array<Record<string, string>> = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim().replace(/["']/g, ''));
+      const row: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        row[header] = values[index] || '';
+      });
+      rows.push(row);
+    }
+
+    return rows;
+  };
+
+  // Handle file selection
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    setUploadError(null);
+    setUploadPreview([]);
+
+    if (!file) {
+      setUploadFile(null);
+      return;
+    }
+
+    const validTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    if (!validTypes.includes(file.type) && !file.name.endsWith('.csv')) {
+      setUploadError('Please upload a CSV file');
+      return;
+    }
+
+    setUploadFile(file);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = parseCSV(text);
+        if (parsed.length === 0) {
+          setUploadError('No valid data found in file');
+          return;
+        }
+        setUploadPreview(parsed.slice(0, 5));
+      } catch {
+        setUploadError('Failed to parse file');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Handle CSV Upload
+  const handleUploadCSV = async () => {
+    if (!uploadFile) return;
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const text = event.target?.result as string;
+          const rows = parseCSV(text);
+
+          if (rows.length === 0) {
+            setUploadError('No valid data found in file');
+            setIsUploading(false);
+            return;
+          }
+
+          const results = await Promise.allSettled(
+            rows.map(row => apiClient.createUser({
+              user_type: 'passenger',
+              first_name: row['first name'] || row['first_name'] || row['firstname'] || '',
+              last_name: row['last name'] || row['last_name'] || row['lastname'] || '',
+              email: row['email'] || '',
+              phone: row['phone'] || row['phone number'] || row['phone_number'] || '',
+              status: 'active',
+            }))
+          );
+
+          const successCount = results.filter(r => r.status === 'fulfilled').length;
+          const failCount = results.filter(r => r.status === 'rejected').length;
+
+          if (failCount > 0) {
+            setError(`${failCount} user(s) failed to import. ${successCount} imported successfully.`);
+          } else {
+            setSuccessMessage(`${successCount} user(s) imported successfully!`);
+          }
+
+          setIsUploadModalOpen(false);
+          setUploadFile(null);
+          setUploadPreview([]);
+          fetchUsers();
+        } catch {
+          setUploadError('Failed to process file');
+        } finally {
+          setIsUploading(false);
+        }
+      };
+      reader.readAsText(uploadFile);
+    } catch {
+      setUploadError('Failed to upload file');
+      setIsUploading(false);
+    }
+  };
+
+  // Download CSV template
+  const handleDownloadTemplate = () => {
+    const template = 'First Name,Last Name,Email,Phone\nJohn,Doe,john@example.com,+250788123456\nJane,Smith,jane@example.com,+250788234567';
+    const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'users_import_template.csv';
+    link.click();
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -351,6 +572,10 @@ export default function UsersPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setIsUploadModalOpen(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Import CSV
+          </Button>
           <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={users.length === 0}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
@@ -382,6 +607,52 @@ export default function UsersPage() {
           <Button variant="ghost" size="sm" className="ml-auto h-6 w-6 p-0" onClick={() => setError(null)}>
             <X className="h-4 w-4" />
           </Button>
+        </div>
+      )}
+
+      {/* Bulk Actions Bar */}
+      {selectedUsers.length > 0 && (
+        <div className="flex items-center justify-between rounded-lg bg-primary/5 border border-primary/20 p-3">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              checked={selectedUsers.length === users.length && users.length > 0}
+              onCheckedChange={toggleSelectAll}
+            />
+            <span className="text-sm font-medium">
+              {selectedUsers.length} user{selectedUsers.length > 1 ? 's' : ''} selected
+            </span>
+            <Button variant="ghost" size="sm" onClick={clearSelection}>
+              Clear
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsBulkSuspendModalOpen(true)}
+              className="text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
+            >
+              <Ban className="h-4 w-4 mr-2" />
+              Suspend Selected
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => handleBulkSuspend(false)}
+              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Activate Selected
+            </Button>
+            <Button 
+              variant="destructive" 
+              size="sm" 
+              onClick={() => setIsBulkDeleteModalOpen(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Selected
+            </Button>
+          </div>
         </div>
       )}
 
@@ -489,6 +760,12 @@ export default function UsersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectedUsers.length === users.length && users.length > 0}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>User</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Phone</TableHead>
@@ -502,6 +779,7 @@ export default function UsersPage() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-4" /></TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Skeleton className="h-10 w-10 rounded-full" />
@@ -521,7 +799,7 @@ export default function UsersPage() {
                 ))
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center">
+                  <TableCell colSpan={8} className="h-32 text-center">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <Users className="h-8 w-8" />
                       <p>No users found</p>
@@ -532,6 +810,12 @@ export default function UsersPage() {
               ) : (
                 users.map((user) => (
                   <TableRow key={user.user_id} className="group">
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedUsers.includes(user.user_id)}
+                        onCheckedChange={() => toggleSelectUser(user.user_id)}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">
@@ -844,6 +1128,162 @@ export default function UsersPage() {
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Processing...' : selectedUser?.status === 'suspended' ? 'Activate' : 'Suspend'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Modal */}
+      <Dialog open={isBulkDeleteModalOpen} onOpenChange={setIsBulkDeleteModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Delete {selectedUsers.length} User(s)</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedUsers.length} selected user(s)? 
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBulkDeleteModalOpen(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleBulkDelete} disabled={isSubmitting}>
+              {isSubmitting ? 'Deleting...' : `Delete ${selectedUsers.length} User(s)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Suspend Confirmation Modal */}
+      <Dialog open={isBulkSuspendModalOpen} onOpenChange={setIsBulkSuspendModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Suspend {selectedUsers.length} User(s)</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to suspend {selectedUsers.length} selected user(s)? 
+              They will not be able to book rides.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBulkSuspendModalOpen(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => handleBulkSuspend(true)} 
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Suspending...' : `Suspend ${selectedUsers.length} User(s)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* CSV Upload Modal */}
+      <Dialog open={isUploadModalOpen} onOpenChange={(open) => {
+        setIsUploadModalOpen(open);
+        if (!open) {
+          setUploadFile(null);
+          setUploadPreview([]);
+          setUploadError(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Import Users from CSV
+            </DialogTitle>
+            <DialogDescription>
+              Upload a CSV file with user information. Download the template to see the required format.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Template Download */}
+            <div className="flex items-center justify-between rounded-lg border border-dashed p-4">
+              <div>
+                <p className="text-sm font-medium">Need a template?</p>
+                <p className="text-xs text-muted-foreground">Download our CSV template with the correct headers</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
+                <Download className="h-4 w-4 mr-2" />
+                Template
+              </Button>
+            </div>
+
+            {/* File Upload Area */}
+            <div className="rounded-lg border-2 border-dashed p-6 text-center">
+              <input
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="csv-upload"
+              />
+              <label htmlFor="csv-upload" className="cursor-pointer">
+                <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm font-medium">
+                  {uploadFile ? uploadFile.name : 'Click to upload or drag and drop'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  CSV, XLS, or XLSX files up to 10MB
+                </p>
+              </label>
+            </div>
+
+            {/* Upload Error */}
+            {uploadError && (
+              <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>{uploadError}</span>
+              </div>
+            )}
+
+            {/* Preview Table */}
+            {uploadPreview.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Preview (first 5 rows):</p>
+                <div className="rounded-lg border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {Object.keys(uploadPreview[0]).slice(0, 4).map((key) => (
+                          <TableHead key={key} className="text-xs capitalize">
+                            {key}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {uploadPreview.map((row, i) => (
+                        <TableRow key={i}>
+                          {Object.values(row).slice(0, 4).map((value, j) => (
+                            <TableCell key={j} className="text-xs py-2">
+                              {value || '-'}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Ready to import {uploadPreview.length > 5 ? `${uploadPreview.length}+` : uploadPreview.length} user(s)
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsUploadModalOpen(false)} disabled={isUploading}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleUploadCSV} 
+              disabled={!uploadFile || isUploading}
+            >
+              {isUploading ? 'Importing...' : 'Import Users'}
             </Button>
           </DialogFooter>
         </DialogContent>

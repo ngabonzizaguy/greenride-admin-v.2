@@ -231,6 +231,35 @@ export const API_CODES = {
   SYSTEM_ERROR: '1000',
 } as const;
 
+// Nearby driver location interface (for map display)
+export interface NearbyDriverLocation {
+  driver_id: string;
+  name: string;
+  photo_url?: string;
+  latitude: number;
+  longitude: number;
+  distance_km: number;
+  eta_minutes: number;
+  rating?: number;
+  is_online: boolean;
+  is_busy?: boolean;
+  vehicle_category?: string;
+  plate_number?: string;
+  heading?: number;
+  total_rides?: number;
+  phone?: string;
+}
+
+// Driver names for mock data
+const DRIVER_NAMES = [
+  'Peter Mutombo', 'David Kagame', 'Jean Pierre', 'Emmanuel Habimana', 'Claude Uwimana',
+  'Alice Mukamana', 'Patrick Niyonzima', 'Grace Ingabire', 'Eric Ndayisaba', 'Marie Uwase',
+  'Joseph Bizimana', 'Diane Umutoni', 'François Habiyaremye', 'Chantal Nyiramana', 'Innocent Nshimiye',
+  'Yvonne Mukeshimana', 'Théogène Nsengimana', 'Vestine Uwamahoro', 'Olivier Mugabo', 'Clarisse Umuhoza',
+  'Pacifique Niyibizi', 'Eugène Hakizimana', 'Sylvie Nibagwire', 'Jean-Claude Ndayisaba', 'Josiane Mukamana',
+  'Faustin Niyonsenga', 'Béatrice Uwimana', 'Alphonse Nzeyimana', 'Pascaline Nyirahabimana', 'Thaddée Nkundimana',
+];
+
 // Standard API response format from backend
 export interface ApiResponse<T = unknown> {
   code: string;
@@ -1236,6 +1265,175 @@ class ApiClient {
       method: 'POST',
       body: config,
     });
+  }
+
+  // ============================================
+  // DRIVER LOCATION ENDPOINTS
+  // ============================================
+
+  /**
+   * Get nearby drivers with their real-time locations
+   * GET /drivers/nearby
+   */
+  async getNearbyDrivers(params: {
+    latitude: number;
+    longitude: number;
+    radius_km?: number;
+    limit?: number;
+  }): Promise<ApiResponse<{
+    drivers: NearbyDriverLocation[];
+    count: number;
+  }>> {
+    if (DEMO_MODE) {
+      // In demo mode, return mock drivers with simulated locations around Kigali
+      const mockNearbyDrivers: NearbyDriverLocation[] = MOCK_DRIVERS
+        .filter(d => d.online_status !== 'offline')
+        .map((d, i) => ({
+          driver_id: d.user_id,
+          name: d.full_name,
+          photo_url: d.avatar || undefined,
+          // Spread drivers around Kigali center
+          latitude: params.latitude + (Math.random() - 0.5) * 0.08,
+          longitude: params.longitude + (Math.random() - 0.5) * 0.08,
+          distance_km: Math.random() * (params.radius_km || 5),
+          eta_minutes: Math.floor(Math.random() * 15) + 2,
+          rating: d.rating,
+          is_online: d.online_status === 'online',
+          is_busy: d.online_status === 'busy',
+          vehicle_category: i % 3 === 0 ? 'suv' : i % 3 === 1 ? 'moto' : 'sedan',
+          plate_number: `RA${String.fromCharCode(65 + i)}${100 + i}`,
+          heading: Math.floor(Math.random() * 360),
+          total_rides: d.total_rides,
+          phone: d.phone,
+        }));
+
+      return {
+        code: API_CODES.SUCCESS,
+        msg: 'Success',
+        data: {
+          drivers: mockNearbyDrivers,
+          count: mockNearbyDrivers.length,
+        },
+      };
+    }
+
+    const qs = new URLSearchParams();
+    qs.set('latitude', params.latitude.toString());
+    qs.set('longitude', params.longitude.toString());
+    if (params.radius_km) qs.set('radius_km', params.radius_km.toString());
+    if (params.limit) qs.set('limit', params.limit.toString());
+
+    return this.request(`/drivers/nearby?${qs.toString()}`);
+  }
+
+  /**
+   * Get all drivers with their locations for admin map view
+   * Uses the search endpoint but adds location data
+   */
+  async getDriversWithLocations(params: {
+    latitude?: number;
+    longitude?: number;
+    limit?: number;
+  } = {}): Promise<ApiResponse<{
+    drivers: NearbyDriverLocation[];
+    count: number;
+    stats: {
+      online: number;
+      busy: number;
+      offline: number;
+      total: number;
+    };
+  }>> {
+    const centerLat = params.latitude || -1.9403; // Kigali center
+    const centerLng = params.longitude || 29.8739;
+    const limit = params.limit || 100;
+
+    if (DEMO_MODE) {
+      // Generate comprehensive mock driver data for the map
+      const statuses: Array<'online' | 'busy' | 'offline'> = ['online', 'busy', 'offline'];
+      const vehicleTypes = ['sedan', 'suv', 'moto'];
+      
+      const mockDrivers: NearbyDriverLocation[] = [];
+      
+      // Generate 30 drivers spread across Kigali
+      for (let i = 0; i < 30; i++) {
+        const status = statuses[i % 3];
+        const vehicleType = vehicleTypes[i % 3];
+        
+        mockDrivers.push({
+          driver_id: `DRV${String(i + 1).padStart(3, '0')}`,
+          name: DRIVER_NAMES[i % DRIVER_NAMES.length],
+          latitude: centerLat + (Math.random() - 0.5) * 0.12,
+          longitude: centerLng + (Math.random() - 0.5) * 0.12,
+          distance_km: Math.random() * 10,
+          eta_minutes: Math.floor(Math.random() * 20) + 3,
+          rating: 4.0 + Math.random() * 1.0,
+          is_online: status === 'online',
+          is_busy: status === 'busy',
+          vehicle_category: vehicleType,
+          plate_number: `RA${String.fromCharCode(65 + (i % 26))} ${100 + i}${String.fromCharCode(65 + (i % 26))}`,
+          heading: Math.floor(Math.random() * 360),
+          total_rides: Math.floor(Math.random() * 2000) + 100,
+          phone: `+2507881${String(i).padStart(5, '0')}`,
+        });
+      }
+
+      const onlineCount = mockDrivers.filter(d => d.is_online && !d.is_busy).length;
+      const busyCount = mockDrivers.filter(d => d.is_busy).length;
+      const offlineCount = mockDrivers.filter(d => !d.is_online && !d.is_busy).length;
+
+      return {
+        code: API_CODES.SUCCESS,
+        msg: 'Success',
+        data: {
+          drivers: mockDrivers,
+          count: mockDrivers.length,
+          stats: {
+            online: onlineCount,
+            busy: busyCount,
+            offline: offlineCount,
+            total: mockDrivers.length,
+          },
+        },
+      };
+    }
+
+    // For real API, call nearby drivers with a large radius
+    try {
+      const response = await this.getNearbyDrivers({
+        latitude: centerLat,
+        longitude: centerLng,
+        radius_km: 50, // Large radius to get all drivers in the area
+        limit,
+      });
+
+      if (response.code === API_CODES.SUCCESS) {
+        const drivers = response.data.drivers;
+        const onlineCount = drivers.filter(d => d.is_online && !d.is_busy).length;
+        const busyCount = drivers.filter(d => d.is_busy).length;
+        const offlineCount = drivers.filter(d => !d.is_online && !d.is_busy).length;
+
+        return {
+          code: API_CODES.SUCCESS,
+          msg: 'Success',
+          data: {
+            drivers,
+            count: drivers.length,
+            stats: {
+              online: onlineCount,
+              busy: busyCount,
+              offline: offlineCount,
+              total: drivers.length,
+            },
+          },
+        };
+      }
+
+      return response as ApiResponse<{ drivers: NearbyDriverLocation[]; count: number; stats: { online: number; busy: number; offline: number; total: number; } }>;
+    } catch (error) {
+      console.error('[API Client] Failed to get drivers with locations:', error);
+      throw error;
+    }
   }
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import { 
   Car, 
@@ -12,7 +12,10 @@ import {
   Star,
   X,
   Layers,
-  MapPin
+  MapPin,
+  AlertCircle,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,6 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { apiClient, NearbyDriverLocation } from '@/lib/api-client';
 
 // Google Maps API Key - from environment variable
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || 'AIzaSyDif39v3Gx4YXonS3-A8pINUMi3hxRfC3U';
@@ -41,41 +45,19 @@ const containerStyle = {
   height: '100%'
 };
 
-// 30 Mock drivers spread across visible Kigali downtown area
-const initialDrivers = [
-  { id: 'DRV001', name: 'Peter Mutombo', status: 'available', lat: -1.9080, lng: 29.8250, vehicle: 'RAD 123A', vehicleType: 'sedan', rating: 4.8, phone: '+250788123456', heading: 45, totalRides: 1250 },
-  { id: 'DRV002', name: 'David Kagame', status: 'on_trip', lat: -1.9120, lng: 29.8550, vehicle: 'RAB 456B', vehicleType: 'suv', rating: 4.6, phone: '+250788234567', heading: 180, totalRides: 890 },
-  { id: 'DRV003', name: 'Jean Pierre', status: 'available', lat: -1.9050, lng: 29.8850, vehicle: 'RAC 789C', vehicleType: 'sedan', rating: 4.9, phone: '+250788345678', heading: 270, totalRides: 2100 },
-  { id: 'DRV004', name: 'Emmanuel Habimana', status: 'on_trip', lat: -1.9100, lng: 29.9150, vehicle: 'RAD 012D', vehicleType: 'sedan', rating: 4.5, phone: '+250788456789', heading: 90, totalRides: 650 },
-  { id: 'DRV005', name: 'Claude Uwimana', status: 'available', lat: -1.9150, lng: 29.8380, vehicle: 'RAF 678F', vehicleType: 'moto', rating: 4.7, phone: '+250788567890', heading: 135, totalRides: 430 },
-  { id: 'DRV006', name: 'Alice Mukamana', status: 'on_trip', lat: -1.9220, lng: 29.8680, vehicle: 'RAG 234G', vehicleType: 'sedan', rating: 4.9, phone: '+250788678901', heading: 315, totalRides: 1890 },
-  { id: 'DRV007', name: 'Patrick Niyonzima', status: 'available', lat: -1.9180, lng: 29.9020, vehicle: 'RAH 567H', vehicleType: 'suv', rating: 4.4, phone: '+250788789012', heading: 225, totalRides: 560 },
-  { id: 'DRV008', name: 'Grace Ingabire', status: 'offline', lat: -1.9250, lng: 29.8200, vehicle: 'RAI 890I', vehicleType: 'sedan', rating: 4.6, phone: '+250788890123', heading: 0, totalRides: 780 },
-  { id: 'DRV009', name: 'Eric Ndayisaba', status: 'available', lat: -1.9200, lng: 29.8450, vehicle: 'RAJ 123J', vehicleType: 'moto', rating: 4.8, phone: '+250788901234', heading: 60, totalRides: 320 },
-  { id: 'DRV010', name: 'Marie Uwase', status: 'on_trip', lat: -1.9280, lng: 29.8780, vehicle: 'RAK 456K', vehicleType: 'sedan', rating: 4.7, phone: '+250788012345', heading: 150, totalRides: 1120 },
-  { id: 'DRV011', name: 'Joseph Bizimana', status: 'available', lat: -1.9350, lng: 29.8320, vehicle: 'RAL 789L', vehicleType: 'suv', rating: 4.5, phone: '+250788123567', heading: 200, totalRides: 940 },
-  { id: 'DRV012', name: 'Diane Umutoni', status: 'on_trip', lat: -1.9380, lng: 29.8600, vehicle: 'RAM 012M', vehicleType: 'sedan', rating: 4.9, phone: '+250788234678', heading: 280, totalRides: 1560 },
-  { id: 'DRV013', name: 'François Habiyaremye', status: 'available', lat: -1.9320, lng: 29.8920, vehicle: 'RAN 345N', vehicleType: 'sedan', rating: 4.7, phone: '+250788345789', heading: 30, totalRides: 890 },
-  { id: 'DRV014', name: 'Chantal Nyiramana', status: 'on_trip', lat: -1.9400, lng: 29.9100, vehicle: 'RAO 456O', vehicleType: 'suv', rating: 4.8, phone: '+250788456890', heading: 120, totalRides: 1340 },
-  { id: 'DRV015', name: 'Innocent Nshimiye', status: 'available', lat: -1.9420, lng: 29.8480, vehicle: 'RAP 567P', vehicleType: 'moto', rating: 4.6, phone: '+250788567901', heading: 240, totalRides: 560 },
-  { id: 'DRV016', name: 'Yvonne Mukeshimana', status: 'on_trip', lat: -1.9480, lng: 29.8250, vehicle: 'RAQ 678Q', vehicleType: 'sedan', rating: 4.5, phone: '+250788678012', heading: 90, totalRides: 720 },
-  { id: 'DRV017', name: 'Théogène Nsengimana', status: 'available', lat: -1.9450, lng: 29.8720, vehicle: 'RAR 789R', vehicleType: 'sedan', rating: 4.9, phone: '+250788789123', heading: 180, totalRides: 2340 },
-  { id: 'DRV018', name: 'Vestine Uwamahoro', status: 'offline', lat: -1.9520, lng: 29.8980, vehicle: 'RAS 890S', vehicleType: 'moto', rating: 4.4, phone: '+250788890234', heading: 270, totalRides: 430 },
-  { id: 'DRV019', name: 'Olivier Mugabo', status: 'available', lat: -1.9500, lng: 29.8550, vehicle: 'RAT 901T', vehicleType: 'suv', rating: 4.8, phone: '+250788901345', heading: 45, totalRides: 1670 },
-  { id: 'DRV020', name: 'Clarisse Umuhoza', status: 'on_trip', lat: -1.9550, lng: 29.9180, vehicle: 'RAU 012U', vehicleType: 'sedan', rating: 4.7, phone: '+250788012456', heading: 135, totalRides: 980 },
-  { id: 'DRV021', name: 'Pacifique Niyibizi', status: 'available', lat: -1.9580, lng: 29.8380, vehicle: 'RAV 123V', vehicleType: 'sedan', rating: 4.6, phone: '+250788123678', heading: 300, totalRides: 1120 },
-  { id: 'DRV022', name: 'Eugène Hakizimana', status: 'on_trip', lat: -1.9620, lng: 29.8680, vehicle: 'RAW 234W', vehicleType: 'moto', rating: 4.5, phone: '+250788234789', heading: 60, totalRides: 340 },
-  { id: 'DRV023', name: 'Sylvie Nibagwire', status: 'available', lat: -1.9650, lng: 29.9050, vehicle: 'RAX 345X', vehicleType: 'sedan', rating: 4.9, phone: '+250788345890', heading: 210, totalRides: 1890 },
-  { id: 'DRV024', name: 'Jean-Claude Ndayisaba', status: 'on_trip', lat: -1.9600, lng: 29.8200, vehicle: 'RAY 456Y', vehicleType: 'suv', rating: 4.8, phone: '+250788456901', heading: 150, totalRides: 2100 },
-  { id: 'DRV025', name: 'Josiane Mukamana', status: 'available', lat: -1.9680, lng: 29.8850, vehicle: 'RAZ 567Z', vehicleType: 'sedan', rating: 4.7, phone: '+250788567012', heading: 330, totalRides: 1450 },
-  { id: 'DRV026', name: 'Faustin Niyonsenga', status: 'on_trip', lat: -1.9720, lng: 29.8450, vehicle: 'RBA 678A', vehicleType: 'sedan', rating: 4.6, phone: '+250788678123', heading: 90, totalRides: 890 },
-  { id: 'DRV027', name: 'Béatrice Uwimana', status: 'available', lat: -1.9750, lng: 29.8750, vehicle: 'RBB 789B', vehicleType: 'moto', rating: 4.8, phone: '+250788789234', heading: 180, totalRides: 560 },
-  { id: 'DRV028', name: 'Alphonse Nzeyimana', status: 'offline', lat: -1.9700, lng: 29.9100, vehicle: 'RBC 890C', vehicleType: 'suv', rating: 4.5, phone: '+250788890345', heading: 270, totalRides: 1230 },
-  { id: 'DRV029', name: 'Pascaline Nyirahabimana', status: 'available', lat: -1.9780, lng: 29.8580, vehicle: 'RBD 901D', vehicleType: 'sedan', rating: 4.7, phone: '+250788901456', heading: 45, totalRides: 780 },
-  { id: 'DRV030', name: 'Thaddée Nkundimana', status: 'on_trip', lat: -1.9680, lng: 29.8320, vehicle: 'RBE 012E', vehicleType: 'sedan', rating: 4.9, phone: '+250788012567', heading: 135, totalRides: 1670 },
-];
+// Polling interval for real-time updates (in ms)
+const POLLING_INTERVAL = 5000; // 5 seconds
 
-type Driver = typeof initialDrivers[0];
+// Driver interface extended for map display
+interface MapDriver extends NearbyDriverLocation {
+  status: 'available' | 'on_trip' | 'offline';
+}
+
+const getStatusFromDriver = (driver: NearbyDriverLocation): 'available' | 'on_trip' | 'offline' => {
+  if (!driver.is_online && !driver.is_busy) return 'offline';
+  if (driver.is_busy) return 'on_trip';
+  return 'available';
+};
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -118,19 +100,29 @@ const createCarIcon = (color: string, heading: number) => {
 };
 
 export default function MapPage() {
-  const [drivers, setDrivers] = useState<Driver[]>(initialDrivers);
-  const [simulateMovement, setSimulateMovement] = useState(true);
+  const [drivers, setDrivers] = useState<MapDriver[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isLiveConnected, setIsLiveConnected] = useState(false);
+  
+  // Filters
   const [showAvailable, setShowAvailable] = useState(true);
   const [showOnTrip, setShowOnTrip] = useState(true);
   const [showOffline, setShowOffline] = useState(false);
   const [vehicleType, setVehicleType] = useState('all');
-  const [autoRefresh, setAutoRefresh] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
-  const [infoWindowDriver, setInfoWindowDriver] = useState<Driver | null>(null);
+  
+  // Map controls
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [selectedDriver, setSelectedDriver] = useState<MapDriver | null>(null);
+  const [infoWindowDriver, setInfoWindowDriver] = useState<MapDriver | null>(null);
   const [mapType, setMapType] = useState<google.maps.MapTypeId | string>('roadmap');
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [map, setMap] = useState<google.maps.Map | null>(null);
+
+  // Refs for cleanup
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const isFirstLoad = useRef(true);
 
   // Load Google Maps
   const { isLoaded, loadError } = useJsApiLoader({
@@ -158,76 +150,113 @@ export default function MapPage() {
     setMap(null);
   }, []);
 
+  // Fetch drivers from API
+  const fetchDrivers = useCallback(async (showLoadingState = false) => {
+    if (showLoadingState) {
+      setIsLoading(true);
+    }
+    
+    try {
+      const response = await apiClient.getDriversWithLocations({
+        latitude: KIGALI_CENTER.lat,
+        longitude: KIGALI_CENTER.lng,
+        limit: 100,
+      });
+
+      if (response.code === '0000' && response.data) {
+        const mapDrivers: MapDriver[] = response.data.drivers.map(driver => ({
+          ...driver,
+          status: getStatusFromDriver(driver),
+        }));
+        
+        setDrivers(mapDrivers);
+        setLastUpdated(new Date());
+        setIsLiveConnected(true);
+        setError(null);
+        
+        if (isFirstLoad.current) {
+          isFirstLoad.current = false;
+          console.log('[Map] Initial load complete:', mapDrivers.length, 'drivers');
+        }
+      } else {
+        throw new Error(response.msg || 'Failed to fetch drivers');
+      }
+    } catch (err) {
+      console.error('[Map] Failed to fetch drivers:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load drivers');
+      setIsLiveConnected(false);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    fetchDrivers(true);
+  }, [fetchDrivers]);
+
+  // Polling for real-time updates
+  useEffect(() => {
+    if (!autoRefresh) {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
+    }
+
+    pollingRef.current = setInterval(() => {
+      fetchDrivers(false);
+    }, POLLING_INTERVAL);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [autoRefresh, fetchDrivers]);
+
   // Filter drivers
-  const filteredDrivers = drivers.filter((driver) => {
-    const matchesSearch = driver.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          driver.vehicle.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = 
-      (showAvailable && driver.status === 'available') ||
-      (showOnTrip && driver.status === 'on_trip') ||
-      (showOffline && driver.status === 'offline');
-    const matchesVehicle = vehicleType === 'all' || driver.vehicleType === vehicleType;
-    return matchesSearch && matchesStatus && matchesVehicle;
-  });
+  const filteredDrivers = useMemo(() => {
+    return drivers.filter((driver) => {
+      const matchesSearch = driver.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (driver.plate_number?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+      const matchesStatus = 
+        (showAvailable && driver.status === 'available') ||
+        (showOnTrip && driver.status === 'on_trip') ||
+        (showOffline && driver.status === 'offline');
+      const matchesVehicle = vehicleType === 'all' || driver.vehicle_category === vehicleType;
+      return matchesSearch && matchesStatus && matchesVehicle;
+    });
+  }, [drivers, searchQuery, showAvailable, showOnTrip, showOffline, vehicleType]);
 
   // Stats
-  const stats = {
+  const stats = useMemo(() => ({
     total: drivers.length,
     available: drivers.filter(d => d.status === 'available').length,
     onTrip: drivers.filter(d => d.status === 'on_trip').length,
     offline: drivers.filter(d => d.status === 'offline').length,
-  };
-
-  // Simulated movement
-  useEffect(() => {
-    if (!simulateMovement) return;
-    
-    const moveInterval = setInterval(() => {
-      setDrivers(prevDrivers => 
-        prevDrivers.map(driver => {
-          if (driver.status === 'offline') return driver;
-          
-          const latDelta = (Math.random() - 0.5) * 0.004;
-          const lngDelta = (Math.random() - 0.5) * 0.004;
-          const headingDelta = (Math.random() - 0.5) * 30;
-          let newHeading = driver.heading + headingDelta;
-          if (newHeading < 0) newHeading += 360;
-          if (newHeading >= 360) newHeading -= 360;
-          
-          return {
-            ...driver,
-            lat: driver.lat + latDelta,
-            lng: driver.lng + lngDelta,
-            heading: Math.round(newHeading),
-          };
-        })
-      );
-      setLastUpdated(new Date());
-    }, 2000);
-    
-    return () => clearInterval(moveInterval);
-  }, [simulateMovement]);
-
-  // Auto-refresh
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = setInterval(() => setLastUpdated(new Date()), 10000);
-    return () => clearInterval(interval);
-  }, [autoRefresh]);
+  }), [drivers]);
 
   // Focus on driver
-  const focusOnDriver = useCallback((driver: Driver) => {
+  const focusOnDriver = useCallback((driver: MapDriver) => {
     setSelectedDriver(driver);
     if (map) {
-      map.panTo({ lat: driver.lat, lng: driver.lng });
+      map.panTo({ lat: driver.latitude, lng: driver.longitude });
       map.setZoom(16);
     }
   }, [map]);
 
   // Handle marker click
-  const handleMarkerClick = (driver: Driver) => {
+  const handleMarkerClick = (driver: MapDriver) => {
     setInfoWindowDriver(driver);
     setSelectedDriver(driver);
+  };
+
+  // Manual refresh
+  const handleManualRefresh = () => {
+    fetchDrivers(true);
   };
 
   if (loadError) {
@@ -267,10 +296,10 @@ export default function MapPage() {
           {/* Driver Markers */}
           {filteredDrivers.map((driver) => (
             <Marker
-              key={driver.id}
-              position={{ lat: driver.lat, lng: driver.lng }}
+              key={driver.driver_id}
+              position={{ lat: driver.latitude, lng: driver.longitude }}
               icon={{
-                url: createCarIcon(getStatusColor(driver.status), driver.heading),
+                url: createCarIcon(getStatusColor(driver.status), driver.heading || 0),
                 scaledSize: new google.maps.Size(40, 40),
                 anchor: new google.maps.Point(20, 20),
               }}
@@ -282,12 +311,12 @@ export default function MapPage() {
           {/* Info Window */}
           {infoWindowDriver && (
             <InfoWindow
-              position={{ lat: infoWindowDriver.lat, lng: infoWindowDriver.lng }}
+              position={{ lat: infoWindowDriver.latitude, lng: infoWindowDriver.longitude }}
               onCloseClick={() => setInfoWindowDriver(null)}
             >
               <div className="p-2 min-w-[150px]">
                 <p className="font-semibold">{infoWindowDriver.name}</p>
-                <p className="text-sm text-gray-600">{infoWindowDriver.vehicle}</p>
+                <p className="text-sm text-gray-600">{infoWindowDriver.plate_number || 'No plate'}</p>
                 <div className="flex items-center gap-1 mt-1">
                   <span className="text-xs px-2 py-0.5 rounded" style={{ 
                     backgroundColor: getStatusColor(infoWindowDriver.status) + '20',
@@ -295,7 +324,9 @@ export default function MapPage() {
                   }}>
                     {getStatusLabel(infoWindowDriver.status)}
                   </span>
-                  <span className="text-xs">⭐ {infoWindowDriver.rating}</span>
+                  {infoWindowDriver.rating && (
+                    <span className="text-xs">⭐ {infoWindowDriver.rating.toFixed(1)}</span>
+                  )}
                 </div>
               </div>
             </InfoWindow>
@@ -332,6 +363,39 @@ export default function MapPage() {
         </Button>
       </div>
 
+      {/* Live Connection Status */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+        <Badge 
+          variant={isLiveConnected ? 'default' : 'destructive'} 
+          className={`shadow-lg ${isLiveConnected ? 'bg-green-600' : ''}`}
+        >
+          {isLiveConnected ? (
+            <>
+              <Wifi className="h-3 w-3 mr-1" />
+              Live Data
+            </>
+          ) : (
+            <>
+              <WifiOff className="h-3 w-3 mr-1" />
+              Disconnected
+            </>
+          )}
+        </Badge>
+      </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10">
+          <div className="bg-red-100 border border-red-300 text-red-700 px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            <span className="text-sm">{error}</span>
+            <Button variant="ghost" size="sm" onClick={handleManualRefresh}>
+              Retry
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Control Panel */}
       <Card className="absolute top-4 right-4 w-80 shadow-xl max-h-[calc(100vh-12rem)] overflow-y-auto z-10">
         <CardContent className="p-4 space-y-4">
@@ -340,8 +404,14 @@ export default function MapPage() {
               <Layers className="h-4 w-4" />
               Fleet Tracker
             </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setLastUpdated(new Date())}>
-              <RefreshCw className={`h-4 w-4 ${autoRefresh ? 'animate-spin' : ''}`} />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8" 
+              onClick={handleManualRefresh}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             </Button>
           </div>
           
@@ -356,21 +426,31 @@ export default function MapPage() {
             />
           </div>
 
+          {/* Loading State */}
+          {isLoading && drivers.length === 0 && (
+            <div className="text-center py-4">
+              <RefreshCw className="h-6 w-6 animate-spin mx-auto text-primary" />
+              <p className="text-sm text-muted-foreground mt-2">Loading drivers...</p>
+            </div>
+          )}
+
           {/* Quick Stats */}
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="bg-green-50 rounded-lg p-2">
-              <p className="text-lg font-bold text-green-600">{stats.available}</p>
-              <p className="text-xs text-muted-foreground">Available</p>
+          {!isLoading && (
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-green-50 rounded-lg p-2">
+                <p className="text-lg font-bold text-green-600">{stats.available}</p>
+                <p className="text-xs text-muted-foreground">Available</p>
+              </div>
+              <div className="bg-yellow-50 rounded-lg p-2">
+                <p className="text-lg font-bold text-yellow-600">{stats.onTrip}</p>
+                <p className="text-xs text-muted-foreground">On Trip</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <p className="text-lg font-bold text-gray-600">{stats.offline}</p>
+                <p className="text-xs text-muted-foreground">Offline</p>
+              </div>
             </div>
-            <div className="bg-yellow-50 rounded-lg p-2">
-              <p className="text-lg font-bold text-yellow-600">{stats.onTrip}</p>
-              <p className="text-xs text-muted-foreground">On Trip</p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-2">
-              <p className="text-lg font-bold text-gray-600">{stats.offline}</p>
-              <p className="text-xs text-muted-foreground">Offline</p>
-            </div>
-          </div>
+          )}
 
           {/* Filters */}
           <div className="space-y-2">
@@ -415,11 +495,9 @@ export default function MapPage() {
           <div className="flex items-center justify-between pt-2 border-t">
             <div className="flex items-center space-x-2">
               <Checkbox id="auto-refresh" checked={autoRefresh} onCheckedChange={(c) => setAutoRefresh(!!c)} />
-              <Label htmlFor="auto-refresh" className="cursor-pointer">Auto-refresh</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox id="simulate-movement" checked={simulateMovement} onCheckedChange={(c) => setSimulateMovement(!!c)} />
-              <Label htmlFor="simulate-movement" className="cursor-pointer">🚗 Simulate</Label>
+              <Label htmlFor="auto-refresh" className="cursor-pointer text-sm">
+                Live updates ({POLLING_INTERVAL / 1000}s)
+              </Label>
             </div>
           </div>
 
@@ -427,16 +505,21 @@ export default function MapPage() {
           <div className="space-y-2 pt-2 border-t">
             <p className="text-sm font-medium text-muted-foreground">Drivers ({filteredDrivers.length})</p>
             <div className="max-h-48 overflow-y-auto space-y-2">
+              {filteredDrivers.length === 0 && !isLoading && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No drivers match your filters
+                </p>
+              )}
               {filteredDrivers.map((driver) => (
                 <div
-                  key={driver.id}
-                  className={`p-2 rounded-lg border cursor-pointer transition-colors hover:bg-accent ${selectedDriver?.id === driver.id ? 'border-primary bg-accent' : ''}`}
+                  key={driver.driver_id}
+                  className={`p-2 rounded-lg border cursor-pointer transition-colors hover:bg-accent ${selectedDriver?.driver_id === driver.driver_id ? 'border-primary bg-accent' : ''}`}
                   onClick={() => focusOnDriver(driver)}
                 >
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getStatusColor(driver.status) }} />
-                    <span className="font-medium text-sm flex-1">{driver.name}</span>
-                    <span className="text-xs text-muted-foreground">{driver.vehicle}</span>
+                    <span className="font-medium text-sm flex-1 truncate">{driver.name}</span>
+                    <span className="text-xs text-muted-foreground">{driver.plate_number || '—'}</span>
                   </div>
                 </div>
               ))}
@@ -450,7 +533,7 @@ export default function MapPage() {
         <CardContent className="p-3">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
+              <span className={`h-3 w-3 rounded-full ${isLiveConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
               <span className="text-sm font-medium">{stats.available + stats.onTrip} online</span>
             </div>
             <div className="flex items-center gap-2">
@@ -458,7 +541,7 @@ export default function MapPage() {
               <span className="text-sm font-medium">{stats.onTrip} active</span>
             </div>
             <div className="text-xs text-muted-foreground">
-              {lastUpdated.toLocaleTimeString()}
+              Updated: {lastUpdated.toLocaleTimeString()}
             </div>
           </div>
         </CardContent>
@@ -477,11 +560,17 @@ export default function MapPage() {
                 </Avatar>
                 <div>
                   <p className="font-semibold">{selectedDriver.name}</p>
-                  <p className="text-sm text-muted-foreground">{selectedDriver.vehicle}</p>
+                  <p className="text-sm text-muted-foreground">{selectedDriver.plate_number || 'No plate'}</p>
                   <div className="flex items-center gap-1 mt-1">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                    <span className="text-sm font-medium">{selectedDriver.rating}</span>
-                    <span className="text-xs text-muted-foreground">• {selectedDriver.totalRides.toLocaleString()} rides</span>
+                    {selectedDriver.rating && (
+                      <>
+                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        <span className="text-sm font-medium">{selectedDriver.rating.toFixed(1)}</span>
+                      </>
+                    )}
+                    {selectedDriver.total_rides && (
+                      <span className="text-xs text-muted-foreground">• {selectedDriver.total_rides.toLocaleString()} rides</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -493,22 +582,24 @@ export default function MapPage() {
             <div className="flex items-center gap-2 mt-3">
               <Badge className={getStatusBadgeClass(selectedDriver.status)}>{getStatusLabel(selectedDriver.status)}</Badge>
               <Badge variant="outline" className="capitalize">
-                {selectedDriver.vehicleType === 'moto' ? '🏍️' : selectedDriver.vehicleType === 'suv' ? '🚙' : '🚗'} {selectedDriver.vehicleType}
+                {selectedDriver.vehicle_category === 'moto' ? '🏍️' : selectedDriver.vehicle_category === 'suv' ? '🚙' : '🚗'} {selectedDriver.vehicle_category || 'Unknown'}
               </Badge>
             </div>
             
             <div className="flex gap-2 mt-4">
               <Button size="sm" className="flex-1" asChild>
-                <a href={`/drivers/${selectedDriver.id}`}>
+                <a href={`/drivers/${selectedDriver.driver_id}`}>
                   <Eye className="h-4 w-4 mr-1" />
                   Profile
                 </a>
               </Button>
-              <Button size="sm" variant="outline" asChild>
-                <a href={`tel:${selectedDriver.phone}`}>
-                  <Phone className="h-4 w-4" />
-                </a>
-              </Button>
+              {selectedDriver.phone && (
+                <Button size="sm" variant="outline" asChild>
+                  <a href={`tel:${selectedDriver.phone}`}>
+                    <Phone className="h-4 w-4" />
+                  </a>
+                </Button>
+              )}
               <Button size="sm" variant="outline">
                 <Navigation className="h-4 w-4" />
               </Button>
@@ -519,4 +610,3 @@ export default function MapPage() {
     </div>
   );
 }
-
