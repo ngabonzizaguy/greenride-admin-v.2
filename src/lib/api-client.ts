@@ -99,6 +99,35 @@ const MOCK_RIDES = [
   { id: 5, order_id: 'ORD005', user_id: 'USR005', provider_id: 'DRV005', pickup_location: 'Kabuga', dropoff_location: 'Kigali Heights', status: 'completed', payment_status: 'paid', amount: 6100, distance: 15.0, duration: 35, created_at: Date.now() - 1 * 60 * 60 * 1000 },
 ];
 
+// Mock Vehicles Data
+let mockVehicleIdCounter = 10;
+const MOCK_VEHICLES: Array<{
+  id: number;
+  vehicle_id: string;
+  driver_id?: string;
+  driver_name?: string;
+  brand: string;
+  model: string;
+  year: number;
+  color: string;
+  plate_number: string;
+  category: string;
+  level: string;
+  seat_capacity: number;
+  status: string;
+  photos?: string[];
+  created_at: number;
+  updated_at: number;
+}> = [
+  { id: 1, vehicle_id: 'VEH001', driver_id: 'DRV001', driver_name: 'Peter Mutombo', brand: 'Toyota', model: 'Corolla', year: 2022, color: 'White', plate_number: 'RAJ746C', category: 'sedan', level: 'economy', seat_capacity: 4, status: 'active', created_at: Date.now() - 90 * 24 * 60 * 60 * 1000, updated_at: Date.now() },
+  { id: 2, vehicle_id: 'VEH002', driver_id: 'DRV002', driver_name: 'David Kagame', brand: 'BYD', model: 'S1', year: 2023, color: 'Green/White', plate_number: 'RAJ748C', category: 'suv', level: 'comfort', seat_capacity: 5, status: 'active', created_at: Date.now() - 60 * 24 * 60 * 60 * 1000, updated_at: Date.now() },
+  { id: 3, vehicle_id: 'VEH003', driver_name: 'N/A', brand: 'Mercedes', model: 'Sprinter', year: 2021, color: 'Silver', plate_number: 'RAJ783C', category: 'mpv', level: 'luxury', seat_capacity: 8, status: 'active', created_at: Date.now() - 120 * 24 * 60 * 60 * 1000, updated_at: Date.now() },
+  { id: 4, vehicle_id: 'VEH004', driver_name: 'N/A', brand: 'Mercedes', model: 'Sprinter', year: 2020, color: 'Black', plate_number: 'RAI308J', category: 'mpv', level: 'luxury', seat_capacity: 8, status: 'active', created_at: Date.now() - 45 * 24 * 60 * 60 * 1000, updated_at: Date.now() },
+  { id: 5, vehicle_id: 'VEH005', driver_id: 'DRV003', driver_name: 'Paul Rwema', brand: 'Toyota', model: 'Camry', year: 2023, color: 'Black', plate_number: 'RAJ835C', category: 'sedan', level: 'economy', seat_capacity: 4, status: 'active', created_at: Date.now() - 30 * 24 * 60 * 60 * 1000, updated_at: Date.now() },
+  { id: 6, vehicle_id: 'VEH006', driver_name: 'N/A', brand: 'Toyota', model: 'Camry', year: 2022, color: 'Gray', plate_number: 'RAJ836C', category: 'sedan', level: 'economy', seat_capacity: 4, status: 'maintenance', created_at: Date.now() - 100 * 24 * 60 * 60 * 1000, updated_at: Date.now() },
+  { id: 7, vehicle_id: 'VEH007', driver_name: 'N/A', brand: 'Nissan', model: 'X-Trail', year: 2021, color: 'Blue', plate_number: 'RAI303J', category: 'suv', level: 'comfort', seat_capacity: 5, status: 'inactive', created_at: Date.now() - 150 * 24 * 60 * 60 * 1000, updated_at: Date.now() },
+];
+
 const MOCK_FEEDBACK: Feedback[] = [
   {
     id: '1',
@@ -846,6 +875,53 @@ class ApiClient {
    * POST /vehicles/search
    */
   async searchVehicles(params: VehicleSearchRequest = {}): Promise<ApiResponse<PageResult<unknown>>> {
+    if (DEMO_MODE) {
+      let filtered = [...MOCK_VEHICLES];
+      
+      // Apply keyword filter
+      if (params.keyword) {
+        const kw = params.keyword.toLowerCase();
+        filtered = filtered.filter(v => 
+          v.brand.toLowerCase().includes(kw) || 
+          v.model.toLowerCase().includes(kw) ||
+          v.plate_number.toLowerCase().includes(kw) ||
+          (v.driver_name && v.driver_name.toLowerCase().includes(kw))
+        );
+      }
+      
+      // Apply status filter
+      if (params.status && params.status !== 'all') {
+        filtered = filtered.filter(v => v.status === params.status);
+      }
+      
+      // Apply category filter
+      if (params.category && params.category !== 'all') {
+        filtered = filtered.filter(v => v.category === params.category);
+      }
+      
+      // Apply level filter
+      if (params.level && params.level !== 'all') {
+        filtered = filtered.filter(v => v.level === params.level);
+      }
+      
+      const page = params.page || 1;
+      const limit = params.limit || 10;
+      const start = (page - 1) * limit;
+      const records = filtered.slice(start, start + limit);
+      
+      return {
+        code: API_CODES.SUCCESS,
+        msg: 'Success',
+        data: {
+          result_type: 'vehicles',
+          size: limit,
+          current: page,
+          total: Math.ceil(filtered.length / limit),
+          count: filtered.length,
+          records,
+        },
+      };
+    }
     return this.request('/vehicles/search', {
       method: 'POST',
       body: {
@@ -861,6 +937,13 @@ class ApiClient {
    * POST /vehicles/detail
    */
   async getVehicleDetail(vehicleId: string): Promise<ApiResponse<unknown>> {
+    if (DEMO_MODE) {
+      const vehicle = MOCK_VEHICLES.find(v => v.vehicle_id === vehicleId || String(v.id) === vehicleId);
+      if (vehicle) {
+        return { code: API_CODES.SUCCESS, msg: 'Success', data: vehicle };
+      }
+      return { code: API_CODES.BUSINESS_ERROR, msg: 'Vehicle not found', data: null };
+    }
     return this.request('/vehicles/detail', {
       method: 'POST',
       body: { vehicle_id: vehicleId },
@@ -872,6 +955,32 @@ class ApiClient {
    * POST /vehicles/create
    */
   async createVehicle(vehicleData: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 300)); // Simulate API delay
+      mockVehicleIdCounter++;
+      const newVehicle = {
+        id: mockVehicleIdCounter,
+        vehicle_id: `VEH${String(mockVehicleIdCounter).padStart(3, '0')}`,
+        driver_id: (vehicleData.driver_id as string) || undefined,
+        driver_name: (vehicleData.driver_id as string) 
+          ? MOCK_DRIVERS.find(d => d.user_id === vehicleData.driver_id)?.full_name || 'Unknown Driver'
+          : 'N/A',
+        brand: (vehicleData.brand as string) || '',
+        model: (vehicleData.model as string) || '',
+        year: (vehicleData.year as number) || new Date().getFullYear(),
+        color: (vehicleData.color as string) || '',
+        plate_number: (vehicleData.plate_number as string) || '',
+        category: (vehicleData.category as string) || 'sedan',
+        level: (vehicleData.level as string) || 'economy',
+        seat_capacity: (vehicleData.seat_capacity as number) || 4,
+        status: (vehicleData.status as string) || 'active',
+        photos: vehicleData.photos as string[] || undefined,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+      };
+      MOCK_VEHICLES.unshift(newVehicle);
+      return { code: API_CODES.SUCCESS, msg: 'Vehicle created successfully', data: newVehicle };
+    }
     return this.request('/vehicles/create', {
       method: 'POST',
       body: vehicleData,
@@ -883,6 +992,31 @@ class ApiClient {
    * POST /vehicles/update
    */
   async updateVehicle(vehicleId: string, vehicleData: Record<string, unknown>): Promise<ApiResponse<unknown>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 300)); // Simulate API delay
+      const index = MOCK_VEHICLES.findIndex(v => v.vehicle_id === vehicleId);
+      if (index !== -1) {
+        MOCK_VEHICLES[index] = {
+          ...MOCK_VEHICLES[index],
+          brand: (vehicleData.brand as string) ?? MOCK_VEHICLES[index].brand,
+          model: (vehicleData.model as string) ?? MOCK_VEHICLES[index].model,
+          year: (vehicleData.year as number) ?? MOCK_VEHICLES[index].year,
+          color: (vehicleData.color as string) ?? MOCK_VEHICLES[index].color,
+          plate_number: (vehicleData.plate_number as string) ?? MOCK_VEHICLES[index].plate_number,
+          category: (vehicleData.category as string) ?? MOCK_VEHICLES[index].category,
+          level: (vehicleData.level as string) ?? MOCK_VEHICLES[index].level,
+          seat_capacity: (vehicleData.seat_capacity as number) ?? MOCK_VEHICLES[index].seat_capacity,
+          driver_id: (vehicleData.driver_id as string) || undefined,
+          driver_name: (vehicleData.driver_id as string) 
+            ? MOCK_DRIVERS.find(d => d.user_id === vehicleData.driver_id)?.full_name || 'Unknown Driver'
+            : 'N/A',
+          photos: (vehicleData.photos as string[]) ?? MOCK_VEHICLES[index].photos,
+          updated_at: Date.now(),
+        };
+        return { code: API_CODES.SUCCESS, msg: 'Vehicle updated successfully', data: MOCK_VEHICLES[index] };
+      }
+      return { code: API_CODES.BUSINESS_ERROR, msg: 'Vehicle not found', data: null };
+    }
     return this.request('/vehicles/update', {
       method: 'POST',
       body: { vehicle_id: vehicleId, ...vehicleData },
@@ -894,6 +1028,16 @@ class ApiClient {
    * POST /vehicles/status
    */
   async updateVehicleStatus(vehicleId: string, status: string): Promise<ApiResponse<unknown>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 300)); // Simulate API delay
+      const index = MOCK_VEHICLES.findIndex(v => v.vehicle_id === vehicleId);
+      if (index !== -1) {
+        MOCK_VEHICLES[index].status = status;
+        MOCK_VEHICLES[index].updated_at = Date.now();
+        return { code: API_CODES.SUCCESS, msg: `Vehicle status updated to ${status}`, data: MOCK_VEHICLES[index] };
+      }
+      return { code: API_CODES.BUSINESS_ERROR, msg: 'Vehicle not found', data: null };
+    }
     return this.request('/vehicles/status', {
       method: 'POST',
       body: { vehicle_id: vehicleId, status },
@@ -905,6 +1049,15 @@ class ApiClient {
    * POST /vehicles/delete
    */
   async deleteVehicle(vehicleId: string): Promise<ApiResponse<null>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 300)); // Simulate API delay
+      const index = MOCK_VEHICLES.findIndex(v => v.vehicle_id === vehicleId);
+      if (index !== -1) {
+        MOCK_VEHICLES.splice(index, 1);
+        return { code: API_CODES.SUCCESS, msg: 'Vehicle deleted successfully', data: null };
+      }
+      return { code: API_CODES.BUSINESS_ERROR, msg: 'Vehicle not found', data: null };
+    }
     return this.request('/vehicles/delete', {
       method: 'POST',
       body: { vehicle_id: vehicleId },

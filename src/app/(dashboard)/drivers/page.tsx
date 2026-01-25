@@ -117,8 +117,7 @@ const emptyDriverForm = {
   email: '',
   phone: '',
   license_number: '',
-  vehicle_plate: '',
-  vehicle_type: 'sedan',
+  vehicle_id: '',
 };
 
 export default function DriversPage() {
@@ -161,6 +160,24 @@ export default function DriversPage() {
   const [uploadPreview, setUploadPreview] = useState<Array<Record<string, string>>>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  
+  // Vehicles list for assignment
+  const [vehicles, setVehicles] = useState<Array<{ vehicle_id: string; display_name: string; plate_number: string }>>([]);
+
+  const fetchVehicles = useCallback(async () => {
+    try {
+      const response = await apiClient.searchVehicles({ limit: 100 });
+      const pageResult = response.data as PageResult<{ vehicle_id: string; brand?: string; model?: string; plate_number?: string }>;
+      const vehicleList = (pageResult.records || []).map(v => ({
+        vehicle_id: v.vehicle_id,
+        display_name: `${v.brand || ''} ${v.model || ''}`.trim() || 'Unknown Vehicle',
+        plate_number: v.plate_number || '',
+      }));
+      setVehicles(vehicleList);
+    } catch (err) {
+      console.error('Failed to fetch vehicles:', err);
+    }
+  }, []);
 
   const fetchDrivers = useCallback(async () => {
     setIsLoading(true);
@@ -198,7 +215,8 @@ export default function DriversPage() {
 
   useEffect(() => {
     fetchDrivers();
-  }, [fetchDrivers]);
+    fetchVehicles();
+  }, [fetchDrivers, fetchVehicles]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -256,7 +274,7 @@ export default function DriversPage() {
     setError(null);
 
     try {
-      await apiClient.createUser({
+      const response = await apiClient.createUser({
         user_type: 'driver',
         first_name: formData.first_name,
         last_name: formData.last_name,
@@ -266,10 +284,25 @@ export default function DriversPage() {
         status: 'active',
       });
 
+      // If a vehicle is selected, assign it to the new driver
+      if (formData.vehicle_id && response.code === '0000') {
+        const driverData = response.data as { user_id?: string };
+        if (driverData?.user_id) {
+          try {
+            await apiClient.updateVehicle(formData.vehicle_id, {
+              driver_id: driverData.user_id,
+            });
+          } catch (vehicleErr) {
+            console.error('Failed to assign vehicle:', vehicleErr);
+          }
+        }
+      }
+
       setSuccessMessage('Driver added successfully!');
       setIsAddModalOpen(false);
       setFormData(emptyDriverForm);
       fetchDrivers();
+      fetchVehicles(); // Refresh vehicles list
     } catch (err) {
       console.error('Failed to add driver:', err);
       setError('Failed to add driver. Please try again.');
@@ -286,6 +319,7 @@ export default function DriversPage() {
     setError(null);
 
     try {
+      // Update driver info
       await apiClient.updateUser(selectedDriver.user_id, {
         first_name: formData.first_name,
         last_name: formData.last_name,
@@ -294,11 +328,24 @@ export default function DriversPage() {
         license_number: formData.license_number,
       });
 
+      // If a vehicle is selected, update the vehicle to assign this driver
+      if (formData.vehicle_id) {
+        try {
+          await apiClient.updateVehicle(formData.vehicle_id, {
+            driver_id: selectedDriver.user_id,
+          });
+        } catch (vehicleErr) {
+          console.error('Failed to assign vehicle:', vehicleErr);
+          // Don't fail the whole operation, just log
+        }
+      }
+
       setSuccessMessage('Driver updated successfully!');
       setIsEditModalOpen(false);
       setSelectedDriver(null);
       setFormData(emptyDriverForm);
       fetchDrivers();
+      fetchVehicles(); // Refresh vehicles list
     } catch (err) {
       console.error('Failed to update driver:', err);
       setError('Failed to update driver. Please try again.');
@@ -354,14 +401,18 @@ export default function DriversPage() {
   // Open Edit Modal
   const openEditModal = (driver: Driver) => {
     setSelectedDriver(driver);
+    // Find if this driver has a vehicle assigned
+    const assignedVehicle = vehicles.find(v => {
+      // Check if vehicle's driver matches this driver
+      return false; // We'll need to track this differently
+    });
     setFormData({
       first_name: driver.first_name || '',
       last_name: driver.last_name || '',
       email: driver.email || '',
       phone: driver.phone || '',
       license_number: driver.license_number || '',
-      vehicle_plate: '',
-      vehicle_type: 'sedan',
+      vehicle_id: driver.vehicle?.vehicle_id || '',
     });
     setIsEditModalOpen(true);
   };
@@ -457,7 +508,7 @@ export default function DriversPage() {
     }
   };
 
-  // Parse CSV file
+  // Parse CSV file - handles various formats including the Excel format with Name, Phone, Plate
   const parseCSV = (text: string): Array<Record<string, string>> => {
     const lines = text.split('\n').filter(line => line.trim());
     if (lines.length < 2) return [];
@@ -465,16 +516,81 @@ export default function DriversPage() {
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/["']/g, ''));
     const rows: Array<Record<string, string>> = [];
 
+    // Check if this is the dual-driver format (Names/1st Driver, Names/2nd Driver)
+    const isDualDriverFormat = headers.some(h => h.includes('1st') || h.includes('2nd'));
+
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(',').map(v => v.trim().replace(/["']/g, ''));
-      const row: Record<string, string> = {};
-      headers.forEach((header, index) => {
-        row[header] = values[index] || '';
-      });
-      rows.push(row);
+      
+      if (isDualDriverFormat) {
+        // Handle dual-driver format: Names/1st Driver | Phone | Names/2nd Driver | Phone | Plate
+        const row1: Record<string, string> = {};
+        const row2: Record<string, string> = {};
+        
+        headers.forEach((header, index) => {
+          const value = values[index] || '';
+          if (header.includes('1st') || (header === 'phone number' && index === 1)) {
+            // First driver columns
+            if (header.includes('driver') || header.includes('name')) {
+              row1['name'] = value;
+            } else if (header.includes('phone') || header === 'phone number') {
+              row1['phone'] = value;
+            }
+          } else if (header.includes('2nd') || (header === 'phone number' && index === 3)) {
+            // Second driver columns  
+            if (header.includes('driver') || header.includes('name')) {
+              row2['name'] = value;
+            } else if (header.includes('phone') || header === 'phone number') {
+              row2['phone'] = value;
+            }
+          } else if (header.includes('plate')) {
+            // Plate number shared by both drivers
+            row1['plate_number'] = value;
+            row2['plate_number'] = value;
+          }
+        });
+        
+        // Only add rows with names
+        if (row1['name']) rows.push(row1);
+        if (row2['name']) rows.push(row2);
+      } else {
+        // Standard format
+        const row: Record<string, string> = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] || '';
+        });
+        rows.push(row);
+      }
     }
 
     return rows;
+  };
+
+  // Format phone number with +250 prefix if needed
+  const formatPhoneNumber = (phone: string): string => {
+    if (!phone) return '';
+    // Remove spaces, dashes, and other non-digit characters except +
+    let cleaned = phone.replace(/[^\d+]/g, '');
+    // Add +250 prefix if it's a 9-digit Rwandan number
+    if (/^\d{9}$/.test(cleaned)) {
+      cleaned = '+250' + cleaned;
+    } else if (/^0\d{9}$/.test(cleaned)) {
+      cleaned = '+250' + cleaned.slice(1);
+    } else if (/^250\d{9}$/.test(cleaned)) {
+      cleaned = '+' + cleaned;
+    }
+    return cleaned;
+  };
+
+  // Split full name into first and last name
+  const splitName = (fullName: string): { firstName: string; lastName: string } => {
+    const parts = fullName.trim().split(/\s+/);
+    if (parts.length === 1) {
+      return { firstName: parts[0], lastName: '' };
+    }
+    const firstName = parts[0];
+    const lastName = parts.slice(1).join(' ');
+    return { firstName, lastName };
   };
 
   // Handle file selection
@@ -515,7 +631,7 @@ export default function DriversPage() {
     reader.readAsText(file);
   };
 
-  // Handle CSV Upload
+  // Handle CSV Upload - supports various formats including Excel driver list
   const handleUploadCSV = async () => {
     if (!uploadFile) return;
 
@@ -535,26 +651,84 @@ export default function DriversPage() {
             return;
           }
 
-          // Process each row
+          // Track created vehicles for plate numbers
+          const plateToVehicleId: Record<string, string> = {};
+
+          // Process each row - create drivers and optionally vehicles
           const results = await Promise.allSettled(
-            rows.map(row => apiClient.createUser({
-              user_type: 'driver',
-              first_name: row['first name'] || row['first_name'] || row['firstname'] || '',
-              last_name: row['last name'] || row['last_name'] || row['lastname'] || '',
-              email: row['email'] || '',
-              phone: row['phone'] || row['phone number'] || row['phone_number'] || '',
-              license_number: row['license'] || row['license number'] || row['license_number'] || '',
-              status: 'active',
-            }))
+            rows.map(async (row) => {
+              // Get name - try various column formats
+              const fullName = row['name'] || row['names/1st driver'] || row['names/2nd driver'] || 
+                             row['first name'] || row['first_name'] || row['firstname'] || '';
+              const { firstName, lastName } = splitName(fullName);
+              
+              // Get phone - format with +250 prefix if needed
+              const rawPhone = row['phone'] || row['phone number'] || row['phone_number'] || '';
+              const phone = formatPhoneNumber(rawPhone);
+              
+              // Get plate number if available
+              const plateNumber = row['plate_number'] || row['plate number'] || row['plate'] || '';
+              
+              // Skip rows without name or phone
+              if (!firstName && !phone) {
+                return Promise.reject(new Error('Missing name and phone'));
+              }
+              
+              // Create the driver
+              const driverResponse = await apiClient.createUser({
+                user_type: 'driver',
+                first_name: firstName,
+                last_name: lastName,
+                email: row['email'] || '',
+                phone: phone,
+                license_number: row['license'] || row['license number'] || row['license_number'] || '',
+                status: 'active',
+              });
+              
+              // If plate number exists, create or link vehicle
+              if (plateNumber && driverResponse.code === '0000') {
+                const driverData = driverResponse.data as { user_id?: string };
+                const driverId = driverData?.user_id;
+                
+                // Check if we already created this vehicle
+                if (!plateToVehicleId[plateNumber] && driverId) {
+                  try {
+                    // Create vehicle with the plate number
+                    const vehicleResponse = await apiClient.createVehicle({
+                      plate_number: plateNumber,
+                      brand: 'Unknown', // Can be updated later
+                      model: 'Unknown',
+                      category: 'sedan',
+                      level: 'economy',
+                      driver_id: driverId,
+                      status: 'active',
+                    });
+                    
+                    if (vehicleResponse.code === '0000') {
+                      const vehicleData = vehicleResponse.data as { vehicle_id?: string };
+                      if (vehicleData?.vehicle_id) {
+                        plateToVehicleId[plateNumber] = vehicleData.vehicle_id;
+                      }
+                    }
+                  } catch (e) {
+                    // Vehicle creation failed, but driver was created successfully
+                    console.error('Failed to create vehicle for plate:', plateNumber, e);
+                  }
+                }
+              }
+              
+              return driverResponse;
+            })
           );
 
           const successCount = results.filter(r => r.status === 'fulfilled').length;
           const failCount = results.filter(r => r.status === 'rejected').length;
+          const vehiclesCreated = Object.keys(plateToVehicleId).length;
 
           if (failCount > 0) {
-            setError(`${failCount} driver(s) failed to import. ${successCount} imported successfully.`);
+            setError(`${failCount} driver(s) failed to import. ${successCount} imported successfully.${vehiclesCreated > 0 ? ` ${vehiclesCreated} vehicle(s) created.` : ''}`);
           } else {
-            setSuccessMessage(`${successCount} driver(s) imported successfully!`);
+            setSuccessMessage(`${successCount} driver(s) imported successfully!${vehiclesCreated > 0 ? ` ${vehiclesCreated} vehicle(s) created.` : ''}`);
           }
 
           setIsUploadModalOpen(false);
@@ -574,9 +748,15 @@ export default function DriversPage() {
     }
   };
 
-  // Download CSV template
+  // Download CSV template - supports multiple formats
   const handleDownloadTemplate = () => {
-    const template = 'First Name,Last Name,Email,Phone,License Number\nJohn,Doe,john@example.com,+250788123456,DL-123456\nJane,Smith,jane@example.com,+250788234567,DL-234567';
+    // Template with simpler format matching user's Excel structure
+    const template = `Name,Phone,Plate Number
+Serge Ntwali,784871704,RAJ746C
+Benimana Christiane,784149020,RAJ748C
+Nkurunziza Aloys,788268767,RAJ745C
+Rutayisire Bosco,785040266,RAJ783C
+Nyamuvugwa Jesus,788438122,RAJ835C`;
     const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -1039,30 +1219,21 @@ export default function DriversPage() {
                 onChange={(e) => setFormData({ ...formData, license_number: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="vehicle_plate">Vehicle Plate</Label>
-                <Input
-                  id="vehicle_plate"
-                  placeholder="RAD 123A"
-                  value={formData.vehicle_plate}
-                  onChange={(e) => setFormData({ ...formData, vehicle_plate: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="vehicle_type">Vehicle Type</Label>
-                <Select value={formData.vehicle_type} onValueChange={(v) => setFormData({ ...formData, vehicle_type: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sedan">Sedan</SelectItem>
-                    <SelectItem value="suv">SUV</SelectItem>
-                    <SelectItem value="moto">Moto</SelectItem>
-                    <SelectItem value="van">Van</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="vehicle_id">Assign Vehicle</Label>
+              <Select value={formData.vehicle_id || "none"} onValueChange={(v) => setFormData({ ...formData, vehicle_id: v === "none" ? "" : v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a vehicle (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Vehicle</SelectItem>
+                  {vehicles.map((vehicle) => (
+                    <SelectItem key={vehicle.vehicle_id} value={vehicle.vehicle_id}>
+                      {vehicle.display_name} ({vehicle.plate_number})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
@@ -1128,6 +1299,22 @@ export default function DriversPage() {
                 value={formData.license_number}
                 onChange={(e) => setFormData({ ...formData, license_number: e.target.value })}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_vehicle_id">Assign Vehicle</Label>
+              <Select value={formData.vehicle_id || "none"} onValueChange={(v) => setFormData({ ...formData, vehicle_id: v === "none" ? "" : v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a vehicle (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Vehicle</SelectItem>
+                  {vehicles.map((vehicle) => (
+                    <SelectItem key={vehicle.vehicle_id} value={vehicle.vehicle_id}>
+                      {vehicle.display_name} ({vehicle.plate_number})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>

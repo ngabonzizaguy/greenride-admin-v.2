@@ -15,7 +15,11 @@ import {
   MapPin,
   AlertCircle,
   Wifi,
-  WifiOff
+  WifiOff,
+  ChevronLeft,
+  ChevronRight,
+  PanelRightClose,
+  PanelRightOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -119,6 +123,7 @@ export default function MapPage() {
   const [mapType, setMapType] = useState<google.maps.MapTypeId | string>('roadmap');
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
 
   // Refs for cleanup
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -396,23 +401,47 @@ export default function MapPage() {
         </div>
       )}
 
+      {/* Toggle Panel Button (visible when collapsed) */}
+      {isPanelCollapsed && (
+        <Button
+          className="absolute top-4 right-4 z-10 shadow-xl"
+          variant="secondary"
+          size="icon"
+          onClick={() => setIsPanelCollapsed(false)}
+        >
+          <PanelRightOpen className="h-5 w-5" />
+        </Button>
+      )}
+
       {/* Control Panel */}
-      <Card className="absolute top-4 right-4 w-80 shadow-xl max-h-[calc(100vh-12rem)] overflow-y-auto z-10">
+      <Card className={`absolute top-4 right-4 shadow-xl max-h-[calc(100vh-12rem)] overflow-y-auto z-10 transition-all duration-300 ${isPanelCollapsed ? 'translate-x-[400px] opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'} w-80`}>
         <CardContent className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <div className="font-semibold flex items-center gap-2">
               <Layers className="h-4 w-4" />
               Fleet Tracker
             </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8" 
-              onClick={handleManualRefresh}
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8" 
+                onClick={handleManualRefresh}
+                disabled={isLoading}
+                title="Refresh"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8" 
+                onClick={() => setIsPanelCollapsed(true)}
+                title="Collapse panel"
+              >
+                <PanelRightClose className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           
           {/* Search */}
