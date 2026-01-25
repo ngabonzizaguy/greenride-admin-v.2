@@ -182,20 +182,54 @@ export default function QuickBookingPage() {
     setError(null);
 
     try {
-      // Create order via API
-      const orderData = {
+      // Step 1: Get price estimate first (required to obtain price_id)
+      const estimateData = {
+        user_id: foundPassenger.user_id,
+        pickup_address: pickupLocation,
+        dropoff_address: dropoffLocation,
+        order_type: 'ride',
+        vehicle_type: 'sedan', // Default vehicle type
+      };
+
+      console.log('[QuickBooking] Getting price estimate...');
+      const estimateResponse = await apiClient.estimateOrder(estimateData);
+      
+      let priceId: string | undefined;
+      let estimatedFare: number | undefined;
+      
+      if (estimateResponse.code === '0000' && estimateResponse.data) {
+        const estimate = estimateResponse.data as Record<string, unknown>;
+        priceId = estimate.price_id as string;
+        estimatedFare = estimate.final_fare as number || estimate.estimated_fare as number;
+        console.log('[QuickBooking] Got price_id:', priceId, 'fare:', estimatedFare);
+      } else {
+        // If estimate fails, try to proceed without price_id (backend may auto-generate)
+        console.warn('[QuickBooking] Estimate failed, proceeding without price_id:', estimateResponse.msg);
+      }
+
+      // Step 2: Create order with price_id
+      const orderData: Record<string, unknown> = {
         user_id: foundPassenger.user_id,
         order_type: 'ride',
         pickup_address: pickupLocation,
         dropoff_address: dropoffLocation,
-        // Driver will be auto-assigned by the system
+        vehicle_type: 'sedan',
       };
 
+      // Add price_id if we got one from estimate
+      if (priceId) {
+        orderData.price_id = priceId;
+      }
+      if (estimatedFare) {
+        orderData.estimated_fare = estimatedFare;
+      }
+
+      console.log('[QuickBooking] Creating order with data:', orderData);
       const response = await apiClient.createOrder(orderData);
       
       if (response.code === '0000' && response.data) {
-        const orderData = response.data as Record<string, unknown>;
-        const orderId = (orderData.order_id as string) || 'N/A';
+        const resultData = response.data as Record<string, unknown>;
+        const orderId = (resultData.order_id as string) || 'N/A';
         
         setBookingDetails({
           orderId,
@@ -203,7 +237,7 @@ export default function QuickBookingPage() {
           driver: 'Auto-assigned',
           pickup: pickupLocation,
           dropoff: dropoffLocation,
-          eta: 'Estimated',
+          eta: estimatedFare ? `~${estimatedFare.toLocaleString()} RWF` : 'Estimated',
         });
         
         setBookingComplete(true);
@@ -213,7 +247,8 @@ export default function QuickBookingPage() {
       }
     } catch (err) {
       console.error('Booking failed:', err);
-      setError('Failed to create booking. Please try again.');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to create booking';
+      setError(`Booking failed: ${errorMsg}. Please try again.`);
       setSuccessMessage(null);
     } finally {
       setIsBooking(false);
