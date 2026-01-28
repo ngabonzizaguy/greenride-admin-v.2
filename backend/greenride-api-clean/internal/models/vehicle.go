@@ -395,6 +395,10 @@ func (v *VehicleValues) SetVerifyStatus(status string) *VehicleValues {
 }
 
 func (v *VehicleValues) SetDriver(driverID string) *VehicleValues {
+	if driverID == "" {
+		v.DriverID = nil
+		return v
+	}
 	v.DriverID = &driverID
 	return v
 }

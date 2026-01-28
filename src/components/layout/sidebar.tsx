@@ -31,22 +31,26 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useAuthStore } from '@/stores/auth-store';
+import { useNotificationStore } from '@/stores/notification-store';
 import { apiClient } from '@/lib/api-client';
 
 // Dynamic nav items - badges will be updated from API
-const getNavItems = (counts: { feedback: number; drivers: number; rides: number }) => [
+const getNavItems = (
+  counts: { feedback: number; drivers: number; users: number; vehicles: number; rides: number },
+  unreadCount: number
+) => [
   { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/quick-booking', icon: PhoneCall, label: 'Quick Booking', highlight: true },
   { href: '/feedback', icon: MessageSquare, label: 'Feedback', badge: counts.feedback > 0 ? String(counts.feedback) : undefined },
   { href: '/map', icon: Map, label: 'Live Map' },
   { href: '/drivers', icon: Car, label: 'Drivers', badge: counts.drivers > 0 ? String(counts.drivers) : undefined },
-  { href: '/vehicles', icon: Truck, label: 'Vehicles' },
-  { href: '/users', icon: Users, label: 'Users' },
+  { href: '/vehicles', icon: Truck, label: 'Vehicles', badge: counts.vehicles > 0 ? String(counts.vehicles) : undefined },
+  { href: '/users', icon: Users, label: 'Users', badge: counts.users > 0 ? String(counts.users) : undefined },
   { href: '/rides', icon: Car, label: 'Rides', badge: counts.rides > 0 ? String(counts.rides) : undefined },
   { href: '/revenue', icon: DollarSign, label: 'Revenue' },
   { href: '/analytics', icon: BarChart3, label: 'Analytics' },
   { href: '/promotions', icon: Tag, label: 'Promotions' },
-  { href: '/notifications', icon: Bell, label: 'Notifications', hasNotification: true },
+  { href: '/notifications', icon: Bell, label: 'Notifications', hasNotification: unreadCount > 0 },
 ];
 
 const bottomNavItems = [
@@ -57,20 +61,35 @@ export function Sidebar() {
   const pathname = usePathname();
   const { isCollapsed, toggleCollapsed } = useSidebarStore();
   const { user, logout } = useAuthStore();
-  const [counts, setCounts] = useState({ feedback: 0, drivers: 0, rides: 0 });
+  const { unreadCount } = useNotificationStore();
+  const [counts, setCounts] = useState({ feedback: 0, drivers: 0, users: 0, vehicles: 0, rides: 0 });
 
   // Fetch counts from API
   useEffect(() => {
     const fetchCounts = async () => {
       try {
-        const statsResponse = await apiClient.getDashboardStats();
+        const [statsResponse, feedbackStatsResponse] = await Promise.all([
+          apiClient.getDashboardStats(),
+          apiClient.getFeedbackStats(),
+        ]);
+
         if (statsResponse.code === '0000' && statsResponse.data) {
           const data = statsResponse.data as Record<string, unknown>;
-          setCounts({
-            feedback: (data.pending_feedback as number) ?? 0,
-            drivers: (data.online_drivers as number) ?? 0,
-            rides: (data.active_trips as number) ?? 0,
-          });
+          setCounts(prev => ({
+            ...prev,
+            // Real totals from DB (DashboardStats)
+            users: (data.total_users as number) ?? 0,
+            drivers: (data.total_drivers as number) ?? 0,
+            vehicles: (data.total_vehicles as number) ?? 0,
+            rides: (data.total_trips as number) ?? 0,
+          }));
+        }
+
+        if (feedbackStatsResponse.code === '0000' && feedbackStatsResponse.data) {
+          setCounts(prev => ({
+            ...prev,
+            feedback: feedbackStatsResponse.data.pending_count ?? 0,
+          }));
         }
       } catch (error) {
         // Silently fail - badges will just not show
@@ -82,12 +101,12 @@ export function Sidebar() {
     };
 
     fetchCounts();
-    // Refresh every 60 seconds
-    const interval = setInterval(fetchCounts, 60000);
+    // Refresh every 30 seconds (near real-time, but low load)
+    const interval = setInterval(fetchCounts, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  const navItems = getNavItems(counts);
+  const navItems = getNavItems(counts, unreadCount);
 
   return (
     <TooltipProvider delayDuration={0}>

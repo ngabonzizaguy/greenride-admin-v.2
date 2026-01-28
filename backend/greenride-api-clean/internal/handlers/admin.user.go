@@ -50,8 +50,41 @@ func (t *Admin) GetUserList(c *gin.Context) {
 
 	// 转换为响应格式
 	userResponses := make([]*protocol.User, 0, len(users))
+
+	// If searching for drivers, fetch their vehicles
+	var vehicleMap map[string]*models.Vehicle
+	if req.UserType == protocol.UserTypeDriver || req.UserType == "" {
+		driverIDs := make([]string, 0)
+		for _, user := range users {
+			if user.GetUserType() == protocol.UserTypeDriver {
+				driverIDs = append(driverIDs, user.UserID)
+			}
+		}
+
+		if len(driverIDs) > 0 {
+			var vehicles []*models.Vehicle
+			if err := models.GetDB().Where("driver_id IN ?", driverIDs).Find(&vehicles).Error; err == nil {
+				vehicleMap = make(map[string]*models.Vehicle)
+				for _, vehicle := range vehicles {
+					if vehicle.DriverID != nil {
+						vehicleMap[*vehicle.DriverID] = vehicle
+					}
+				}
+			}
+		}
+	}
+
 	for _, user := range users {
-		userResponses = append(userResponses, user.Protocol())
+		userResp := user.Protocol()
+
+		// Populate vehicle if driver and vehicle exists
+		if user.GetUserType() == protocol.UserTypeDriver && vehicleMap != nil {
+			if vehicle, ok := vehicleMap[user.UserID]; ok {
+				userResp.Vehicle = vehicle.Protocol()
+			}
+		}
+
+		userResponses = append(userResponses, userResp)
 	}
 
 	// 返回结果
@@ -88,11 +121,13 @@ func (t *Admin) GetUserDetail(c *gin.Context) {
 	// 构建用户详情响应
 	info := user.Protocol()
 
-	// 如果是司机，添加司机特有信息
+	// 如果是司机，添加车辆信息
 	if user.GetUserType() == protocol.UserTypeDriver {
-		// 这里可以添加司机特有的详细信息，如驾照信息等
-		// 由于user.Protocol()已经包含了大部分信息，我们只需要确保包含了司机相关字段
-		// 如果需要额外的司机信息，可以在这里获取并添加
+		// 获取司机关联的车辆
+		vehicle := models.GetVehicleByDriverID(user.UserID)
+		if vehicle != nil {
+			info.Vehicle = vehicle.Protocol()
+		}
 	}
 
 	// 返回用户信息
@@ -452,8 +487,12 @@ func (t *Admin) GetNearbyDrivers(c *gin.Context) {
 		limit = 100 // 默认100个，最多200个
 	}
 
+	etaMode := req.EtaMode
+	if etaMode == "" {
+		etaMode = "none" // Admin map doesn't need ETA by default
+	}
 	// 调用服务获取附近司机
-	drivers, err := services.GetUserService().GetNearbyDrivers(req.Latitude, req.Longitude, radiusKm, limit)
+	drivers, err := services.GetUserService().GetNearbyDrivers(req.Latitude, req.Longitude, radiusKm, limit, etaMode)
 	if err != nil {
 		log.Printf("Admin GetNearbyDrivers failed: %v", err)
 		c.JSON(http.StatusInternalServerError, protocol.NewErrorResult(protocol.SystemError, lang))

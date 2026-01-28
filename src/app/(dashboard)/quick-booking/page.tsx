@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
 import { 
   Phone, 
   User, 
@@ -23,6 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { PlacesAutocompleteInput, PlaceSelection } from '@/components/booking/places-autocomplete-input';
 import {
   Dialog,
   DialogContent,
@@ -39,12 +41,19 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, NearbyDriverLocation } from '@/lib/api-client';
+import { geocodeAddress, POPULAR_LOCATIONS } from '@/lib/geocoding';
 import type { User as UserType, PageResult } from '@/types';
 
 type BookingStep = 'passenger' | 'locations' | 'confirm';
 
 export default function QuickBookingPage() {
+  const { isLoaded: isGoogleLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '',
+    libraries: ['places'],
+  });
+
   // Step tracking
   const [currentStep, setCurrentStep] = useState<BookingStep>('passenger');
   
@@ -63,6 +72,12 @@ export default function QuickBookingPage() {
   // Location info
   const [pickupLocation, setPickupLocation] = useState('');
   const [dropoffLocation, setDropoffLocation] = useState('');
+  const [pickupCoords, setPickupCoords] = useState<{lat: number, lng: number} | null>(null);
+  const [dropoffCoords, setDropoffCoords] = useState<{lat: number, lng: number} | null>(null);
+  const [isGeocodingPickup, setIsGeocodingPickup] = useState(false);
+  const [isGeocodingDropoff, setIsGeocodingDropoff] = useState(false);
+  const [pickupFromPlaces, setPickupFromPlaces] = useState(false);
+  const [dropoffFromPlaces, setDropoffFromPlaces] = useState(false);
   
   // Booking state
   const [isBooking, setIsBooking] = useState(false);
@@ -71,6 +86,10 @@ export default function QuickBookingPage() {
     orderId: string;
     passenger: string;
     driver: string;
+    vehicle?: string;
+    plate?: string;
+    driverStatus?: string;
+    driverLocation?: string;
     pickup: string;
     dropoff: string;
     eta: string;
@@ -83,6 +102,17 @@ export default function QuickBookingPage() {
   // Create new passenger modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCreatingPassenger, setIsCreatingPassenger] = useState(false);
+
+  // Driver selection (Phase 5)
+  const [availableDrivers, setAvailableDrivers] = useState<NearbyDriverLocation[]>([]);
+  const [selectedDriverId, setSelectedDriverId] = useState<string>('auto');
+  const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
+  const [driversError, setDriversError] = useState<string | null>(null);
+
+  const selectedDriver = useMemo(
+    () => availableDrivers.find(d => d.driver_id === selectedDriverId) || null,
+    [availableDrivers, selectedDriverId]
+  );
 
   // Auto-hide messages
   useEffect(() => {
@@ -98,6 +128,86 @@ export default function QuickBookingPage() {
       return () => clearTimeout(timer);
     }
   }, [error]);
+
+  // Geocode pickup location (debounced)
+  useEffect(() => {
+    if (pickupFromPlaces) return;
+    if (!pickupLocation || pickupLocation.trim().length === 0) {
+      setPickupCoords(null);
+      return;
+    }
+
+    // Check if it's a popular location first
+    const popularLocation = Object.values(POPULAR_LOCATIONS).find(
+      loc => loc.address.toLowerCase().includes(pickupLocation.toLowerCase()) ||
+             pickupLocation.toLowerCase().includes(loc.address.toLowerCase().split(',')[0].toLowerCase())
+    );
+    
+    if (popularLocation) {
+      setPickupCoords({ lat: popularLocation.lat, lng: popularLocation.lng });
+      return;
+    }
+
+    // Debounce geocoding
+    const timer = setTimeout(async () => {
+      setIsGeocodingPickup(true);
+      try {
+        const result = await geocodeAddress(pickupLocation);
+        if (result) {
+          setPickupCoords({ lat: result.lat, lng: result.lng });
+        } else {
+          setPickupCoords(null);
+        }
+      } catch (err) {
+        console.error('Geocoding failed for pickup:', err);
+        setPickupCoords(null);
+      } finally {
+        setIsGeocodingPickup(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [pickupLocation]);
+
+  // Geocode dropoff location (debounced)
+  useEffect(() => {
+    if (dropoffFromPlaces) return;
+    if (!dropoffLocation || dropoffLocation.trim().length === 0) {
+      setDropoffCoords(null);
+      return;
+    }
+
+    // Check if it's a popular location first
+    const popularLocation = Object.values(POPULAR_LOCATIONS).find(
+      loc => loc.address.toLowerCase().includes(dropoffLocation.toLowerCase()) ||
+             dropoffLocation.toLowerCase().includes(loc.address.toLowerCase().split(',')[0].toLowerCase())
+    );
+    
+    if (popularLocation) {
+      setDropoffCoords({ lat: popularLocation.lat, lng: popularLocation.lng });
+      return;
+    }
+
+    // Debounce geocoding
+    const timer = setTimeout(async () => {
+      setIsGeocodingDropoff(true);
+      try {
+        const result = await geocodeAddress(dropoffLocation);
+        if (result) {
+          setDropoffCoords({ lat: result.lat, lng: result.lng });
+        } else {
+          setDropoffCoords(null);
+        }
+      } catch (err) {
+        console.error('Geocoding failed for dropoff:', err);
+        setDropoffCoords(null);
+      } finally {
+        setIsGeocodingDropoff(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [dropoffLocation]);
 
   // Search for existing passenger by phone
   const searchPassenger = async () => {
@@ -171,6 +281,48 @@ export default function QuickBookingPage() {
     setCurrentStep(step);
   };
 
+  // Load nearby available drivers with accurate ETA (polling while on confirm step)
+  useEffect(() => {
+    if (currentStep !== 'confirm') return;
+    if (!pickupCoords) return;
+
+    let cancelled = false;
+    let interval: number | undefined;
+
+    const load = async (showLoading: boolean) => {
+      if (showLoading) setIsLoadingDrivers(true);
+      setDriversError(null);
+      try {
+        const res = await apiClient.getNearbyDrivers({
+          latitude: pickupCoords.lat,
+          longitude: pickupCoords.lng,
+          radius_km: 8,
+          limit: 25,
+          eta_mode: 'accurate',
+        });
+        if (cancelled) return;
+        const drivers = (res.data?.drivers || [])
+          .filter(d => d.is_online && !d.is_busy)
+          .sort((a, b) => a.eta_minutes - b.eta_minutes);
+        setAvailableDrivers(drivers);
+      } catch (e) {
+        if (cancelled) return;
+        setDriversError(e instanceof Error ? e.message : 'Failed to load nearby drivers');
+        setAvailableDrivers([]);
+      } finally {
+        if (!cancelled) setIsLoadingDrivers(false);
+      }
+    };
+
+    load(true);
+    interval = window.setInterval(() => load(false), 10000); // live updates
+
+    return () => {
+      cancelled = true;
+      if (interval) window.clearInterval(interval);
+    };
+  }, [currentStep, pickupCoords]);
+
   // Confirm booking
   const confirmBooking = async () => {
     if (!foundPassenger || !pickupLocation || !dropoffLocation) {
@@ -181,14 +333,25 @@ export default function QuickBookingPage() {
     setIsBooking(true);
     setError(null);
 
+    // Validate coordinates are available
+    if (!pickupCoords || !dropoffCoords) {
+      setError('Please wait for location coordinates to be determined, or enter a valid address.');
+      setIsBooking(false);
+      return;
+    }
+
     try {
       // Step 1: Get price estimate first (required to obtain price_id)
       const estimateData = {
         user_id: foundPassenger.user_id,
+        pickup_latitude: pickupCoords.lat,
+        pickup_longitude: pickupCoords.lng,
         pickup_address: pickupLocation,
+        dropoff_latitude: dropoffCoords.lat,
+        dropoff_longitude: dropoffCoords.lng,
         dropoff_address: dropoffLocation,
         order_type: 'ride',
-        vehicle_type: 'sedan', // Default vehicle type
+        vehicle_category: 'sedan', // Fixed: vehicle_type → vehicle_category
       };
 
       console.log('[QuickBooking] Getting price estimate...');
@@ -213,8 +376,17 @@ export default function QuickBookingPage() {
         order_type: 'ride',
         pickup_address: pickupLocation,
         dropoff_address: dropoffLocation,
-        vehicle_type: 'sedan',
+        pickup_latitude: pickupCoords.lat,
+        pickup_longitude: pickupCoords.lng,
+        dropoff_latitude: dropoffCoords.lat,
+        dropoff_longitude: dropoffCoords.lng,
+        vehicle_category: 'sedan',
       };
+
+      // Optional: manually select an available driver (provider_id)
+      if (selectedDriverId && selectedDriverId !== 'auto') {
+        orderData.provider_id = selectedDriverId;
+      }
 
       // Add price_id if we got one from estimate
       if (priceId) {
@@ -230,18 +402,66 @@ export default function QuickBookingPage() {
       if (response.code === '0000' && response.data) {
         const resultData = response.data as Record<string, unknown>;
         const orderId = (resultData.order_id as string) || 'N/A';
+
+        // Try to fetch assigned driver/vehicle details (if dispatch happened quickly)
+        let driverName = 'Auto-assigned';
+        let vehicleLabel: string | undefined;
+        let plate: string | undefined;
+        let driverStatus: string | undefined;
+        let driverLocation: string | undefined;
+
+        try {
+          const detailRes = await apiClient.getOrderDetail(orderId);
+          if (detailRes.code === '0000' && detailRes.data) {
+            const o = detailRes.data as any;
+            const d = o.driver || o.Driver;
+            const v = o.vehicle || o.Vehicle;
+            const details = o.details || o.Details;
+
+            driverName =
+              details?.driver_name ||
+              d?.display_name ||
+              d?.full_name ||
+              d?.username ||
+              `${d?.first_name || ''} ${d?.last_name || ''}`.trim() ||
+              d?.phone ||
+              driverName;
+
+            plate = details?.license_plate || v?.plate_number || v?.PlateNumber || plate;
+            const makeModel = `${v?.brand || v?.Brand || ''} ${v?.model || v?.Model || ''}`.trim();
+            vehicleLabel = details?.vehicle_model || makeModel || vehicleLabel;
+
+            driverStatus = d?.online_status || d?.status || o?.dispatch_status || o?.status || driverStatus;
+
+            const lat = v?.current_latitude ?? v?.CurrentLatitude ?? d?.latitude ?? d?.Latitude;
+            const lng = v?.current_longitude ?? v?.CurrentLongitude ?? d?.longitude ?? d?.Longitude;
+            if (typeof lat === 'number' && typeof lng === 'number') {
+              driverLocation = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            }
+          }
+        } catch {
+          // ignore; we can still show "Auto-assigned"
+        }
         
         setBookingDetails({
           orderId,
           passenger: foundPassenger.full_name || foundPassenger.first_name || 'Passenger',
-          driver: 'Auto-assigned',
+          driver: driverName,
+          vehicle: vehicleLabel,
+          plate,
+          driverStatus,
+          driverLocation,
           pickup: pickupLocation,
           dropoff: dropoffLocation,
           eta: estimatedFare ? `~${estimatedFare.toLocaleString()} RWF` : 'Estimated',
         });
         
         setBookingComplete(true);
-        setSuccessMessage('Booking created successfully! Driver will be auto-assigned.');
+        setSuccessMessage(
+          selectedDriverId !== 'auto'
+            ? 'Booking created successfully! Driver has been requested.'
+            : 'Booking created successfully! Driver will be auto-assigned.'
+        );
       } else {
         throw new Error(response.msg || 'Failed to create booking');
       }
@@ -263,6 +483,11 @@ export default function QuickBookingPage() {
     setIsNewPassenger(false);
     setPickupLocation('');
     setDropoffLocation('');
+    setPickupCoords(null);
+    setDropoffCoords(null);
+    setAvailableDrivers([]);
+    setSelectedDriverId('auto');
+    setDriversError(null);
     setBookingComplete(false);
     setBookingDetails(null);
     setNewPassengerForm({ first_name: '', last_name: '', phone: '', email: '' });
@@ -336,6 +561,18 @@ export default function QuickBookingPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Driver</p>
                 <p className="font-medium">{bookingDetails.driver}</p>
+                {(bookingDetails.vehicle || bookingDetails.plate) && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {[bookingDetails.plate, bookingDetails.vehicle].filter(Boolean).join(' • ')}
+                  </p>
+                )}
+                {(bookingDetails.driverStatus || bookingDetails.driverLocation) && (
+                  <p className="text-sm text-muted-foreground">
+                    {[bookingDetails.driverStatus ? `Status: ${bookingDetails.driverStatus}` : null, bookingDetails.driverLocation ? `Location: ${bookingDetails.driverLocation}` : null]
+                      .filter(Boolean)
+                      .join(' • ')}
+                  </p>
+                )}
               </div>
             </div>
             <Separator />
@@ -501,13 +738,38 @@ export default function QuickBookingPage() {
               <Label htmlFor="pickup">Pickup Location</Label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-600" />
-                <Input
-                  id="pickup"
-                  placeholder="Enter pickup address..."
-                  value={pickupLocation}
-                  onChange={(e) => setPickupLocation(e.target.value)}
-                  className="pl-10"
-                />
+                <div className="pl-10">
+                  {isGoogleLoaded ? (
+                    <PlacesAutocompleteInput
+                      id="pickup"
+                      placeholder="Search pickup location..."
+                      value={pickupLocation}
+                      onChange={(v) => {
+                        setPickupFromPlaces(false);
+                        setPickupCoords(null);
+                        setPickupLocation(v);
+                      }}
+                      onSelect={(place: PlaceSelection) => {
+                        setPickupFromPlaces(true);
+                        setPickupLocation(place.address);
+                        setPickupCoords({ lat: place.lat, lng: place.lng });
+                      }}
+                      className="w-full"
+                    />
+                  ) : (
+                    <Input
+                      id="pickup"
+                      placeholder="Enter pickup address..."
+                      value={pickupLocation}
+                      onChange={(e) => {
+                        setPickupFromPlaces(false);
+                        setPickupCoords(null);
+                        setPickupLocation(e.target.value);
+                      }}
+                      className="pl-10"
+                    />
+                  )}
+                </div>
               </div>
             </div>
 
@@ -515,13 +777,38 @@ export default function QuickBookingPage() {
               <Label htmlFor="dropoff">Drop-off Location</Label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-600" />
-                <Input
-                  id="dropoff"
-                  placeholder="Enter drop-off address..."
-                  value={dropoffLocation}
-                  onChange={(e) => setDropoffLocation(e.target.value)}
-                  className="pl-10"
-                />
+                <div className="pl-10">
+                  {isGoogleLoaded ? (
+                    <PlacesAutocompleteInput
+                      id="dropoff"
+                      placeholder="Search drop-off location..."
+                      value={dropoffLocation}
+                      onChange={(v) => {
+                        setDropoffFromPlaces(false);
+                        setDropoffCoords(null);
+                        setDropoffLocation(v);
+                      }}
+                      onSelect={(place: PlaceSelection) => {
+                        setDropoffFromPlaces(true);
+                        setDropoffLocation(place.address);
+                        setDropoffCoords({ lat: place.lat, lng: place.lng });
+                      }}
+                      className="w-full"
+                    />
+                  ) : (
+                    <Input
+                      id="dropoff"
+                      placeholder="Enter drop-off address..."
+                      value={dropoffLocation}
+                      onChange={(e) => {
+                        setDropoffFromPlaces(false);
+                        setDropoffCoords(null);
+                        setDropoffLocation(e.target.value);
+                      }}
+                      className="pl-10"
+                    />
+                  )}
+                </div>
               </div>
             </div>
 
@@ -529,18 +816,55 @@ export default function QuickBookingPage() {
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Popular locations:</p>
               <div className="flex flex-wrap gap-2">
-                {['Kigali Convention Centre', 'Kigali International Airport', 'Nyarutarama', 'Downtown Kigali', 'Remera'].map(loc => (
+                {Object.entries(POPULAR_LOCATIONS).slice(0, 5).map(([name, location]) => (
                   <Button
-                    key={loc}
+                    key={name}
                     variant="outline"
                     size="sm"
-                    onClick={() => !pickupLocation ? setPickupLocation(loc) : setDropoffLocation(loc)}
+                    onClick={() => {
+                      if (!pickupLocation) {
+                        setPickupLocation(location.address);
+                        setPickupCoords({ lat: location.lat, lng: location.lng });
+                      } else {
+                        setDropoffLocation(location.address);
+                        setDropoffCoords({ lat: location.lat, lng: location.lng });
+                      }
+                    }}
                   >
-                    {loc}
+                    {name}
                   </Button>
                 ))}
               </div>
             </div>
+
+            {/* Coordinate Status Indicators */}
+            {(isGeocodingPickup || isGeocodingDropoff) && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <span>Determining location coordinates...</span>
+              </div>
+            )}
+            
+            {pickupLocation && pickupCoords && (
+              <div className="text-xs text-green-600 flex items-center gap-1">
+                <CheckCircle className="h-3 w-3" />
+                Pickup location verified
+              </div>
+            )}
+            
+            {dropoffLocation && dropoffCoords && (
+              <div className="text-xs text-green-600 flex items-center gap-1">
+                <CheckCircle className="h-3 w-3" />
+                Dropoff location verified
+              </div>
+            )}
+            
+            {((pickupLocation && !pickupCoords && !isGeocodingPickup) || (dropoffLocation && !dropoffCoords && !isGeocodingDropoff)) && (
+              <div className="text-xs text-amber-600 flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" />
+                Could not determine coordinates. Please try a more specific address.
+              </div>
+            )}
 
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setCurrentStep('passenger')} className="flex-1">
@@ -549,7 +873,7 @@ export default function QuickBookingPage() {
               <Button 
                 onClick={() => goToStep('confirm')} 
                 className="flex-1"
-                disabled={!pickupLocation || !dropoffLocation}
+                disabled={!pickupLocation || !dropoffLocation || !pickupCoords || !dropoffCoords || isGeocodingPickup || isGeocodingDropoff}
               >
                 Continue to Review
                 <CheckCircle className="h-4 w-4 ml-2" />
@@ -598,14 +922,74 @@ export default function QuickBookingPage() {
             </div>
 
             {/* Driver Assignment Note */}
-            <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+            <div className="p-4 rounded-lg bg-blue-50 border border-blue-200 space-y-3">
               <div className="flex items-start gap-2">
                 <Car className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div>
+                <div className="flex-1">
                   <p className="font-medium text-blue-900">Driver Assignment</p>
-                  <p className="text-sm text-blue-700">A driver will be automatically assigned by the system when the booking is confirmed.</p>
+                  <p className="text-sm text-blue-700">
+                    Choose an available driver (with live location + ETA), or leave it on auto-assign.
+                  </p>
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="driver-select">Select Driver</Label>
+                <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
+                  <SelectTrigger id="driver-select">
+                    <SelectValue placeholder="Select a driver" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Auto-assign (system)</SelectItem>
+                    {availableDrivers.map((d) => (
+                      <SelectItem key={d.driver_id} value={d.driver_id}>
+                        {d.name} • {Math.round(d.distance_km * 10) / 10} km • {d.eta_minutes} min
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="text-xs text-muted-foreground">
+                  {isLoadingDrivers ? 'Updating drivers (10s)…' : 'Live updates every 10s.'}
+                  {driversError ? ` • ${driversError}` : ''}
+                </div>
+              </div>
+
+              {selectedDriverId !== 'auto' && selectedDriver && (
+                <div className="rounded-md bg-background border p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">{selectedDriver.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        ETA to pickup: <strong>{selectedDriver.eta_minutes} min</strong> • Distance:{' '}
+                        <strong>{Math.round(selectedDriver.distance_km * 10) / 10} km</strong>
+                      </p>
+                    </div>
+                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Available</Badge>
+                  </div>
+
+                  {isGoogleLoaded && pickupCoords && (
+                    <div className="h-48 w-full rounded-md overflow-hidden">
+                      <GoogleMap
+                        mapContainerStyle={{ width: '100%', height: '100%' }}
+                        center={{ lat: pickupCoords.lat, lng: pickupCoords.lng }}
+                        zoom={14}
+                        options={{ disableDefaultUI: true, zoomControl: true }}
+                      >
+                        <Marker
+                          position={{ lat: pickupCoords.lat, lng: pickupCoords.lng }}
+                          title="Pickup"
+                          label={{ text: 'P', color: 'white' }}
+                        />
+                        <Marker
+                          position={{ lat: selectedDriver.latitude, lng: selectedDriver.longitude }}
+                          title={selectedDriver.name}
+                          label={{ text: 'D', color: 'white' }}
+                        />
+                      </GoogleMap>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <Separator />

@@ -404,7 +404,7 @@ func (s *UserService) UpdateUserLocation(req *protocol.UpdateLocationRequest) pr
 
 	// 2. 插入位置历史记录 (with extended data for Live Map)
 	locationHistory := models.NewUserLocationHistory(req.UserID, req.Latitude, req.Longitude, onlineStatus, timestamp)
-	
+
 	// Add optional location data if provided
 	if req.Heading > 0 {
 		locationHistory.SetHeading(req.Heading)
@@ -855,13 +855,20 @@ func (s *UserService) issueWelcomeCouponSync(userID string, adminID string) erro
 // =============================================================================
 
 // GetNearbyDrivers 获取附近在线司机列表
-func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, limit int) ([]*protocol.NearbyDriver, error) {
+// etaMode:
+// - "rough": distance-based estimate
+// - "accurate": use Google routing for closest few (fallback to rough)
+// - "none": return 0 for eta_minutes (for fleet map, etc.)
+func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, limit int, etaMode string) ([]*protocol.NearbyDriver, error) {
 	// Set defaults
 	if radiusKm <= 0 {
 		radiusKm = 5.0 // Default 5km radius
 	}
 	if limit <= 0 || limit > 50 {
 		limit = 20 // Default 20 drivers, max 50
+	}
+	if etaMode == "" {
+		etaMode = "rough"
 	}
 
 	// Query online drivers within radius using Haversine formula
@@ -939,7 +946,7 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 
 	// Convert to response format
 	drivers := make([]*protocol.NearbyDriver, 0, len(rows))
-	for _, row := range rows {
+	for idx, row := range rows {
 		// Build driver name
 		name := ""
 		if row.DisplayName != nil && *row.DisplayName != "" {
@@ -959,10 +966,34 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 			name = "Driver"
 		}
 
-		// Calculate ETA (rough estimate: assume 30 km/h average speed in city)
-		etaMinutes := int(row.DistanceKm * 2) // 2 minutes per km
-		if etaMinutes < 1 {
-			etaMinutes = 1
+		// Calculate ETA
+		etaMinutes := 0
+		switch etaMode {
+		case "none":
+			etaMinutes = 0
+		case "accurate":
+			// Start with rough and upgrade to accurate for the closest drivers to control cost/latency.
+			etaMinutes = int(row.DistanceKm * 2) // 2 minutes per km
+			if etaMinutes < 1 {
+				etaMinutes = 1
+			}
+			if idx < 12 && row.Latitude != nil && row.Longitude != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+				route, err := GetGoogleService().CalculateRidehailingRoute(ctx, *row.Latitude, *row.Longitude, latitude, longitude, false)
+				cancel()
+				if err == nil && route != nil && route.Duration != nil && route.Duration.Value > 0 {
+					minutes := int((route.Duration.Value + 59) / 60) // ceil seconds->minutes
+					if minutes < 1 {
+						minutes = 1
+					}
+					etaMinutes = minutes
+				}
+			}
+		default: // rough
+			etaMinutes = int(row.DistanceKm * 2) // 2 minutes per km
+			if etaMinutes < 1 {
+				etaMinutes = 1
+			}
 		}
 
 		// Determine online/busy status

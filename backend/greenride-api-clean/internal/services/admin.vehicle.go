@@ -6,6 +6,7 @@ import (
 	"greenride/internal/protocol"
 	"greenride/internal/utils"
 	"log"
+	"strings"
 	"sync"
 
 	"gorm.io/gorm"
@@ -203,9 +204,53 @@ func (s *AdminVehicleService) UpdateVehicle(req *protocol.VehicleUpdateRequest) 
 		vehicle.SetNotes(*req.Notes)
 	}
 
-	if err := models.GetDB().Save(vehicle).Error; err != nil {
+	// 司机分配（可选）：为了保证一致性，在事务内处理：
+	// - 解绑时写 NULL
+	// - 绑定时校验司机存在且为 driver，并确保同一司机不会同时绑定多台车
+	if err := models.GetDB().Transaction(func(tx *gorm.DB) error {
+		if req.DriverID != nil {
+			driverID := strings.TrimSpace(*req.DriverID)
+
+			// Unassign
+			if driverID == "" {
+				vehicle.SetDriver("")
+			} else {
+				// Validate driver exists and is actually a driver
+				driver := models.GetUserByID(driverID)
+				if driver == nil {
+					return errors.New(string(protocol.UserNotFound))
+				}
+				if driver.GetUserType() != protocol.UserTypeDriver {
+					return errors.New(string(protocol.InvalidUserType))
+				}
+
+				// Ensure this driver is not assigned to another vehicle
+				now := utils.TimeNowMilli()
+				if err := tx.Model(&models.Vehicle{}).
+					Where("driver_id = ? AND vehicle_id <> ?", driverID, vehicle.VehicleID).
+					Updates(map[string]any{"driver_id": nil, "updated_at": now}).Error; err != nil {
+					return err
+				}
+
+				vehicle.SetDriver(driverID)
+			}
+		}
+
+		if err := tx.Save(vehicle).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		// Map known business errors surfaced via sentinel strings above
+		if err.Error() == string(protocol.UserNotFound) {
+			return protocol.UserNotFound
+		}
+		if err.Error() == string(protocol.InvalidUserType) {
+			return protocol.InvalidUserType
+		}
 		return protocol.SystemError
 	}
+
 	return protocol.Success
 }
 

@@ -151,11 +151,12 @@ verify_code:
   max_send_times: 10 # 每日最大发送次数
   bypass_otp: false   # Enable OTP bypass to ensure uninterrupted access
 
+# InnoPaaS OTP (v3): app_key + app_secret from Developer Tools → API Keys. Callback URL: https://api.greenrideafrica.com/webhook/innopaas
 innopaas:
   endpoint: "https://api.innopaas.com/api/otp/v3/msg/send/verify"
-  app_key: "KaunIJesBYOVrM29"
-  authorization: "3u1K73"
-  sender_id: "GreenRide" # Optional if used
+  app_key: "PASTE_YOUR_INNOPAAS_API_KEY_HERE"
+  app_secret: "PASTE_YOUR_INNOPAAS_API_PASSWORD_HERE"
+  sender_id: "GreenRide"
 
 
 # 派单系统配置

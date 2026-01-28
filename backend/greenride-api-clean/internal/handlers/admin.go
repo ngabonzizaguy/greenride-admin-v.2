@@ -87,88 +87,106 @@ func (t *Admin) SetupRouter() *gin.Engine {
 		c.JSON(200, gin.H{"status": "ok", "service": "admin"})
 	})
 
-	// 管理员认证相关（无前缀，简化路径）
+	// Auth endpoints (support both `/login` and `/admin/login` for compatibility with different reverse-proxy setups)
 	router.POST("/login", t.Login)
+	router.POST("/admin/login", t.Login)
 
-	// Admin routes - 移除 /admin 前缀，简化为根路径
-	adminAPI := router.Group("/")
-	{
-
-		// 需要JWT认证的端点
-		adminAPI.Use(t.AuthMiddleware())
-		{
-			adminAPI.POST("/logout", t.Logout)
-			adminAPI.GET("/info", t.Info)
-			adminAPI.POST("/change-password", t.ChangePassword)
-			adminAPI.POST("/reset-password", t.ResetPassword)
-
-			// Dashboard 统计相关
-			dashboardAPI := adminAPI.Group("/dashboard")
-			{
-				dashboardAPI.GET("/stats", t.GetDashboardStats)        // 获取仪表盘统计数据
-				dashboardAPI.GET("/revenue", t.GetRevenueChart)        // 获取收入图表数据
-				dashboardAPI.GET("/user-growth", t.GetUserGrowthChart) // 获取用户增长图表数据
-			}
-
-			// 用户管理相关
-			userAPI := adminAPI.Group("/users")
-			{
-				userAPI.POST("/search", t.GetUserList)      // 搜索用户（支持分页）
-				userAPI.POST("/detail", t.GetUserDetail)    // 获取用户详情
-				userAPI.POST("/create", t.CreateUser)       // 管理员创建用户
-				userAPI.POST("/update", t.UpdateUser)       // 更新用户信息
-				userAPI.POST("/status", t.UpdateUserStatus) // 统一的状态更新接口
-				userAPI.POST("/verify", t.VerifyUser)       // 审核用户认证（替代VerifyDriver）
-				userAPI.POST("/rides", t.GetUserRides)      // 获取用户行程历史
-			}
-
-			// 司机位置管理相关 (用于Live Map)
-			driversAPI := adminAPI.Group("/drivers")
-			{
-				driversAPI.GET("/nearby", t.GetNearbyDrivers) // 获取附近司机（带实时位置）
-			}
-
-			// 车辆管理相关
-			vehicleAPI := adminAPI.Group("/vehicles")
-			{
-				vehicleAPI.POST("/search", t.SearchVehicles)      // 搜索车辆
-				vehicleAPI.POST("/detail", t.GetVehicleDetail)    // 获取车辆详情
-				vehicleAPI.POST("/update", t.UpdateVehicle)       // 更新车辆信息
-				vehicleAPI.POST("/status", t.UpdateVehicleStatus) // 更新车辆状态
-				vehicleAPI.POST("/delete", t.DeleteVehicle)       // 删除车辆
-				vehicleAPI.POST("/create", t.CreateVehicle)       // 创建车辆
-			}
-			// 订单管理相关
-			ordersAPI := adminAPI.Group("/orders")
-			{
-				ordersAPI.POST("/search", t.SearchOrders)    // 搜索订单
-				ordersAPI.POST("/detail", t.GetOrderDetail)  // 获取订单详情
-				ordersAPI.POST("/estimate", t.EstimateOrder) // 管理员订单预估
-				ordersAPI.POST("/create", t.CreateOrder)     // 管理员创建订单
-				ordersAPI.POST("/cancel", t.CancelOrder)     // 取消订单
-			}
-
-			// 反馈/投诉管理相关
-			feedbackAPI := adminAPI.Group("/feedback")
-			{
-				feedbackAPI.POST("/search", t.SearchFeedback)           // 搜索反馈列表
-				feedbackAPI.POST("/detail", t.GetFeedbackDetail)        // 获取反馈详情
-				feedbackAPI.POST("/update", t.UpdateFeedback)           // 更新反馈
-				feedbackAPI.GET("/stats", t.GetFeedbackStats)           // 获取反馈统计
-				feedbackAPI.POST("/delete", t.DeleteFeedback)           // 删除反馈
-				feedbackAPI.POST("/bulk-delete", t.BulkDeleteFeedback)  // 批量删除反馈
-			}
-
-			// 支持配置相关
-			supportAPI := adminAPI.Group("/support")
-			{
-				supportAPI.GET("/config", t.GetSupportConfig)     // 获取支持配置
-				supportAPI.POST("/config", t.UpdateSupportConfig) // 更新支持配置
-			}
-		}
-	}
+	// Admin routes
+	// - Root paths: `/dashboard/*`, `/users/*`, etc.
+	// - Prefixed paths: `/admin/dashboard/*`, `/admin/users/*`, etc.
+	// This ensures the frontend can work whether the proxy adds an `/admin` prefix or not.
+	t.registerAuthedRoutes(router.Group("/"))
+	t.registerAuthedRoutes(router.Group("/admin"))
 
 	return router
+}
+
+// registerAuthedRoutes registers all JWT-protected admin routes on the given group.
+func (t *Admin) registerAuthedRoutes(adminAPI *gin.RouterGroup) {
+	// 需要JWT认证的端点
+	adminAPI.Use(t.AuthMiddleware())
+	{
+		adminAPI.POST("/logout", t.Logout)
+		adminAPI.GET("/info", t.Info)
+		adminAPI.POST("/change-password", t.ChangePassword)
+		adminAPI.POST("/reset-password", t.ResetPassword)
+
+		// Dashboard 统计相关
+		dashboardAPI := adminAPI.Group("/dashboard")
+		{
+			dashboardAPI.GET("/stats", t.GetDashboardStats)        // 获取仪表盘统计数据
+			dashboardAPI.GET("/revenue", t.GetRevenueChart)        // 获取收入图表数据
+			dashboardAPI.GET("/user-growth", t.GetUserGrowthChart) // 获取用户增长图表数据
+		}
+
+		// 用户管理相关
+		userAPI := adminAPI.Group("/users")
+		{
+			userAPI.POST("/search", t.GetUserList)      // 搜索用户（支持分页）
+			userAPI.POST("/detail", t.GetUserDetail)    // 获取用户详情
+			userAPI.POST("/create", t.CreateUser)       // 管理员创建用户
+			userAPI.POST("/update", t.UpdateUser)       // 更新用户信息
+			userAPI.POST("/status", t.UpdateUserStatus) // 统一的状态更新接口
+			userAPI.POST("/verify", t.VerifyUser)       // 审核用户认证（替代VerifyDriver）
+			userAPI.POST("/rides", t.GetUserRides)      // 获取用户行程历史
+			userAPI.POST("/delete", t.DeleteUser)       // 删除用户（软删除）
+		}
+
+		// 司机位置管理相关 (用于Live Map)
+		driversAPI := adminAPI.Group("/drivers")
+		{
+			driversAPI.GET("/nearby", t.GetNearbyDrivers) // 获取附近司机（带实时位置）
+		}
+
+		// 车辆管理相关
+		vehicleAPI := adminAPI.Group("/vehicles")
+		{
+			vehicleAPI.POST("/search", t.SearchVehicles)      // 搜索车辆
+			vehicleAPI.POST("/detail", t.GetVehicleDetail)    // 获取车辆详情
+			vehicleAPI.POST("/update", t.UpdateVehicle)       // 更新车辆信息
+			vehicleAPI.POST("/status", t.UpdateVehicleStatus) // 更新车辆状态
+			vehicleAPI.POST("/delete", t.DeleteVehicle)       // 删除车辆
+			vehicleAPI.POST("/create", t.CreateVehicle)       // 创建车辆
+		}
+
+		// 订单管理相关
+		ordersAPI := adminAPI.Group("/orders")
+		{
+			ordersAPI.POST("/search", t.SearchOrders)    // 搜索订单
+			ordersAPI.POST("/detail", t.GetOrderDetail)  // 获取订单详情
+			ordersAPI.POST("/estimate", t.EstimateOrder) // 管理员订单预估
+			ordersAPI.POST("/create", t.CreateOrder)     // 管理员创建订单
+			ordersAPI.POST("/cancel", t.CancelOrder)     // 取消订单
+		}
+
+		// 反馈/投诉管理相关
+		feedbackAPI := adminAPI.Group("/feedback")
+		{
+			feedbackAPI.POST("/search", t.SearchFeedback)          // 搜索反馈列表
+			feedbackAPI.POST("/detail", t.GetFeedbackDetail)       // 获取反馈详情
+			feedbackAPI.POST("/update", t.UpdateFeedback)          // 更新反馈
+			feedbackAPI.GET("/stats", t.GetFeedbackStats)          // 获取反馈统计
+			feedbackAPI.POST("/delete", t.DeleteFeedback)          // 删除反馈
+			feedbackAPI.POST("/bulk-delete", t.BulkDeleteFeedback) // 批量删除反馈
+		}
+
+		// 支持配置相关
+		supportAPI := adminAPI.Group("/support")
+		{
+			supportAPI.GET("/config", t.GetSupportConfig)     // 获取支持配置
+			supportAPI.POST("/config", t.UpdateSupportConfig) // 更新支持配置
+		}
+
+		// 通知管理相关
+		notificationAPI := adminAPI.Group("/notifications")
+		{
+			notificationAPI.POST("/send", t.SendNotification)       // 发送通知
+			notificationAPI.POST("/search", t.SearchNotifications)  // 搜索通知
+			notificationAPI.GET("/unread-count", t.GetUnreadCount)  // 获取未读数量
+			notificationAPI.POST("/mark-read", t.MarkAsRead)        // 标记为已读
+			notificationAPI.POST("/mark-all-read", t.MarkAllAsRead) // 标记全部为已读
+		}
+	}
 }
 
 // AuthMiddleware JWT认证中间件

@@ -62,7 +62,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, ApiError } from '@/lib/api-client';
 import type { User, PageResult, UserStatus } from '@/types';
 
 const getStatusBadge = (status: string) => {
@@ -281,14 +281,18 @@ export default function UsersPage() {
     setError(null);
 
     try {
-      await apiClient.updateUserStatus(selectedUser.user_id, 'banned');
-      setSuccessMessage('User removed successfully!');
+      await apiClient.deleteUser(selectedUser.user_id, 'Deleted by admin');
+      setSuccessMessage('User deleted successfully!');
       setIsDeleteModalOpen(false);
       setSelectedUser(null);
       fetchUsers();
     } catch (err) {
       console.error('Failed to delete user:', err);
-      setError('Failed to remove user. Please try again.');
+      const message =
+        err instanceof ApiError
+          ? (err.serverMessage || err.message)
+          : (err instanceof Error ? err.message : 'Failed to delete user.');
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -381,7 +385,7 @@ export default function UsersPage() {
 
     try {
       const results = await Promise.allSettled(
-        selectedUsers.map(userId => apiClient.updateUserStatus(userId, 'banned'))
+        selectedUsers.map(userId => apiClient.deleteUser(userId, 'Bulk deleted by admin'))
       );
 
       const successCount = results.filter(r => r.status === 'fulfilled').length;
@@ -398,7 +402,11 @@ export default function UsersPage() {
       fetchUsers();
     } catch (err) {
       console.error('Failed to bulk delete:', err);
-      setError('Failed to delete users. Please try again.');
+      const message =
+        err instanceof ApiError
+          ? (err.serverMessage || err.message)
+          : (err instanceof Error ? err.message : 'Failed to delete users.');
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }

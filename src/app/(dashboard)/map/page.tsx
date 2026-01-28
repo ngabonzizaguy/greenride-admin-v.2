@@ -38,7 +38,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { apiClient, NearbyDriverLocation } from '@/lib/api-client';
 
 // Google Maps API Key - from environment variable
-const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || 'AIzaSyDif39v3Gx4YXonS3-A8pINUMi3hxRfC3U';
+const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 // Kigali center coordinates
 const KIGALI_CENTER = { lat: -1.9403, lng: 29.8739 };
@@ -90,17 +91,144 @@ const getStatusLabel = (status: string) => {
   }
 };
 
-// Create SVG car icon as data URL
-const createCarIcon = (color: string, heading: number) => {
+function coerceFiniteNumber(value: unknown): number {
+  const n =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number(value.trim())
+        : Number(value);
+  return Number.isFinite(n) ? n : Number.NaN;
+}
+
+function resolvePhotoUrl(raw: unknown): string {
+  const s = typeof raw === 'string' ? raw.trim() : '';
+  if (!s) return '';
+  if (/^(data:|blob:)/i.test(s)) return s;
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith('//')) {
+    const proto = typeof window !== 'undefined' ? window.location.protocol : 'https:';
+    return `${proto}${s}`;
+  }
+
+  const base =
+    API_BASE_URL ||
+    (typeof window !== 'undefined' ? window.location.origin : '');
+
+  try {
+    // Handles both "/uploads/..." and "uploads/..."
+    return new URL(s, base.endsWith('/') ? base : `${base}/`).toString();
+  } catch {
+    return '';
+  }
+}
+
+function escapeXmlAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// Create vehicle-type specific icons with gradients and animations
+const createVehicleIcon = (
+  color: string, 
+  heading: number, 
+  vehicleCategory?: string,
+  isMoving: boolean = false
+) => {
+  const category = vehicleCategory?.toLowerCase() || 'sedan';
+  const size = 48;
+  const center = size / 2;
+  
+  // Vehicle-specific paths
+  const vehiclePaths: Record<string, string> = {
+    sedan: 'M12 22 L20 10 L28 22 L25 22 L25 32 L15 32 L15 22 Z',
+    suv: 'M11 24 L20 6 L29 24 L26 24 L26 34 L14 34 L14 24 Z',
+    mpv: 'M10 26 L20 4 L30 26 L27 26 L27 36 L13 36 L13 26 Z',
+    van: 'M8 28 L20 2 L32 28 L29 28 L29 38 L11 38 L11 28 Z',
+    hatchback: 'M13 20 L20 12 L27 20 L24 20 L24 30 L16 30 L16 20 Z',
+    moto: 'M18 30 L20 8 L22 30 M16 28 L24 28 L24 32 L16 32 Z',
+  };
+  
+  const vehiclePath = vehiclePaths[category] || vehiclePaths.sedan;
+  
+  // Pulsing effect for moving vehicles
+  const pulseAnimation = isMoving ? `
+    <animate attributeName="r" values="20;22;20" dur="1.5s" repeatCount="indefinite"/>
+  ` : '';
+  
+  // Gradient definition
+  const gradientId = `grad-${color.replace('#', '')}`;
+  
   const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-      <g transform="rotate(${heading}, 20, 20)">
-        <circle cx="20" cy="20" r="18" fill="${color}" stroke="white" stroke-width="2"/>
-        <path d="M20 8 L26 20 L24 20 L24 28 L16 28 L16 20 L14 20 Z" fill="white"/>
+    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <defs>
+        <radialGradient id="${gradientId}" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" style="stop-color:${color};stop-opacity:1" />
+          <stop offset="100%" style="stop-color:${color};stop-opacity:0.4" />
+        </radialGradient>
+        <filter id="glow-${gradientId}">
+          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <g transform="rotate(${heading}, ${center}, ${center})">
+        <!-- Outer glow circle (pulsing if moving) -->
+        <circle cx="${center}" cy="${center}" r="22" fill="url(#${gradientId})" opacity="0.3">
+          ${pulseAnimation}
+        </circle>
+        <!-- Main circle with border -->
+        <circle cx="${center}" cy="${center}" r="18" fill="${color}" stroke="white" stroke-width="2.5" filter="url(#glow-${gradientId})"/>
+        <!-- Vehicle silhouette -->
+        <path d="${vehiclePath}" fill="white" stroke="${color}" stroke-width="0.5" opacity="0.95"/>
+        <!-- Status indicator dot -->
+        <circle cx="${center}" cy="${center - 12}" r="3" fill="white" stroke="${color}" stroke-width="1"/>
       </g>
     </svg>
   `;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+};
+
+// Create avatar marker icon (driver photo clipped in a circle)
+const createAvatarIcon = (photoUrl: string, ringColor: string, heading: number, isMoving: boolean = false) => {
+  const size = 48;
+  const center = size / 2;
+  const inner = 32;
+  const pad = (size - inner) / 2;
+  const pulseAnimation = isMoving ? `
+    <animate attributeName="opacity" values="0.22;0.38;0.22" dur="1.5s" repeatCount="indefinite"/>
+  ` : '';
+  // IMPORTANT: The URL is interpolated into XML before encoding the SVG.
+  // If it contains characters like `&` or `"`, it can break the SVG and make the marker disappear.
+  const safePhotoUrl = escapeXmlAttr(photoUrl);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <defs>
+        <clipPath id="avatar-clip">
+          <circle cx="${center}" cy="${center}" r="${inner / 2}" />
+        </clipPath>
+      </defs>
+      <g transform="rotate(${heading}, ${center}, ${center})">
+        <circle cx="${center}" cy="${center}" r="22" fill="${ringColor}" opacity="0.25">
+          ${pulseAnimation}
+        </circle>
+        <circle cx="${center}" cy="${center}" r="18" fill="${ringColor}" stroke="white" stroke-width="2.5"/>
+        <image href="${safePhotoUrl}" x="${pad}" y="${pad}" width="${inner}" height="${inner}" clip-path="url(#avatar-clip)" preserveAspectRatio="xMidYMid slice"/>
+      </g>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+};
+
+// Legacy function for backward compatibility
+const createCarIcon = (color: string, heading: number) => {
+  return createVehicleIcon(color, heading, 'sedan', false);
 };
 
 export default function MapPage() {
@@ -133,6 +261,7 @@ export default function MapPage() {
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: ['places'],
   });
 
   // Map options
@@ -169,10 +298,21 @@ export default function MapPage() {
       });
 
       if (response.code === '0000' && response.data) {
-        const mapDrivers: MapDriver[] = response.data.drivers.map(driver => ({
-          ...driver,
-          status: getStatusFromDriver(driver),
-        }));
+        const mapDrivers: MapDriver[] = response.data.drivers.map((driver) => {
+          // Backend sometimes returns coords as strings; coerce to finite numbers so markers don't vanish.
+          const latitude = coerceFiniteNumber((driver as any).latitude);
+          const longitude = coerceFiniteNumber((driver as any).longitude);
+          const normalized = {
+            ...driver,
+            latitude,
+            longitude,
+            photo_url: resolvePhotoUrl((driver as any).photo_url),
+          };
+          return {
+            ...(normalized as any),
+            status: getStatusFromDriver(normalized as any),
+          } as MapDriver;
+        });
         
         setDrivers(mapDrivers);
         setLastUpdated(new Date());
@@ -236,6 +376,17 @@ export default function MapPage() {
     });
   }, [drivers, searchQuery, showAvailable, showOnTrip, showOffline, vehicleType]);
 
+  const hasValidCoords = (d: Pick<MapDriver, 'latitude' | 'longitude'>) =>
+    Number.isFinite(d.latitude) &&
+    Number.isFinite(d.longitude) &&
+    Math.abs(d.latitude) <= 90 &&
+    Math.abs(d.longitude) <= 180;
+
+  const markerDrivers = useMemo(
+    () => filteredDrivers.filter(hasValidCoords),
+    [filteredDrivers]
+  );
+
   // Stats
   const stats = useMemo(() => ({
     total: drivers.length,
@@ -248,6 +399,14 @@ export default function MapPage() {
   const focusOnDriver = useCallback((driver: MapDriver) => {
     setSelectedDriver(driver);
     if (map) {
+      if (!hasValidCoords(driver)) {
+        console.warn('[Map] Driver has no valid coordinates:', {
+          driver_id: driver.driver_id,
+          latitude: driver.latitude,
+          longitude: driver.longitude,
+        });
+        return;
+      }
       map.panTo({ lat: driver.latitude, lng: driver.longitude });
       map.setZoom(16);
     }
@@ -299,19 +458,31 @@ export default function MapPage() {
           options={mapOptions}
         >
           {/* Driver Markers */}
-          {filteredDrivers.map((driver) => (
-            <Marker
-              key={driver.driver_id}
-              position={{ lat: driver.latitude, lng: driver.longitude }}
-              icon={{
-                url: createCarIcon(getStatusColor(driver.status), driver.heading || 0),
-                scaledSize: new google.maps.Size(40, 40),
-                anchor: new google.maps.Point(20, 20),
-              }}
-              onClick={() => handleMarkerClick(driver)}
-              title={driver.name}
-            />
-          ))}
+          {markerDrivers.map((driver) => {
+            const isMoving = driver.status === 'available' || driver.status === 'on_trip';
+            const photoUrl = resolvePhotoUrl(driver.photo_url);
+            const iconUrl = photoUrl
+              ? createAvatarIcon(photoUrl, getStatusColor(driver.status), driver.heading || 0, isMoving)
+              : createVehicleIcon(
+                  getStatusColor(driver.status),
+                  driver.heading || 0,
+                  driver.vehicle_category,
+                  isMoving
+                );
+            return (
+              <Marker
+                key={driver.driver_id}
+                position={{ lat: driver.latitude, lng: driver.longitude }}
+                icon={{
+                  url: iconUrl,
+                  scaledSize: new google.maps.Size(48, 48),
+                  anchor: new google.maps.Point(24, 24),
+                }}
+                onClick={() => handleMarkerClick(driver)}
+                title={driver.name}
+              />
+            );
+          })}
 
           {/* Info Window */}
           {infoWindowDriver && (
@@ -548,7 +719,9 @@ export default function MapPage() {
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getStatusColor(driver.status) }} />
                     <span className="font-medium text-sm flex-1 truncate">{driver.name}</span>
-                    <span className="text-xs text-muted-foreground">{driver.plate_number || '—'}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {!hasValidCoords(driver) ? 'No GPS' : (driver.plate_number || '—')}
+                    </span>
                   </div>
                 </div>
               ))}

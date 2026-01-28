@@ -127,6 +127,11 @@ type CreateOrderRequest struct {
 
 	// 扩展信息
 	Notes string `json:"notes,omitempty"`
+
+	// 手动指定司机（可选）
+	// - 为空：走自动派单
+	// - 不为空：将订单预分配给该司机，并仅向该司机发送派单
+	ProviderID string `json:"provider_id,omitempty"`
 }
 
 // =============================================================================
@@ -257,6 +262,7 @@ type GetNearbyDriversRequest struct {
 	Longitude float64 `form:"longitude" binding:"required"` // 乘客当前经度
 	RadiusKm  float64 `form:"radius_km"`                    // 搜索半径（公里），默认5km
 	Limit     int     `form:"limit"`                        // 返回数量限制，默认20
+	EtaMode   string  `form:"eta_mode"`                     // ETA模式：rough|accurate|none
 }
 
 // NearbyDriver 附近司机信息

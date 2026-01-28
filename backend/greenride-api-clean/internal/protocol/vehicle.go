@@ -155,6 +155,12 @@ type VehicleCreateRequest struct {
 type VehicleUpdateRequest struct {
 	VehicleID string `json:"vehicle_id" binding:"required"` // 车辆ID
 
+	// 司机分配（可选）
+	// - nil: 不修改当前分配
+	// - "":  取消分配（写入 NULL）
+	// - 其他: 分配到该司机（会自动解除该司机在其他车辆上的绑定）
+	DriverID *string `json:"driver_id,omitempty"` // 司机ID
+
 	// 基础信息（可选）
 	Brand       *string `json:"brand,omitempty"`        // 品牌
 	Model       *string `json:"model,omitempty"`        // 型号

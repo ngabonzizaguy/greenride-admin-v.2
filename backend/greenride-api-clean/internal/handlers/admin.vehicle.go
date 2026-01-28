@@ -48,7 +48,8 @@ func (t *Admin) GetVehicles(c *gin.Context) {
 	// 转换为protocol.Vehicle
 	responseData := make([]*protocol.Vehicle, len(vehicles))
 	for i, vehicle := range vehicles {
-		responseData[i] = vehicle.Protocol()
+		// Ensure driver details are populated (vehicle.Protocol only sets DriverID)
+		responseData[i] = services.GetVehicleService().GetVehicleInfo(vehicle)
 	}
 
 	// 返回结果
@@ -83,7 +84,8 @@ func (t *Admin) GetVehicleDetail(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, protocol.NewSuccessResult(vehicle.Protocol()))
+	// Ensure driver details are populated (vehicle.Protocol only sets DriverID)
+	c.JSON(http.StatusOK, protocol.NewSuccessResult(services.GetVehicleService().GetVehicleInfo(vehicle)))
 }
 
 // UpdateVehicle 更新车辆信息

@@ -207,3 +207,14 @@ func (a *Api) KPayWebhook(c *gin.Context) {
 
 	c.JSON(http.StatusOK, response)
 }
+
+// InnoPaaSWebhook handles InnoPaaS message status callbacks (OTP delivery status, etc.).
+// Must return HTTP 200 within 3 seconds; InnoPaaS validates connectivity on save.
+func (a *Api) InnoPaaSWebhook(c *gin.Context) {
+	var body protocol.MapData
+	_ = c.ShouldBindJSON(&body)
+	if body != nil {
+		log.Get().Infof("InnoPaaS webhook: %s", body.ToJson())
+	}
+	c.Status(http.StatusOK)
+}

@@ -139,6 +139,7 @@ export interface Vehicle {
   id: number;
   vehicle_id: string;
   driver_id?: string;
+  driver?: User;
   
   // Basic info
   brand?: string;

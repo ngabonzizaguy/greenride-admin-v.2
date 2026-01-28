@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Send, 
   Bell,
@@ -38,6 +38,8 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
+import { useNotificationStore } from '@/stores/notification-store';
+import { apiClient } from '@/lib/api-client';
 
 // Add textarea component
 import * as React from 'react';
@@ -94,16 +96,87 @@ const stats = {
 };
 
 export default function NotificationsPage() {
-  const [audience, setAudience] = useState('all');
+  const [audience, setAudience] = useState<'all' | 'drivers' | 'users'>('all');
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [schedule, setSchedule] = useState('now');
+  const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  
+  const { notifications, fetchNotifications, isLoading } = useNotificationStore();
+  const [page, setPage] = useState(1);
+  const [totalNotifications, setTotalNotifications] = useState(0);
 
-  const handleSend = () => {
-    // Handle send notification
-    console.log({ audience, title, message, schedule });
-    setTitle('');
-    setMessage('');
+  // Fetch notification history
+  useEffect(() => {
+    fetchNotifications({ page, limit: 20 });
+  }, [page, fetchNotifications]);
+
+  const handleSend = async () => {
+    if (!title || !message) {
+      setError('Title and message are required');
+      return;
+    }
+
+    setIsSending(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const scheduledTimestamp = schedule === 'now' 
+        ? undefined 
+        : scheduledAt?.getTime();
+
+      const response = await apiClient.sendNotification({
+        audience,
+        type: 'system',
+        category: 'marketing',
+        title,
+        content: message,
+        summary: message.substring(0, 100),
+        scheduled_at: scheduledTimestamp,
+      });
+
+      if (response.code === '0000') {
+        setSuccessMessage('Notification sent successfully!');
+        setTitle('');
+        setMessage('');
+        setSchedule('now');
+        setScheduledAt(null);
+        // Refresh notification history
+        fetchNotifications({ page: 1, limit: 20 });
+      } else {
+        setError(response.msg || 'Failed to send notification');
+      }
+    } catch (err) {
+      console.error('Failed to send notification:', err);
+      setError('Failed to send notification. Please try again.');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // Format notification history from store
+  const notificationHistory = notifications.map(n => ({
+    id: n.notification_id,
+    title: n.title,
+    message: n.content,
+    audience: n.user_type || 'all',
+    sentAt: new Date(n.created_at).toLocaleString(),
+    deliveredCount: n.status === 'delivered' ? 1 : 0,
+    openRate: n.is_read ? 100 : 0,
+    status: n.status,
+  }));
+
+  const stats = {
+    totalSent: notifications.length,
+    totalDelivered: notifications.filter(n => n.status === 'delivered' || n.status === 'sent').length,
+    avgOpenRate: notifications.length > 0 
+      ? Math.round((notifications.filter(n => n.is_read).length / notifications.length) * 100)
+      : 0,
+    scheduledCount: notifications.filter(n => n.status === 'pending').length,
   };
 
   return (
@@ -115,6 +188,20 @@ export default function NotificationsPage() {
           Send messages to drivers and users
         </p>
       </div>
+
+      {/* Success/Error Messages */}
+      {successMessage && (
+        <div className="flex items-center gap-2 rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800">
+          <CheckCircle className="h-4 w-4 flex-shrink-0" />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -256,11 +343,20 @@ export default function NotificationsPage() {
                 <Button variant="outline">Save as Draft</Button>
                 <Button 
                   onClick={handleSend}
-                  disabled={!title || !message}
+                  disabled={!title || !message || isSending}
                   className="gap-2"
                 >
-                  <Send className="h-4 w-4" />
-                  Send Notification
+                  {isSending ? (
+                    <>
+                      <Clock className="h-4 w-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" />
+                      Send Notification
+                    </>
+                  )}
                 </Button>
               </div>
             </CardContent>
@@ -295,7 +391,20 @@ export default function NotificationsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {notificationHistory.map((notification) => (
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        Loading notifications...
+                      </TableCell>
+                    </TableRow>
+                  ) : notificationHistory.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        No notifications sent yet
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    notificationHistory.map((notification) => (
                     <TableRow key={notification.id}>
                       <TableCell>
                         <div>
@@ -335,7 +444,8 @@ export default function NotificationsPage() {
                         </Badge>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

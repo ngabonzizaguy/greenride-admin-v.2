@@ -227,6 +227,13 @@ func (n *NotificationValues) GetContent() string {
 	return *n.Content
 }
 
+func (n *NotificationValues) GetSummary() string {
+	if n.Summary == nil {
+		return ""
+	}
+	return *n.Summary
+}
+
 func (n *NotificationValues) GetStatus() string {
 	if n.Status == nil {
 		return NotificationStatusPending
@@ -506,4 +513,41 @@ func (n *NotificationValues) GetDisplayContent(lang string) string {
 		return *n.ContentEn
 	}
 	return n.GetContent()
+}
+
+// ToMap 将通知转换为map格式（用于API响应）
+func (n *Notification) ToMap() map[string]interface{} {
+	result := map[string]interface{}{
+		"id":              n.ID,
+		"notification_id": n.NotificationID,
+		"type":            n.GetType(),
+		"category":        n.GetCategory(),
+		"title":           n.GetTitle(),
+		"content":         n.GetContent(),
+		"summary":         n.GetSummary(),
+		"status":          n.GetStatus(),
+		"priority":        n.GetPriority(),
+		"is_read":         n.GetIsRead(),
+		"is_archived":     n.GetIsArchived(),
+		"created_at":      n.CreatedAt,
+		"updated_at":      n.UpdatedAt,
+	}
+
+	if n.UserID != nil {
+		result["user_id"] = *n.UserID
+	}
+	if n.UserType != nil {
+		result["user_type"] = *n.UserType
+	}
+	if n.SentAt != nil {
+		result["sent_at"] = *n.SentAt
+	}
+	if n.ReadAt != nil {
+		result["read_at"] = *n.ReadAt
+	}
+	if n.DeliveredAt != nil {
+		result["delivered_at"] = *n.DeliveredAt
+	}
+
+	return result
 }

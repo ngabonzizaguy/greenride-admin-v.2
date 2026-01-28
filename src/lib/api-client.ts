@@ -10,6 +10,18 @@ import { Feedback, SupportConfig, FeedbackStatus } from '@/types';
 // API Base URL - defaults to local development server
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8611';
 
+// Optional API prefix (useful when a reverse proxy mounts the admin service under `/admin`)
+// Example: NEXT_PUBLIC_API_PREFIX=/admin
+const API_PREFIX = (() => {
+  const raw = process.env.NEXT_PUBLIC_API_PREFIX;
+  if (!raw) return '';
+  let p = raw.trim();
+  if (!p) return '';
+  if (!p.startsWith('/')) p = `/${p}`;
+  if (p.endsWith('/')) p = p.slice(0, -1);
+  return p;
+})();
+
 // Demo mode - returns mock data instead of real API calls
 // Set NEXT_PUBLIC_DEMO_MODE=false in .env.local to use real API
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE !== 'false';
@@ -283,6 +295,68 @@ export interface NearbyDriverLocation {
   phone?: string;
 }
 
+function coerceNumber(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const n = Number(value.trim());
+    return n;
+  }
+  return Number(value);
+}
+
+function coerceBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const v = value.trim().toLowerCase();
+    if (v === 'true' || v === '1' || v === 'yes') return true;
+    if (v === 'false' || v === '0' || v === 'no' || v === '') return false;
+  }
+  return Boolean(value);
+}
+
+function normalizeNearbyDriverLocation(raw: unknown): NearbyDriverLocation | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const driver_id = String(r.driver_id ?? '');
+  if (!driver_id) return null;
+
+  const latitude = coerceNumber(r.latitude);
+  const longitude = coerceNumber(r.longitude);
+  const distance_km = coerceNumber(r.distance_km);
+  const eta_minutes = coerceNumber(r.eta_minutes);
+  const heading = r.heading == null ? undefined : coerceNumber(r.heading);
+
+  const rating = r.rating == null ? undefined : coerceNumber(r.rating);
+  const total_rides = r.total_rides == null ? undefined : coerceNumber(r.total_rides);
+
+  const photo_url = typeof r.photo_url === 'string' ? r.photo_url : undefined;
+  const phone = typeof r.phone === 'string' ? r.phone : undefined;
+  const name = String(r.name ?? '').trim() || 'Driver';
+
+  return {
+    driver_id,
+    name,
+    photo_url: photo_url?.trim() ? photo_url.trim() : undefined,
+    latitude,
+    longitude,
+    distance_km,
+    eta_minutes,
+    rating,
+    is_online: coerceBoolean(r.is_online),
+    is_busy: r.is_busy == null ? undefined : coerceBoolean(r.is_busy),
+    vehicle_type: typeof r.vehicle_type === 'string' ? r.vehicle_type : undefined,
+    vehicle_category: typeof r.vehicle_category === 'string' ? r.vehicle_category : undefined,
+    vehicle_brand: typeof r.vehicle_brand === 'string' ? r.vehicle_brand : undefined,
+    vehicle_model: typeof r.vehicle_model === 'string' ? r.vehicle_model : undefined,
+    vehicle_color: typeof r.vehicle_color === 'string' ? r.vehicle_color : undefined,
+    plate_number: typeof r.plate_number === 'string' ? r.plate_number : undefined,
+    heading,
+    total_rides,
+    phone,
+  };
+}
+
 // Driver names for mock data
 const DRIVER_NAMES = [
   'Peter Mutombo', 'David Kagame', 'Jean Pierre', 'Emmanuel Habimana', 'Claude Uwimana',
@@ -364,7 +438,8 @@ class ApiClient {
   private token: string | null = null;
 
   constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
+    // normalize to avoid double slashes when concatenating
+    this.baseUrl = baseUrl.replace(/\/+$/, '');
   }
 
   setToken(token: string | null) {
@@ -392,7 +467,11 @@ class ApiClient {
     const { method = 'GET', body, headers = {} } = options;
 
     const token = this.getToken();
-    const url = `${this.baseUrl}${endpoint}`;
+    const urlPrimary = `${this.baseUrl}${API_PREFIX}${endpoint}`;
+    const urlFallback =
+      !API_PREFIX && !endpoint.startsWith('/admin/')
+        ? `${this.baseUrl}/admin${endpoint}`
+        : null;
     const requestHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept-Language': 'en',
@@ -405,7 +484,7 @@ class ApiClient {
 
     if (typeof window !== 'undefined') {
       console.debug('[API Client] Request', {
-        url,
+        url: urlPrimary,
         method,
         hasToken: Boolean(token),
         headers: Object.keys(requestHeaders),
@@ -417,19 +496,32 @@ class ApiClient {
       const controller = new AbortController();
       // Increased timeout to 60 seconds for slow database queries
       const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+      const doFetch = (url: string) =>
+        fetch(url, {
+          method,
+          headers: requestHeaders,
+          body: body ? JSON.stringify(body) : undefined,
+          signal: controller.signal,
+        });
 
-      const response = await fetch(url, {
-        method,
-        headers: requestHeaders,
-        body: body ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      });
+      let response = await doFetch(urlPrimary);
+      // Some deployments mount the admin backend under `/admin` only. If no prefix is configured,
+      // and we get a 404, retry once with `/admin` added.
+      if (response.status === 404 && urlFallback) {
+        if (typeof window !== 'undefined') {
+          console.warn('[API Client] 404 - retrying with /admin prefix', {
+            from: urlPrimary,
+            to: urlFallback,
+          });
+        }
+        response = await doFetch(urlFallback);
+      }
 
       clearTimeout(timeoutId);
 
       if (typeof window !== 'undefined') {
         console.debug('[API Client] Response', {
-          url,
+          url: response.url,
           status: response.status,
           ok: response.ok,
           statusText: response.statusText,
@@ -442,7 +534,7 @@ class ApiClient {
         const errorText = await response.text().catch(() => 'Unable to read error response');
         if (typeof window !== 'undefined') {
           console.error('[API Client] Non-OK response', {
-            url,
+            url: response.url,
             status: response.status,
             statusText: response.statusText,
             body: errorText,
@@ -476,7 +568,7 @@ class ApiClient {
     } catch (error) {
       if (typeof window !== 'undefined') {
         console.error('[API Client] Request failed', {
-          url,
+          url: urlPrimary,
           method,
           hasToken: Boolean(token),
           error: error instanceof Error ? error.message : error,
@@ -845,6 +937,35 @@ class ApiClient {
     return this.request('/users/status', {
       method: 'POST',
       body: { user_id: userId, status },
+    });
+  }
+
+  /**
+   * Delete user
+   * POST /users/delete
+   */
+  async deleteUser(userId: string, reason?: string): Promise<ApiResponse<null>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 300)); // Simulate API delay
+      
+      // Remove from mock arrays
+      const driverIndex = MOCK_DRIVERS.findIndex(d => d.user_id === userId);
+      if (driverIndex !== -1) {
+        MOCK_DRIVERS.splice(driverIndex, 1);
+        return { code: API_CODES.SUCCESS, msg: 'Driver deleted successfully', data: null };
+      }
+      
+      const userIndex = MOCK_USERS.findIndex(u => u.user_id === userId);
+      if (userIndex !== -1) {
+        MOCK_USERS.splice(userIndex, 1);
+        return { code: API_CODES.SUCCESS, msg: 'User deleted successfully', data: null };
+      }
+      
+      return { code: API_CODES.BUSINESS_ERROR, msg: 'User not found', data: null };
+    }
+    return this.request('/users/delete', {
+      method: 'POST',
+      body: { user_id: userId, reason: reason || '' },
     });
   }
 
@@ -1437,6 +1558,7 @@ class ApiClient {
     longitude: number;
     radius_km?: number;
     limit?: number;
+    eta_mode?: 'rough' | 'accurate' | 'none';
   }): Promise<ApiResponse<{
     drivers: NearbyDriverLocation[];
     count: number;
@@ -1479,8 +1601,27 @@ class ApiClient {
     qs.set('longitude', params.longitude.toString());
     if (params.radius_km) qs.set('radius_km', params.radius_km.toString());
     if (params.limit) qs.set('limit', params.limit.toString());
+    if (params.eta_mode) qs.set('eta_mode', params.eta_mode);
 
-    return this.request(`/drivers/nearby?${qs.toString()}`);
+    const resp = await this.request<{
+      drivers: NearbyDriverLocation[];
+      count: number;
+    }>(`/drivers/nearby?${qs.toString()}`);
+
+    const normalized = Array.isArray(resp.data?.drivers)
+      ? (resp.data.drivers
+          .map(normalizeNearbyDriverLocation)
+          .filter((d): d is NearbyDriverLocation => Boolean(d)))
+      : [];
+
+    return {
+      ...resp,
+      data: {
+        ...resp.data,
+        drivers: normalized,
+        count: normalized.length,
+      },
+    };
   }
 
   /**
@@ -1562,6 +1703,7 @@ class ApiClient {
         longitude: centerLng,
         radius_km: 50, // Large radius to get all drivers in the area
         limit,
+        eta_mode: 'none',
       });
 
       if (response.code === API_CODES.SUCCESS) {
@@ -1612,7 +1754,7 @@ class ApiClient {
             return {
               driver_id: (driver.user_id as string) || `DRV${index + 1}`,
               name: (driver.full_name as string) || (driver.first_name as string) || `Driver ${index + 1}`,
-              photo_url: driver.photo_url as string | undefined,
+              photo_url: (driver.avatar as string | undefined) || (driver.photo_url as string | undefined),
               latitude: lat,
               longitude: lng,
               distance_km: Math.sqrt(Math.pow(lat - centerLat, 2) + Math.pow(lng - centerLng, 2)) * 111,
@@ -1655,6 +1797,115 @@ class ApiClient {
       console.error('[API Client] Failed to get drivers with locations:', error);
       throw error;
     }
+  }
+
+  // ============================================
+  // NOTIFICATION ENDPOINTS
+  // ============================================
+
+  /**
+   * Send notification
+   * POST /notifications/send
+   */
+  async sendNotification(data: {
+    audience: 'all' | 'drivers' | 'users';
+    type: string;
+    category: string;
+    title: string;
+    content: string;
+    summary?: string;
+    scheduled_at?: number;
+  }): Promise<ApiResponse<null>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 300));
+      return { code: API_CODES.SUCCESS, msg: 'Notification sent successfully', data: null };
+    }
+    return this.request('/notifications/send', {
+      method: 'POST',
+      body: data,
+    });
+  }
+
+  /**
+   * Get notifications
+   * POST /notifications/search
+   */
+  async getNotifications(params: {
+    page?: number;
+    limit?: number;
+    keyword?: string;
+    user_type?: string;
+    type?: string;
+    status?: string;
+  } = {}): Promise<ApiResponse<PageResult<unknown>>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 200));
+      return {
+        code: API_CODES.SUCCESS,
+        msg: 'Success',
+        data: {
+          result_type: 'list',
+          records: [],
+          total: 0,
+          count: 0,
+          size: params.limit || 20,
+          current: params.page || 1,
+        },
+      };
+    }
+    return this.request('/notifications/search', {
+      method: 'POST',
+      body: {
+        page: params.page || 1,
+        limit: params.limit || 20,
+        keyword: params.keyword,
+        user_type: params.user_type,
+        type: params.type,
+        status: params.status,
+      },
+    });
+  }
+
+  /**
+   * Get unread notification count
+   * GET /notifications/unread-count
+   */
+  async getUnreadNotificationCount(): Promise<ApiResponse<{ count: number }>> {
+    if (DEMO_MODE) {
+      return { code: API_CODES.SUCCESS, msg: 'Success', data: { count: 0 } };
+    }
+    return this.request('/notifications/unread-count', {
+      method: 'GET',
+    });
+  }
+
+  /**
+   * Mark notification as read
+   * POST /notifications/mark-read
+   */
+  async markNotificationAsRead(notificationId: string): Promise<ApiResponse<null>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 200));
+      return { code: API_CODES.SUCCESS, msg: 'Notification marked as read', data: null };
+    }
+    return this.request('/notifications/mark-read', {
+      method: 'POST',
+      body: { notification_id: notificationId },
+    });
+  }
+
+  /**
+   * Mark all notifications as read
+   * POST /notifications/mark-all-read
+   */
+  async markAllNotificationsAsRead(): Promise<ApiResponse<null>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 200));
+      return { code: API_CODES.SUCCESS, msg: 'All notifications marked as read', data: null };
+    }
+    return this.request('/notifications/mark-all-read', {
+      method: 'POST',
+    });
   }
 }
 

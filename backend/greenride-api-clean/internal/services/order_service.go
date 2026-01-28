@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -637,6 +638,37 @@ func (s *OrderService) CreateOrder(req *protocol.CreateOrderRequest) (*protocol.
 			SetDispatchStatus(protocol.StatusPending).
 			SetMaxRounds(dispatchCfg.MaxRounds)
 	}
+
+	// Manual driver selection (optional):
+	// If provider_id is specified, pre-assign the order to that driver and send dispatch only to them.
+	selectedProviderID := strings.TrimSpace(req.ProviderID)
+	var manualDispatchRecord *models.DispatchRecord
+	if selectedProviderID != "" {
+		driver := models.GetUserByID(selectedProviderID)
+		if driver == nil {
+			return nil, protocol.UserNotFound
+		}
+		if !driver.IsDriver() {
+			return nil, protocol.InvalidUserType
+		}
+		if driver.GetStatus() != protocol.StatusActive {
+			return nil, protocol.UserNotActive
+		}
+		if driver.GetOnlineStatus() != protocol.StatusOnline {
+			return nil, protocol.DriverOffline
+		}
+		if s.CountActiveRideOrdersByDriver(selectedProviderID, "") > 0 {
+			return nil, protocol.DriverHasActiveOrder
+		}
+
+		// Pre-assign provider and disable auto-dispatch to avoid notifying others.
+		order.SetProviderID(selectedProviderID).
+			SetAutoDispatchEnabled(false).
+			SetCurrentRound(1).
+			SetDispatchStatus(protocol.StatusPending).
+			SetMaxRounds(1)
+	}
+
 	err := models.GetDB().Transaction(func(tx *gorm.DB) error {
 		// 创建主订单
 		if err := tx.Create(order).Error; err != nil {
@@ -666,6 +698,25 @@ func (s *OrderService) CreateOrder(req *protocol.CreateOrderRequest) (*protocol.
 				return err
 			}
 		}
+		// If manually selecting a driver, create exactly one dispatch record for that driver.
+		if selectedProviderID != "" {
+			dispatchedAt := utils.TimeNowMilli()
+			manualDispatchRecord = &models.DispatchRecord{
+				DriverID:             selectedProviderID,
+				OrderID:              order.OrderID,
+				DispatchID:           utils.GenerateDispatchID(),
+				Round:                1,
+				DispatchedAt:         dispatchedAt,
+				ExpiredAt:            order.GetScheduledAt(),
+				RoundSeq:             1,
+				DispatchRecordValues: &models.DispatchRecordValues{},
+				CreatedAt:            dispatchedAt,
+			}
+			if err := tx.Create(manualDispatchRecord).Error; err != nil {
+				return err
+			}
+		}
+
 		// 更新价格快照的订单关联
 		if err := models.UpdatePriceOrderID(tx, price.SnapshotID, order.OrderID); err != nil {
 			return err
@@ -689,8 +740,15 @@ func (s *OrderService) CreateOrder(req *protocol.CreateOrderRequest) (*protocol.
 	orderInfo := s.GetOrderInfo(order)
 
 	go GetUserService().RefreshUserOrderQueue(req.UserID)
-	//开始自动派单（异步）
-	go s.DispatchOrder(orderInfo)
+	// Dispatch:
+	// - manual: notify selected provider only
+	// - auto: start auto dispatch
+	if manualDispatchRecord != nil {
+		go GetDispatchService().SendDispatchNotifications(manualDispatchRecord)
+	} else {
+		//开始自动派单（异步）
+		go s.DispatchOrder(orderInfo)
+	}
 	// 记录订单创建历史
 	go GetOrderHistoryService().RecordOrderCreated(order, req.UserID)
 

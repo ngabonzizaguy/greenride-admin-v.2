@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"greenride/internal/config"
 	"greenride/internal/log"
@@ -67,6 +68,10 @@ func SetupTwilioService() {
 				Password: accountCfg.AuthToken,
 			}),
 		}
+		// For OTP flows, we prefer failing fast and falling back to InnoPaaS rather than waiting
+		// on slow Twilio Verify requests. This timeout applies to Twilio requests for this client.
+		// NOTE: This is set once at init to avoid races from per-request toggling.
+		account.Client.SetTimeout(5 * time.Second)
 
 		// If no default account is set and this is the first account, use it as default
 		if service.defaultAccount == nil && i == 0 {

@@ -110,7 +110,8 @@ func (a *Api) SetupRouter() *gin.Engine {
 		api.POST("/checkout/status", a.GetCheckoutStatus) // 查询checkout状态
 
 		// Webhook 回调接口 - 无需认证（第三方支付回调）
-		api.POST("/webhook/kpay/:payment_id", a.KPayWebhook) // KPay 支付回调
+		api.POST("/webhook/kpay/:payment_id", a.KPayWebhook)   // KPay 支付回调
+		api.POST("/webhook/innopaas", a.InnoPaaSWebhook)       // InnoPaaS OTP/消息状态回调
 
 	}
 

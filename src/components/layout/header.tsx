@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Bell, 
   Search, 
@@ -21,42 +21,54 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useSidebarStore } from '@/stores/sidebar-store';
 import { useAuthStore } from '@/stores/auth-store';
+import { useNotificationStore } from '@/stores/notification-store';
+import { CommandPalette } from '@/components/search/command-palette';
 import { cn } from '@/lib/utils';
 
-// Mock notifications for demo
-const notifications = [
-  {
-    id: '1',
-    type: 'ride',
-    title: 'New ride completed',
-    message: 'Trip #1234 completed successfully',
-    time: '2 min ago',
-    read: false,
-  },
-  {
-    id: '2',
-    type: 'payment',
-    title: 'Payment received',
-    message: 'RWF 5,200 via MoMo',
-    time: '5 min ago',
-    read: false,
-  },
-  {
-    id: '3',
-    type: 'driver',
-    title: 'Driver went online',
-    message: 'John Doe is now available',
-    time: '10 min ago',
-    read: true,
-  },
-];
+// Helper to format time ago
+const formatTimeAgo = (timestamp: number): string => {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return `${seconds} sec ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days > 1 ? 's' : ''} ago`;
+};
 
 export function Header() {
   const { isCollapsed, toggleCollapsed, isMobileOpen, toggleMobile } = useSidebarStore();
   const { user, logout } = useAuthStore();
   const [searchOpen, setSearchOpen] = useState(false);
+  const { notifications, unreadCount, fetchNotifications, markAsRead, markAllAsRead, refreshUnreadCount } = useNotificationStore();
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // Keyboard shortcut handler (⌘K / Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Fetch notifications on mount and set up polling
+  useEffect(() => {
+    fetchNotifications({ limit: 10 });
+    refreshUnreadCount();
+
+    // Poll for updates every 30 seconds
+    const interval = setInterval(() => {
+      fetchNotifications({ limit: 10 });
+      refreshUnreadCount();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [fetchNotifications, refreshUnreadCount]);
 
   return (
     <header className={cn(
@@ -94,8 +106,10 @@ export function Header() {
             <Search className="h-4 w-4 text-gray-400" />
         </span>
         <Input
-            className="block w-full pl-10 pr-3 py-2 border border-gray-200/50 dark:border-gray-600/30 rounded-lg leading-5 bg-white/50 dark:bg-gray-800/50 text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 focus:bg-white/80 sm:text-sm transition duration-200 ease-in-out backdrop-blur-sm shadow-none"
+            className="block w-full pl-10 pr-3 py-2 border border-gray-200/50 dark:border-gray-600/30 rounded-lg leading-5 bg-white/50 dark:bg-gray-800/50 text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 focus:bg-white/80 sm:text-sm transition duration-200 ease-in-out backdrop-blur-sm shadow-none cursor-pointer"
             placeholder="Search anything..."
+            onClick={() => setSearchOpen(true)}
+            readOnly
         />
         <div className="absolute inset-y-0 right-0 pr-2 flex items-center">
             <kbd className="inline-flex items-center border border-gray-200/50 dark:border-gray-600/50 rounded px-2 text-xs font-sans font-medium text-gray-400 bg-white/30">⌘K</kbd>
@@ -118,28 +132,57 @@ export function Header() {
              {/* ... content ... */}
             <DropdownMenuLabel className="flex items-center justify-between">
               <span>Notifications</span>
-              <Button variant="ghost" size="sm" className="h-auto p-0 text-xs text-primary hover:bg-transparent">
-                Mark all as read
-              </Button>
+              {unreadCount > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-auto p-0 text-xs text-primary hover:bg-transparent"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    markAllAsRead();
+                  }}
+                >
+                  Mark all as read
+                </Button>
+              )}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {notifications.map((notification) => (
-              <DropdownMenuItem key={notification.id} className="flex flex-col items-start gap-1 p-3 focus:bg-white/40">
-                <div className="flex w-full items-start justify-between gap-2">
-                  <p className={cn(
-                    'text-sm',
-                    !notification.read && 'font-medium'
-                  )}>
-                    {notification.title}
-                  </p>
-                  {!notification.read && (
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+            {notifications.length === 0 ? (
+              <div className="p-4 text-center text-sm text-muted-foreground">
+                No notifications
+              </div>
+            ) : (
+              notifications.slice(0, 5).map((notification) => (
+                <DropdownMenuItem 
+                  key={notification.notification_id} 
+                  className={cn(
+                    "flex flex-col items-start gap-1 p-3 focus:bg-white/40 cursor-pointer",
+                    !notification.is_read && "bg-blue-50/50 dark:bg-blue-900/10"
                   )}
-                </div>
-                <p className="text-xs text-muted-foreground">{notification.message}</p>
-                <p className="text-xs text-muted-foreground/60">{notification.time}</p>
-              </DropdownMenuItem>
-            ))}
+                  onClick={() => {
+                    if (!notification.is_read) {
+                      markAsRead(notification.notification_id);
+                    }
+                  }}
+                >
+                  <div className="flex w-full items-start justify-between gap-2">
+                    <p className={cn(
+                      'text-sm',
+                      !notification.is_read && 'font-medium'
+                    )}>
+                      {notification.title}
+                    </p>
+                    {!notification.is_read && (
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{notification.content}</p>
+                  <p className="text-xs text-muted-foreground/60">
+                    {formatTimeAgo(notification.created_at)}
+                  </p>
+                </DropdownMenuItem>
+              ))
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="justify-center text-primary focus:bg-white/40" asChild>
               <a href="/notifications">View all notifications</a>
@@ -182,6 +225,9 @@ export function Header() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Command Palette */}
+      <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>
   );
 }

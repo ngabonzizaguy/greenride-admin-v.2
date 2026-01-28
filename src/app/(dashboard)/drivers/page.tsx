@@ -7,7 +7,6 @@ import {
   Plus, 
   Filter, 
   MoreHorizontal,
-  Star,
   Phone,
   Eye,
   Edit,
@@ -62,7 +61,7 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, ApiError } from '@/lib/api-client';
 import type { Driver, PageResult, UserStatus } from '@/types';
 
 const getStatusBadge = (status: string, onlineStatus?: string) => {
@@ -162,16 +161,17 @@ export default function DriversPage() {
   const [isUploading, setIsUploading] = useState(false);
   
   // Vehicles list for assignment
-  const [vehicles, setVehicles] = useState<Array<{ vehicle_id: string; display_name: string; plate_number: string }>>([]);
+  const [vehicles, setVehicles] = useState<Array<{ vehicle_id: string; display_name: string; plate_number: string; driver_id?: string }>>([]);
 
   const fetchVehicles = useCallback(async () => {
     try {
       const response = await apiClient.searchVehicles({ limit: 100 });
-      const pageResult = response.data as PageResult<{ vehicle_id: string; brand?: string; model?: string; plate_number?: string }>;
+      const pageResult = response.data as PageResult<{ vehicle_id: string; brand?: string; model?: string; plate_number?: string; driver_id?: string }>;
       const vehicleList = (pageResult.records || []).map(v => ({
         vehicle_id: v.vehicle_id,
         display_name: `${v.brand || ''} ${v.model || ''}`.trim() || 'Unknown Vehicle',
         plate_number: v.plate_number || '',
+        driver_id: v.driver_id,
       }));
       setVehicles(vehicleList);
     } catch (err) {
@@ -263,6 +263,24 @@ export default function DriversPage() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
+  const getDriverVehicleLabel = (driver: Driver) => {
+    const v = driver.vehicle;
+    if (v && (v.plate_number || v.brand || v.model)) {
+      const makeModel = `${v.brand || ''} ${v.model || ''}`.trim();
+      const plate = v.plate_number ? v.plate_number : '';
+      return [plate, makeModel].filter(Boolean).join(' • ') || plate || makeModel || 'Assigned';
+    }
+
+    const assigned = vehicles.find(vv => vv.driver_id === driver.user_id);
+    if (assigned) {
+      const makeModel = assigned.display_name || '';
+      const plate = assigned.plate_number || '';
+      return [plate, makeModel].filter(Boolean).join(' • ') || plate || makeModel || 'Assigned';
+    }
+
+    return 'Unassigned';
+  };
+
   // Handle Add Driver
   const handleAddDriver = async () => {
     if (!formData.first_name || !formData.phone) {
@@ -288,12 +306,26 @@ export default function DriversPage() {
       if (formData.vehicle_id && response.code === '0000') {
         const driverData = response.data as { user_id?: string };
         if (driverData?.user_id) {
-          try {
-            await apiClient.updateVehicle(formData.vehicle_id, {
-              driver_id: driverData.user_id,
-            });
-          } catch (vehicleErr) {
-            console.error('Failed to assign vehicle:', vehicleErr);
+          // Check if vehicle is already assigned to another driver
+          const vehicleToAssign = vehicles.find(v => v.vehicle_id === formData.vehicle_id);
+          if (vehicleToAssign?.driver_id && vehicleToAssign.driver_id !== driverData.user_id) {
+            // Unassign the old driver first (optional - could show warning instead)
+            try {
+              await apiClient.updateVehicle(formData.vehicle_id, {
+                driver_id: driverData.user_id,
+              });
+            } catch (vehicleErr) {
+              console.error('Failed to assign vehicle:', vehicleErr);
+            }
+          } else {
+            // Vehicle is free, assign it
+            try {
+              await apiClient.updateVehicle(formData.vehicle_id, {
+                driver_id: driverData.user_id,
+              });
+            } catch (vehicleErr) {
+              console.error('Failed to assign vehicle:', vehicleErr);
+            }
           }
         }
       }
@@ -328,8 +360,25 @@ export default function DriversPage() {
         license_number: formData.license_number,
       });
 
-      // If a vehicle is selected, update the vehicle to assign this driver
+      // Handle vehicle assignment/unassignment
+      // First, find if driver currently has a vehicle assigned
+      const currentVehicle = vehicles.find(v => v.driver_id === selectedDriver.user_id);
+      
+      // If a new vehicle is selected
       if (formData.vehicle_id) {
+        // If driver had a different vehicle, unassign it first
+        if (currentVehicle && currentVehicle.vehicle_id !== formData.vehicle_id) {
+          try {
+            await apiClient.updateVehicle(currentVehicle.vehicle_id, {
+              driver_id: '',
+            });
+          } catch (unassignErr) {
+            console.error('Failed to unassign old vehicle:', unassignErr);
+            // Continue anyway
+          }
+        }
+        
+        // Assign the new vehicle
         try {
           await apiClient.updateVehicle(formData.vehicle_id, {
             driver_id: selectedDriver.user_id,
@@ -337,6 +386,16 @@ export default function DriversPage() {
         } catch (vehicleErr) {
           console.error('Failed to assign vehicle:', vehicleErr);
           // Don't fail the whole operation, just log
+        }
+      } else if (currentVehicle) {
+        // If no vehicle selected but driver had one, unassign it
+        try {
+          await apiClient.updateVehicle(currentVehicle.vehicle_id, {
+            driver_id: '',
+          });
+        } catch (unassignErr) {
+          console.error('Failed to unassign vehicle:', unassignErr);
+          // Continue anyway
         }
       }
 
@@ -362,14 +421,18 @@ export default function DriversPage() {
     setError(null);
 
     try {
-      await apiClient.updateUserStatus(selectedDriver.user_id, 'banned');
-      setSuccessMessage('Driver removed successfully!');
+      await apiClient.deleteUser(selectedDriver.user_id, 'Deleted by admin');
+      setSuccessMessage('Driver deleted successfully!');
       setIsDeleteModalOpen(false);
       setSelectedDriver(null);
       fetchDrivers();
     } catch (err) {
       console.error('Failed to delete driver:', err);
-      setError('Failed to remove driver. Please try again.');
+      const message =
+        err instanceof ApiError
+          ? (err.serverMessage || err.message)
+          : (err instanceof Error ? err.message : 'Failed to delete driver.');
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -401,25 +464,22 @@ export default function DriversPage() {
   // Open Edit Modal
   const openEditModal = (driver: Driver) => {
     setSelectedDriver(driver);
-    // Find if this driver has a vehicle assigned
-    const assignedVehicle = vehicles.find(v => {
-      // Check if vehicle's driver matches this driver
-      return false; // We'll need to track this differently
-    });
+    // Find if this driver has a vehicle assigned by checking driver_id on vehicles
+    const assignedVehicle = vehicles.find(v => v.driver_id === driver.user_id);
     setFormData({
       first_name: driver.first_name || '',
       last_name: driver.last_name || '',
       email: driver.email || '',
       phone: driver.phone || '',
       license_number: driver.license_number || '',
-      vehicle_id: driver.vehicle?.vehicle_id || '',
+      vehicle_id: assignedVehicle?.vehicle_id || driver.vehicle?.vehicle_id || '',
     });
     setIsEditModalOpen(true);
   };
 
   // Export to CSV
   const handleExportCSV = () => {
-    const headers = ['Name', 'Email', 'Phone', 'Status', 'Rating', 'Total Rides', 'Joined'];
+    const headers = ['Name', 'Email', 'Phone', 'Status', 'Vehicle', 'Total Rides', 'Joined'];
     const csvContent = [
       headers.join(','),
       ...drivers.map(driver => [
@@ -427,7 +487,7 @@ export default function DriversPage() {
         driver.email || '',
         driver.phone || '',
         driver.status,
-        driver.score?.toFixed(1) || '5.0',
+        `"${getDriverVehicleLabel(driver)}"`,
         driver.total_rides || 0,
         driver.created_at ? new Date(driver.created_at).toLocaleDateString() : '',
       ].join(','))
@@ -451,7 +511,7 @@ export default function DriversPage() {
     try {
       // Delete each selected driver
       const results = await Promise.allSettled(
-        selectedDrivers.map(userId => apiClient.updateUserStatus(userId, 'banned'))
+        selectedDrivers.map(userId => apiClient.deleteUser(userId, 'Bulk deleted by admin'))
       );
 
       const successCount = results.filter(r => r.status === 'fulfilled').length;
@@ -468,7 +528,11 @@ export default function DriversPage() {
       fetchDrivers();
     } catch (err) {
       console.error('Failed to bulk delete:', err);
-      setError('Failed to delete drivers. Please try again.');
+      const message =
+        err instanceof ApiError
+          ? (err.serverMessage || err.message)
+          : (err instanceof Error ? err.message : 'Failed to delete drivers.');
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -977,7 +1041,7 @@ Nyamuvugwa Jesus,788438122,RAJ835C`;
                 </TableHead>
                 <TableHead>Driver</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Rating</TableHead>
+                <TableHead>Vehicle</TableHead>
                 <TableHead className="text-right">Total Rides</TableHead>
                 <TableHead>Phone</TableHead>
                 <TableHead>Joined</TableHead>
@@ -1046,10 +1110,7 @@ Nyamuvugwa Jesus,788438122,RAJ835C`;
                     </TableCell>
                     <TableCell>{getStatusBadge(driver.status, driver.online_status)}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span className="font-medium">{driver.score?.toFixed(1) || '5.0'}</span>
-                      </div>
+                      <span className="text-sm font-medium">{getDriverVehicleLabel(driver)}</span>
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {(driver.total_rides || 0).toLocaleString()}

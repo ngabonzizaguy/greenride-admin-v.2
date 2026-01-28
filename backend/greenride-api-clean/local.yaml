@@ -152,6 +152,13 @@ verify_code:
   send_interval: 60  # 发送间隔（秒）
   max_send_times: 10 # 每日最大发送次数
 
+# InnoPaaS OTP (optional fallback when Twilio fails). Get app_key + app_secret from InnoPaaS → Developer Tools → API Keys
+innopaas:
+  endpoint: "https://api.innopaas.com/api/otp/v3/msg/send/verify"
+  app_key: "PASTE_YOUR_INNOPAAS_API_KEY_HERE"
+  app_secret: "PASTE_YOUR_INNOPAAS_API_PASSWORD_HERE"
+  sender_id: "GreenRide"
+
 # 派单系统配置
 dispatch:
   # 基础配置

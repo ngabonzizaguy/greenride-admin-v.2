@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"greenride/internal/config"
 	"greenride/internal/log"
@@ -90,9 +91,47 @@ func (s *SMSService) ServiceName() string {
 
 // SendMessage sends an SMS using a Message object
 func (s *SMSService) SendMessage(message *Message) error {
-	if s.Handler == nil {
+	if message == nil {
+		return fmt.Errorf("message cannot be nil")
+	}
+
+	// Resolve handler defensively in case service init didn't run as expected.
+	primary := s.Handler
+	if primary == nil {
+		primary = GetSMSServiceHandler()
+	}
+	if primary == nil {
 		return fmt.Errorf("SMS service not properly initialized")
 	}
 
-	return s.Handler.SendSmsMessage(message)
+	cfg := config.Get().SMS
+	// OTP failover policy:
+	// - If primary is Twilio and this is a verify_code message, attempt Twilio (fast-timeout client).
+	// - If Twilio errors (including timeout), fall back to InnoPaaS.
+	if cfg != nil && cfg.ServiceName == "twilio" && message.Type == protocol.MsgTypeVerifyCode {
+		start := time.Now()
+		err := primary.SendSmsMessage(message)
+		elapsed := time.Since(start)
+		if err == nil {
+			log.Get().Infof("OTP sent via twilio in %s", elapsed)
+			return nil
+		}
+
+		log.Get().Warnf("OTP send via twilio failed after %s; falling back to innopaas: %v", elapsed, err)
+		fallback := GetInnoPaaSService()
+		if fallback == nil {
+			return err
+		}
+		startFb := time.Now()
+		fbErr := fallback.SendSmsMessage(message)
+		fbElapsed := time.Since(startFb)
+		if fbErr == nil {
+			log.Get().Infof("OTP sent via innopaas in %s (after twilio failure)", fbElapsed)
+			return nil
+		}
+		log.Get().Errorf("OTP send via innopaas also failed after %s: %v", fbElapsed, fbErr)
+		return fmt.Errorf("twilio otp failed: %v; innopaas otp failed: %v", err, fbErr)
+	}
+
+	return primary.SendSmsMessage(message)
 }

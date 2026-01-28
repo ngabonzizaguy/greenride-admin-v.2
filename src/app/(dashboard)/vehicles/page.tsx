@@ -59,7 +59,7 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, ApiError } from '@/lib/api-client';
 import type { Vehicle, PageResult, VehicleStatus, VehicleCategory, VehicleLevel } from '@/types';
 
 const getStatusBadge = (status: string) => {
@@ -136,6 +136,7 @@ export default function VehiclesPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
+  const [systemTotalVehicles, setSystemTotalVehicles] = useState(0);
   
   // Pagination
   const [page, setPage] = useState(1);
@@ -150,6 +151,22 @@ export default function VehiclesPage() {
     maintenance: 0,
     inactive: 0,
   });
+
+  const fetchSystemVehicleTotal = useCallback(async () => {
+    try {
+      const statsResponse = await apiClient.getDashboardStats();
+      if (statsResponse.code === '0000' && statsResponse.data) {
+        const data = statsResponse.data as Record<string, unknown>;
+        const total =
+          typeof data.total_vehicles === 'number'
+            ? data.total_vehicles
+            : Number(data.total_vehicles ?? 0);
+        setSystemTotalVehicles(Number.isFinite(total) ? total : 0);
+      }
+    } catch {
+      // Best-effort only; don't block the Vehicles page.
+    }
+  }, []);
 
   // Modal states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -184,7 +201,7 @@ export default function VehiclesPage() {
       setTotalCount(pageResult.count || 0);
       setTotalPages(pageResult.total || 0);
       
-      // Calculate stats from records
+      // Calculate stats from *current page records* (not global DB totals).
       const records = pageResult.records || [];
       setStats({
         total: pageResult.count || 0,
@@ -204,10 +221,16 @@ export default function VehiclesPage() {
   const fetchDrivers = useCallback(async () => {
     try {
       const response = await apiClient.getDrivers({ limit: 100 });
-      const pageResult = response.data as PageResult<{ user_id: string; full_name?: string; first_name?: string; last_name?: string }>;
+      const pageResult = response.data as PageResult<{ user_id: string; display_name?: string; full_name?: string; username?: string; first_name?: string; last_name?: string; phone?: string }>;
       const driverList = (pageResult.records || []).map(d => ({
         user_id: d.user_id,
-        full_name: d.full_name || `${d.first_name || ''} ${d.last_name || ''}`.trim() || 'Unknown Driver',
+        full_name:
+          d.display_name ||
+          d.full_name ||
+          d.username ||
+          `${d.first_name || ''} ${d.last_name || ''}`.trim() ||
+          d.phone ||
+          'Unknown Driver',
       }));
       setDrivers(driverList);
     } catch (err) {
@@ -218,7 +241,8 @@ export default function VehiclesPage() {
   useEffect(() => {
     fetchVehicles();
     fetchDrivers();
-  }, [fetchVehicles, fetchDrivers]);
+    fetchSystemVehicleTotal();
+  }, [fetchVehicles, fetchDrivers, fetchSystemVehicleTotal]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -302,6 +326,26 @@ export default function VehiclesPage() {
     setError(null);
 
     try {
+      const newDriverId = formData.driver_id || undefined;
+      const oldDriverId = selectedVehicle.driver_id;
+
+      // If assigning a new driver, unassign them from their previous vehicle first
+      if (newDriverId && newDriverId !== oldDriverId) {
+        // Find if the new driver is currently assigned to another vehicle
+        const driverCurrentVehicle = vehicles.find(v => v.driver_id === newDriverId && v.vehicle_id !== selectedVehicle.vehicle_id);
+        if (driverCurrentVehicle) {
+          try {
+            await apiClient.updateVehicle(driverCurrentVehicle.vehicle_id, {
+              driver_id: '',
+            });
+          } catch (unassignErr) {
+            console.error('Failed to unassign driver from previous vehicle:', unassignErr);
+            // Continue anyway
+          }
+        }
+      }
+
+      // Update the vehicle
       await apiClient.updateVehicle(selectedVehicle.vehicle_id, {
         brand: formData.brand,
         model: formData.model,
@@ -311,7 +355,7 @@ export default function VehiclesPage() {
         seat_capacity: formData.seat_capacity,
         category: formData.category,
         level: formData.level,
-        driver_id: formData.driver_id || undefined,
+        driver_id: newDriverId,
         photos: formData.photo_url ? [formData.photo_url] : undefined,
       });
 
@@ -343,7 +387,11 @@ export default function VehiclesPage() {
       fetchVehicles();
     } catch (err) {
       console.error('Failed to delete vehicle:', err);
-      setError('Failed to delete vehicle. Please try again.');
+      const message =
+        err instanceof ApiError
+          ? (err.serverMessage || err.message)
+          : (err instanceof Error ? err.message : 'Failed to delete vehicle.');
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -476,10 +524,25 @@ export default function VehiclesPage() {
       );
 
       const successCount = results.filter(r => r.status === 'fulfilled').length;
-      const failCount = results.filter(r => r.status === 'rejected').length;
+      const failed = results
+        .map((r, idx) => ({ r, vehicleId: selectedVehicles[idx] }))
+        .filter((x): x is { r: PromiseRejectedResult; vehicleId: string } => x.r.status === 'rejected');
+      const failCount = failed.length;
 
       if (failCount > 0) {
-        setError(`${failCount} vehicle(s) failed to delete. ${successCount} deleted successfully.`);
+        const details = failed
+          .slice(0, 5)
+          .map((f) => {
+            const reason = f.r.reason instanceof ApiError
+              ? (f.r.reason.serverMessage || f.r.reason.message)
+              : (f.r.reason instanceof Error ? f.r.reason.message : String(f.r.reason));
+            return `${f.vehicleId}: ${reason}`;
+          })
+          .join(' | ');
+        setError(
+          `${failCount} vehicle(s) failed to delete. ${successCount} deleted successfully.` +
+          (details ? ` Failed: ${details}${failCount > 5 ? ' ...' : ''}` : '')
+        );
       } else {
         setSuccessMessage(`${successCount} vehicle(s) deleted successfully!`);
       }
@@ -487,9 +550,14 @@ export default function VehiclesPage() {
       setIsBulkDeleteModalOpen(false);
       setSelectedVehicles([]);
       fetchVehicles();
+      fetchSystemVehicleTotal();
     } catch (err) {
       console.error('Failed to bulk delete:', err);
-      setError('Failed to delete vehicles. Please try again.');
+      const message =
+        err instanceof ApiError
+          ? (err.serverMessage || err.message)
+          : (err instanceof Error ? err.message : 'Failed to delete vehicles.');
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -498,6 +566,14 @@ export default function VehiclesPage() {
   // Get driver name by ID
   const getDriverName = (driverId?: string) => {
     if (!driverId) return 'N/A';
+    // Prefer driver object returned with vehicle (if available)
+    const vehicleDriver = vehicles.find(v => v.driver_id === driverId)?.driver;
+    const fromVehicle =
+      vehicleDriver?.display_name ||
+      vehicleDriver?.full_name ||
+      `${vehicleDriver?.first_name || ''} ${vehicleDriver?.last_name || ''}`.trim() ||
+      vehicleDriver?.phone;
+    if (fromVehicle) return fromVehicle;
     const driver = drivers.find(d => d.user_id === driverId);
     return driver?.full_name || 'Unknown Driver';
   };
@@ -592,7 +668,12 @@ export default function VehiclesPage() {
                 {isLoading ? (
                   <Skeleton className="h-8 w-16 mt-1" />
                 ) : (
-                  <p className="text-2xl font-bold">{stats.total || totalCount}</p>
+                  <p className="text-2xl font-bold">{systemTotalVehicles || stats.total || totalCount}</p>
+                )}
+                {!isLoading && (search || statusFilter !== 'all' || categoryFilter !== 'all') && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Matching results: {stats.total || totalCount}
+                  </p>
                 )}
               </div>
               <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -605,7 +686,7 @@ export default function VehiclesPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Active</p>
+                <p className="text-sm text-muted-foreground">Active (this page)</p>
                 {isLoading ? (
                   <Skeleton className="h-8 w-16 mt-1" />
                 ) : (
@@ -620,7 +701,7 @@ export default function VehiclesPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Maintenance</p>
+                <p className="text-sm text-muted-foreground">Maintenance (this page)</p>
                 {isLoading ? (
                   <Skeleton className="h-8 w-16 mt-1" />
                 ) : (
@@ -635,7 +716,7 @@ export default function VehiclesPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Inactive/Retired</p>
+                <p className="text-sm text-muted-foreground">Inactive/Retired (this page)</p>
                 {isLoading ? (
                   <Skeleton className="h-8 w-16 mt-1" />
                 ) : (
@@ -780,7 +861,12 @@ export default function VehiclesPage() {
                       {getStatusBadge(vehicle.status)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {vehicle.driver_name || getDriverName(vehicle.driver_id)}
+                      {vehicle.driver_name ||
+                        vehicle.driver?.display_name ||
+                        vehicle.driver?.full_name ||
+                        `${vehicle.driver?.first_name || ''} ${vehicle.driver?.last_name || ''}`.trim() ||
+                        vehicle.driver?.phone ||
+                        getDriverName(vehicle.driver_id)}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -1336,7 +1422,12 @@ export default function VehiclesPage() {
                   <div className="flex items-center gap-2 mt-1">
                     <User className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium">
-                      {selectedVehicle.driver_name || getDriverName(selectedVehicle.driver_id)}
+                      {selectedVehicle.driver_name ||
+                        selectedVehicle.driver?.display_name ||
+                        selectedVehicle.driver?.full_name ||
+                        `${selectedVehicle.driver?.first_name || ''} ${selectedVehicle.driver?.last_name || ''}`.trim() ||
+                        selectedVehicle.driver?.phone ||
+                        getDriverName(selectedVehicle.driver_id)}
                     </span>
                   </div>
                 </div>

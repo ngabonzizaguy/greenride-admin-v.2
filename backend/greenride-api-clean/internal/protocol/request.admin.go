@@ -339,6 +339,7 @@ type AdminCreateOrderRequest struct {
 	PriceID     string `json:"price_id" binding:"required"` // 价格快照ID
 	Notes       string `json:"notes,omitempty"`             // 订单备注
 	AdminReason string `json:"admin_reason,omitempty"`      // 管理员创建原因
+	ProviderID  string `json:"provider_id,omitempty"`       // 可选：手动指定司机（provider_id）
 }
 
 // AdminCreateUserRequest 管理员创建用户请求结构体
@@ -349,4 +350,30 @@ type AdminCreateUserRequest struct {
 	FirstName string `json:"first_name,omitempty"`     // 名字
 	LastName  string `json:"last_name,omitempty"`      // 姓氏
 	UserType  string `json:"user_type,omitempty"`      // 用户类型，默认passenger
+}
+
+// AdminSendNotificationRequest 管理员发送通知请求结构体
+type AdminSendNotificationRequest struct {
+	Audience    string `json:"audience" binding:"required,oneof=all drivers users"` // 受众：all, drivers, users
+	Type        string `json:"type" binding:"required"`                             // 通知类型
+	Category    string `json:"category" binding:"required"`                         // 通知分类
+	Title       string `json:"title" binding:"required"`                            // 通知标题
+	Content     string `json:"content" binding:"required"`                          // 通知内容
+	Summary     string `json:"summary,omitempty"`                                   // 通知摘要
+	ScheduledAt *int64 `json:"scheduled_at,omitempty"`                              // 计划发送时间（时间戳毫秒）
+}
+
+// AdminNotificationSearchRequest 管理员通知搜索请求结构体
+type AdminNotificationSearchRequest struct {
+	Keyword  string `json:"keyword,omitempty"`   // 搜索关键字
+	Page     int    `json:"page,omitempty"`      // 页码，默认1
+	Limit    int    `json:"limit,omitempty"`     // 每页数量，默认10
+	UserType string `json:"user_type,omitempty"` // 用户类型过滤
+	Type     string `json:"type,omitempty"`      // 通知类型过滤
+	Status   string `json:"status,omitempty"`    // 状态过滤
+}
+
+// NotificationIDRequest 通知ID请求结构体
+type NotificationIDRequest struct {
+	NotificationID string `json:"notification_id" binding:"required"` // 通知ID
 }

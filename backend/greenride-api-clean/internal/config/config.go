@@ -300,8 +300,9 @@ func (c *AWSConfig) ValidateAWS() error {
 type InnoPaaSConfig struct {
 	Endpoint      string `mapstructure:"endpoint" yaml:"endpoint" json:"endpoint"`
 	AppKey        string `mapstructure:"app_key" yaml:"app_key" json:"app_key"`
-	Authorization string `mapstructure:"authorization" yaml:"authorization" json:"authorization"`
-	SenderID      string `mapstructure:"sender_id" yaml:"sender_id" json:"sender_id"`
+	AppSecret     string `mapstructure:"app_secret" yaml:"app_secret" json:"app_secret"`           // For OTP v3 x-signature (MD5)
+	Authorization string `mapstructure:"authorization" yaml:"authorization" json:"authorization"`   // Legacy token auth (if no app_secret)
+	SenderID      string `mapstructure:"sender_id" yaml:"sender_id" json:"sender_id"`               // Optional sender (e.g. WhatsApp)
 }
 
 // Validate 验证InnoPaaS配置

@@ -177,9 +177,10 @@ func (s *AdminOrderService) CreateOrderForUser(req *protocol.AdminCreateOrderReq
 
 	// 构建标准的创建订单请求
 	createOrderReq := &protocol.CreateOrderRequest{
-		UserID:  req.UserID,
-		PriceID: req.PriceID,
-		Notes:   req.Notes,
+		UserID:      req.UserID,
+		PriceID:     req.PriceID,
+		Notes:       req.Notes,
+		ProviderID:  req.ProviderID,
 	}
 
 	log.Get().Infof("CreateOrderForUser: 调用OrderService.CreateOrder，UserID=%s, PriceID=%s", req.UserID, req.PriceID)

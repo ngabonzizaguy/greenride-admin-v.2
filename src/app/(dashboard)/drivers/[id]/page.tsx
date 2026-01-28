@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/table';
 import { DriverPerformanceChart } from '@/components/charts/driver-performance-chart';
 import { apiClient } from '@/lib/api-client';
+import { reverseGeocode } from '@/lib/geocoding';
 
 interface DriverData {
   id: string;
@@ -134,6 +135,8 @@ const getStatusBadge = (status: string) => {
 export default function DriverDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [driver, setDriver] = useState<DriverData | null>(null);
+  const [currentCoords, setCurrentCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [currentLocationText, setCurrentLocationText] = useState<string>('N/A');
   const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [activityLog, setActivityLog] = useState<ActivityLogItem[]>([]);
@@ -149,6 +152,16 @@ export default function DriverDetailPage({ params }: { params: Promise<{ id: str
         if (response.code === '0000' && response.data) {
           const data = response.data as Record<string, unknown>;
           const vehicleData = data.vehicle as Record<string, unknown> | undefined;
+
+          const lat = data.latitude as number | undefined;
+          const lng = data.longitude as number | undefined;
+          if (typeof lat === 'number' && typeof lng === 'number') {
+            setCurrentCoords({ lat, lng });
+            setCurrentLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+          } else {
+            setCurrentCoords(null);
+            setCurrentLocationText((data.address as string) || 'N/A');
+          }
           
           setDriver({
             id: (data.user_id as string) || id,
@@ -175,7 +188,7 @@ export default function DriverDetailPage({ params }: { params: Promise<{ id: str
               make: (vehicleData?.brand as string) || 'N/A',
               year: (vehicleData?.year as number) || 0,
               color: (vehicleData?.color as string) || 'N/A',
-              type: (vehicleData?.vehicle_type as string) || 'car',
+              type: (vehicleData?.category as string) || (vehicleData?.type as string) || 'car',
             },
             documents: {
               license: { status: 'valid', expiry: 'N/A' },
@@ -223,6 +236,20 @@ export default function DriverDetailPage({ params }: { params: Promise<{ id: str
 
     fetchDriverData();
   }, [id]);
+
+  // Resolve a human-readable location from coordinates
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (!currentCoords) return;
+      const result = await reverseGeocode(currentCoords.lat, currentCoords.lng);
+      if (!cancelled && result) setCurrentLocationText(result);
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentCoords]);
 
   if (isLoading) {
     return (
@@ -292,7 +319,7 @@ export default function DriverDetailPage({ params }: { params: Promise<{ id: str
                 </div>
                 <div className="flex items-center gap-3">
                   <MapPin className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{driver.address}</span>
+                  <span className="text-sm">{currentLocationText || driver.address}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
