@@ -87,6 +87,9 @@ jobs:
             # Copy config files to backend directory
             cp -r backend/greenride-api-clean/internal/locales $BACKEND_DIR/internal/ 2>/dev/null || mkdir -p $BACKEND_DIR/internal/locales && cp -r backend/greenride-api-clean/internal/locales/* $BACKEND_DIR/internal/locales/
             cp backend/greenride-api-clean/config.yaml $BACKEND_DIR/ 2>/dev/null || true
+            # prod.yaml must be a file (not a directory). Copy from repo only if missing so server secrets are not overwritten.
+            if [ -d "$BACKEND_DIR/prod.yaml" ]; then rm -rf "$BACKEND_DIR/prod.yaml"; fi
+            if [ ! -f "$BACKEND_DIR/prod.yaml" ]; then cp backend/greenride-api-clean/prod.yaml "$BACKEND_DIR/"; fi
             
             # Rebuild and restart the API container
             cd $BACKEND_DIR

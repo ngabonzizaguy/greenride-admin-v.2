@@ -28,7 +28,16 @@ Then click **Submit** to save the callback configuration.
 
 ### Production (AWS server)
 
-The deploy workflow **does not** overwrite `prod.yaml` on the server. Put InnoPaaS keys there:
+The deploy workflow **does not** overwrite `prod.yaml` on the server. **Important:** On the server, `prod.yaml` must be a **file**, not a directory. If you have an empty `prod.yaml` directory (e.g. `cd prod.yaml` then `ls` is empty), fix it once:
+
+```bash
+cd /home/ubuntu/greenride-admin-v.2
+git pull origin main
+rm -rf /home/ubuntu/greenride-api/prod.yaml
+cp backend/greenride-api-clean/prod.yaml /home/ubuntu/greenride-api/prod.yaml
+```
+
+Then add your real InnoPaaS keys:
 
 1. **SSH into the server** (e.g. `ssh ubuntu@18.143.118.157`).
 2. **Edit** `prod.yaml` in the backend directory:
@@ -46,9 +55,10 @@ The deploy workflow **does not** overwrite `prod.yaml` on the server. Put InnoPa
    ```
 4. **Restart the API** so it reloads config:
    ```bash
+   docker ps
    docker restart greenride-api
    ```
-   (Or use your usual restart command if different.)
+   If your API container has a different name (e.g. `api`), use that: `docker restart api`.
 
 - **`app_key`** = value from InnoPaaS → Developer Tools → API Keys → **API Key** column (copy full value).
 - **`app_secret`** = value from the same row → **API Password** column (copy via the copy icon).
