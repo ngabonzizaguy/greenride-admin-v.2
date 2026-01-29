@@ -68,7 +68,7 @@ i18n:
   supported_langs: ["en", "fr", "rw"]
 
 google:
-  maps_api_key: "AIzaSyDn6dJYuB7a2VvY4KStOfFwPNgL8DS4PgE"
+  maps_api_key: "AIzaSyBXaxfZrk9-qdmnuYY-3YMhNcnxyH_lj8Q"
 
 task:
   enabled: true
