@@ -40,9 +40,11 @@ type Config struct {
 	Dispatch   *DispatchConfig   `mapstructure:"dispatch"`    // 派单系统配置
 	Task       *TaskConfig       `mapstructure:"task"`        // 任务调度配置
 	Promotion  *PromotionConfig  `mapstructure:"promotion"`   // 优惠券配置
-	Payment    *PaymentConfig    `mapstructure:"payment"`     // 支付配置
-	KPay       *KPayConfig       `mapstructure:"kpay"`        //KPay支付配置
-	Order      *OrderConfig      `mapstructure:"order"`       // 订单配置
+	Payment    *PaymentConfig       `mapstructure:"payment"`     // 支付配置
+	KPay       *KPayConfig          `mapstructure:"kpay"`        // KPay支付配置
+	MoMo       *MoMoGlobalConfig    `mapstructure:"momo"`        // MTN MoMo支付配置
+	Stripe     *StripeGlobalConfig  `mapstructure:"stripe"`      // Stripe支付配置
+	Order      *OrderConfig         `mapstructure:"order"`       // 订单配置
 	InnoPaaS   *InnoPaaSConfig   `mapstructure:"innopaas"`    // InnoPaaS SMS配置
 }
 
@@ -148,6 +150,12 @@ func (c *Config) Validate() {
 	}
 	if c.KPay != nil {
 		c.KPay.Validate()
+	}
+	if c.MoMo != nil {
+		c.MoMo.Validate()
+	}
+	if c.Stripe != nil {
+		c.Stripe.Validate()
 	}
 	if c.Order == nil {
 		c.Order = &OrderConfig{}

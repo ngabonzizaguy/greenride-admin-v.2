@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"d:\\\\greenride-admin-v.2-1\\\\backend\\\\greenride-api-clean\\\\internal\\\\services\"\" | grep -E \"order)",
+      "Bash(payment \")",
+      "Bash(git checkout:*)",
+      "Bash(go get:*)",
+      "Bash(go build:*)",
+      "Bash(go mod tidy:*)",
+      "Bash(dir:*)"
+    ]
+  }
+}

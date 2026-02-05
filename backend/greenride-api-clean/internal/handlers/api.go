@@ -111,6 +111,8 @@ func (a *Api) SetupRouter() *gin.Engine {
 
 		// Webhook 回调接口 - 无需认证（第三方支付回调）
 		api.POST("/webhook/kpay/:payment_id", a.KPayWebhook)   // KPay 支付回调
+		api.POST("/webhook/momo/:payment_id", a.MoMoWebhook)   // MTN MoMo 支付回调
+		api.POST("/webhook/stripe", a.StripeWebhook)           // Stripe 支付回调
 		api.POST("/webhook/innopaas", a.InnoPaaSWebhook)       // InnoPaaS OTP/消息状态回调
 
 	}

@@ -8,6 +8,7 @@ const (
 	PaymentChannelKPay    = "kpay"    // KPay支付
 	PaymentChannelCash    = "cash"    // 现金支付
 	PaymentChannelSandbox = "sandbox" // 沙盒支付
+	PaymentChannelMoMo    = "momo"    // MTN MoMo Direct API
 
 	// 支付方式
 	PayMethodCard         = "card"          // 信用卡/借记卡
@@ -30,16 +31,17 @@ type PaymentMethodsRequest struct {
 
 // ChannelResult 支付渠道处理结果
 type ChannelResult struct {
-	PaymentID        string `json:"payment_id"`              // 支付订单ID
-	Status           string `json:"status"`                  // 支付状态
-	ChannelStatus    string `json:"channel_status"`          // 渠道状态
-	ResCode          string `json:"res_code"`                // 响应码
-	ResMsg           string `json:"res_msg"`                 // 响应消息
-	OrderType        string `json:"type"`                    // 交易类型
-	ChannelCode      string `json:"channel_code"`            // 渠道代码
-	ChannelPaymentID string `json:"channel_payment_id"`      // 渠道订单ID
-	RedirectURL      string `json:"redirect_url,omitempty"`  // 重定向URL
-	CallbackData     string `json:"callback_data,omitempty"` // 回调数据
+	PaymentID        string  `json:"payment_id"`              // 支付订单ID
+	Status           string  `json:"status"`                  // 支付状态
+	ChannelStatus    string  `json:"channel_status"`          // 渠道状态
+	ResCode          string  `json:"res_code"`                // 响应码
+	ResMsg           string  `json:"res_msg"`                 // 响应消息
+	OrderType        string  `json:"type"`                    // 交易类型
+	ChannelCode      string  `json:"channel_code"`            // 渠道代码
+	ChannelPaymentID string  `json:"channel_payment_id"`      // 渠道订单ID
+	RedirectURL      string  `json:"redirect_url,omitempty"`  // 重定向URL
+	CallbackData     string  `json:"callback_data,omitempty"` // 回调数据
+	Metadata         MapData `json:"metadata,omitempty"`      // 扩展元数据 (e.g., Stripe client_secret)
 }
 
 type CancelPaymentRequest struct {

@@ -21,11 +21,11 @@ func SyncPaymentChannels(channels []*models.PaymentChannels) {
 		var svc PaymentChannel
 		switch item.ChannelCode {
 		case protocol.PaymentChannelStripe:
-			// 在实际实现中创建Stripe服务实例
-			// newChannels[ch.AccountID] = NewStripeService(ch)
+			svc = NewStripeService(item)
+		case protocol.PaymentChannelMoMo:
+			svc = NewMoMoService(item)
 		case protocol.PaymentChannelKPay:
 			svc = NewKPayService(item)
-			// 其他渠道可以在这里添加
 		default:
 			log.Printf("Unsupported payment channel: %s", item.ChannelCode)
 			continue

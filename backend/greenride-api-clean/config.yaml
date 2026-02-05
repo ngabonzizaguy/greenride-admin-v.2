@@ -182,7 +182,17 @@ payment:
   timeout: 30
 
 kpay:
-  logo_url: 
+  logo_url:
   callback_url: /webhook/kpay
-  return_url: 
+  return_url:
+  timeout: 30
+
+# MTN MoMo Direct API Configuration
+momo:
+  callback_url: /webhook/momo
+  timeout: 30
+
+# Stripe Payment Configuration
+stripe:
+  callback_url: /webhook/stripe
   timeout: 30
