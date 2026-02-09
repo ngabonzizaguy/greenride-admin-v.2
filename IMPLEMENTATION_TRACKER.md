@@ -168,13 +168,37 @@ Fixing ride assignment logic, call permissions, and ETA accuracy in the GreenRid
 | `src/lib/api-client.ts` | Added `getOrderETA()` and `getOrderContact()` methods |
 | `src/app/(dashboard)/quick-booking/page.tsx` | Added ETA polling effect after booking complete |
 
+---
+
+## Phase 5: Bug Fixes & ETA Enhancement - COMPLETE
+
+### 5.1 Fix ride count increment on order completion
+- **File:** `backend/greenride-api-clean/internal/services/order_service.go`
+- **Status:** COMPLETE
+- **What:** Added `incrementRideCountsForOrder()` helper that increments `total_rides` for driver, passenger, and vehicle when an order completes
+- **Called from:** Both `OrderPayment()` (synchronous payment success) and `CheckOrderPayment()` (webhook callback success)
+- **Bug found:** `IncrementRideCount()` existed in `user.go:705` and `vehicle.go:626` but was NEVER called anywhere
+
+### 5.2 Enhance `/order/eta` with Google Directions API
+- **File:** `backend/greenride-api-clean/internal/services/order_service.go`
+- **Status:** COMPLETE
+- **What:** `GetOrderETA()` now tries Google Directions API first (4s timeout), falls back to Haversine rough estimate
+- **Response includes:** `mode: "accurate"` or `mode: "rough"` to indicate calculation method
+
+### 5.3 Mobile App Handoff Document
+- **File:** `MOBILE_APP_HANDOFF.md` (NEW)
+- **Status:** COMPLETE
+- **What:** Comprehensive document for mobile app team covering: driver online fix, location updates, phone privacy, `/order/contact`, `/order/eta`, ETA modes, booking flow, security guarantees
+
 ## Build Status
 - Go backend: `go build ./...` -- PASS
 - TypeScript: `tsc --noEmit` -- PASS
 
 ## What the Mobile App Team Needs to Know
-See the prompt/handoff document that was drafted separately. Key points:
+See `MOBILE_APP_HANDOFF.md` for full details. Key points:
 1. Phone numbers in order detail responses are now masked unless authorized
 2. New `/order/contact` endpoint is the only way to get phone for calling
-3. New `/order/eta` endpoint provides live ETA polling
+3. New `/order/eta` endpoint provides live ETA polling (now with Google Directions API)
 4. FCM acceptance notifications now include `DriverToPickupETA` and `DriverToPickupDistance`
+5. **CRITICAL:** The "Confirm" button bug in vehicle selection is a Flutter app issue - backend `POST /online` works correctly
+6. Ride counts (`total_rides`) are now incremented when orders complete

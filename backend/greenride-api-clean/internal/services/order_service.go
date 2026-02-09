@@ -446,6 +446,27 @@ func (s *OrderService) GetOrderETA(req *protocol.OrderETARequest) (*protocol.Ord
 		return resp, protocol.Success
 	}
 
+	// Try Google Directions API for accurate ETA
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	route, err := GetGoogleService().CalculateRidehailingRoute(ctx, driver.GetLatitude(), driver.GetLongitude(), destLat, destLng, false)
+	cancel()
+
+	if err == nil && route != nil && route.Duration != nil && route.Duration.Value > 0 {
+		etaMin := (route.Duration.Value + 59) / 60 // ceil seconds to minutes
+		if etaMin < 1 {
+			etaMin = 1
+		}
+		resp.ETAMinutes = etaMin
+		if route.Distance != nil && route.Distance.Value > 0 {
+			resp.DistanceKm = float64(route.Distance.Value) / 1000.0
+		} else {
+			resp.DistanceKm = utils.CalculateDistanceHaversine(driver.GetLatitude(), driver.GetLongitude(), destLat, destLng)
+		}
+		resp.Mode = "accurate"
+		return resp, protocol.Success
+	}
+
+	// Fallback to rough estimate
 	distKm := utils.CalculateDistanceHaversine(driver.GetLatitude(), driver.GetLongitude(), destLat, destLng)
 	etaMin := int(distKm * 2) // rough: 2 min per km
 	if etaMin < 1 && distKm > 0 {
@@ -1216,6 +1237,7 @@ func (s *OrderService) OrderPayment(req *protocol.OrderPaymentRequest) (result *
 	// 支付成功时，发送支付确认消息
 	if order.GetPaymentStatus() == protocol.StatusSuccess {
 		go s.NotifyPaymentConfirmed(req.OrderID)
+		go s.incrementRideCountsForOrder(order)
 	}
 
 	result = &protocol.OrderPaymentResult{
@@ -1270,8 +1292,46 @@ func (s *OrderService) CheckOrderPayment(order_id, payment_id string) {
 	// 支付成功时，发送支付确认消息
 	if order.GetPaymentStatus() == protocol.StatusSuccess {
 		go s.NotifyPaymentConfirmed(order.OrderID)
+		go s.incrementRideCountsForOrder(order)
 	}
 	log.Get().Info("OrderService.CheckOrderPayment: 订单支付状态已更新", "OrderID", order.OrderID, "PaymentStatus", order.GetPaymentStatus())
+}
+
+// incrementRideCountsForOrder increments total_rides for both driver and passenger when an order completes.
+func (s *OrderService) incrementRideCountsForOrder(order *models.Order) {
+	if order == nil {
+		return
+	}
+	// Increment driver ride count
+	if providerID := order.GetProviderID(); providerID != "" {
+		driver := models.GetUserByID(providerID)
+		if driver != nil {
+			driverValues := &models.UserValues{}
+			driverValues.SetTotalRides(driver.GetTotalRides() + 1)
+			if err := models.GetDB().Model(&models.User{}).Where("user_id = ?", providerID).UpdateColumns(driverValues).Error; err != nil {
+				log.Get().Warnf("Failed to increment ride count for driver %s: %v", providerID, err)
+			}
+		}
+		// Increment vehicle ride count
+		vehicle := models.GetVehicleByDriverID(providerID)
+		if vehicle != nil {
+			vehicle.IncrementRideCount()
+			if err := models.GetDB().Model(&models.Vehicle{}).Where("vehicle_id = ?", vehicle.VehicleID).UpdateColumns(vehicle.VehicleValues).Error; err != nil {
+				log.Get().Warnf("Failed to increment ride count for vehicle %s: %v", vehicle.VehicleID, err)
+			}
+		}
+	}
+	// Increment passenger ride count
+	if userID := order.GetUserID(); userID != "" {
+		passenger := models.GetUserByID(userID)
+		if passenger != nil {
+			passengerValues := &models.UserValues{}
+			passengerValues.SetTotalRides(passenger.GetTotalRides() + 1)
+			if err := models.GetDB().Model(&models.User{}).Where("user_id = ?", userID).UpdateColumns(passengerValues).Error; err != nil {
+				log.Get().Warnf("Failed to increment ride count for passenger %s: %v", userID, err)
+			}
+		}
+	}
 }
 
 // ============================================================================
