@@ -873,7 +873,7 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 
 	// Query online drivers within radius using Haversine formula
 	// Distance in km = 6371 * acos(cos(radians(lat1)) * cos(radians(lat2)) * cos(radians(lng2) - radians(lng1)) + sin(radians(lat1)) * sin(radians(lat2)))
-	// Uses t_user_location_history for recent location updates (within last 5 minutes = 300000ms)
+	// Uses t_user_location_history for recent location updates (within last 2 minutes = 120000ms)
 	query := `
 		SELECT 
 			u.user_id,
@@ -904,7 +904,7 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 			SELECT user_id, latitude, longitude, heading, online_status, recorded_at,
 				ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY recorded_at DESC) as rn
 			FROM t_user_location_history
-			WHERE recorded_at > (UNIX_TIMESTAMP(NOW()) * 1000 - 300000)
+			WHERE recorded_at > (UNIX_TIMESTAMP(NOW()) * 1000 - 120000)
 		) ulh ON u.user_id = ulh.user_id AND ulh.rn = 1
 		LEFT JOIN t_vehicles v ON u.user_id = v.driver_id AND v.status = 'active'
 		WHERE u.user_type = 'driver'

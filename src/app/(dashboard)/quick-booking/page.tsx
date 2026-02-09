@@ -281,6 +281,37 @@ export default function QuickBookingPage() {
     setCurrentStep(step);
   };
 
+  // Poll live ETA after booking is complete
+  useEffect(() => {
+    if (!bookingComplete || !bookingDetails?.orderId) return;
+    let cancelled = false;
+
+    const pollETA = async () => {
+      try {
+        const res = await apiClient.getOrderETA(bookingDetails.orderId);
+        if (!cancelled && res.code === '0000' && res.data) {
+          const { eta_minutes, distance_km } = res.data;
+          if (eta_minutes > 0) {
+            setBookingDetails(prev => prev ? {
+              ...prev,
+              eta: `${eta_minutes} min (${distance_km.toFixed(1)} km away)`,
+            } : prev);
+          }
+        }
+      } catch {
+        // Silently ignore ETA polling errors
+      }
+    };
+
+    pollETA(); // Initial fetch
+    const interval = setInterval(pollETA, 10000); // Poll every 10s
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [bookingComplete, bookingDetails?.orderId]);
+
   // Load nearby available drivers with accurate ETA (polling while on confirm step)
   useEffect(() => {
     if (currentStep !== 'confirm') return;

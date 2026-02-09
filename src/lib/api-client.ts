@@ -1264,6 +1264,42 @@ class ApiClient {
   }
 
   /**
+   * Get live ETA for an active order
+   * POST /order/eta
+   */
+  async getOrderETA(orderId: string): Promise<ApiResponse<{
+    order_id: string;
+    eta_minutes: number;
+    distance_km: number;
+    driver_latitude: number;
+    driver_longitude: number;
+    pickup_latitude: number;
+    pickup_longitude: number;
+    mode: string;
+    updated_at: number;
+  }>> {
+    return this.request('/order/eta', {
+      method: 'POST',
+      body: { order_id: orderId },
+    });
+  }
+
+  /**
+   * Get order contact info (call permission check)
+   * POST /order/contact
+   */
+  async getOrderContact(orderId: string): Promise<ApiResponse<{
+    allowed: boolean;
+    phone?: string;
+    name?: string;
+  }>> {
+    return this.request('/order/contact', {
+      method: 'POST',
+      body: { order_id: orderId },
+    });
+  }
+
+  /**
    * Estimate order
    * POST /orders/estimate
    */

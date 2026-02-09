@@ -253,6 +253,20 @@ func (s *DispatchService) SendDispatchNotifications(record *models.DispatchRecor
 		}
 	}
 
+	// Add driver-to-pickup ETA and distance
+	if driver.GetLatitude() != 0 && orderDetail.GetPickupLatitude() != 0 {
+		distKm := utils.CalculateDistanceHaversine(
+			driver.GetLatitude(), driver.GetLongitude(),
+			orderDetail.GetPickupLatitude(), orderDetail.GetPickupLongitude(),
+		)
+		etaMin := int(distKm * 2) // rough: 2 min/km
+		if etaMin < 1 && distKm > 0 {
+			etaMin = 1
+		}
+		params["DriverToPickupETA"] = etaMin
+		params["DriverToPickupDistance"] = fmt.Sprintf("%.1f", distKm)
+	}
+
 	// 创建消息对象
 	message := &Message{
 		Type:     protocol.MsgTypeDriverNewOrder,

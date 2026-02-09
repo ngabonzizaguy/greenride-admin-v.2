@@ -114,7 +114,7 @@ func (s *OrderService) GetOrdersByUser(req *protocol.UserRidesRequest) ([]*proto
 	}
 	list := []*protocol.Order{}
 	for _, order := range orders {
-		info := s.GetOrderInfo(order)
+		info := s.GetOrderInfoSanitized(order, req.UserID, userType)
 		list = append(list, info)
 	}
 
@@ -141,6 +141,13 @@ func (s *OrderService) CancelOrder(orderID, cancelledBy, reason string) protocol
 
 		if err := models.UpdateOrder(tx, order, values); err != nil {
 			return err
+		}
+
+		// Cancel all pending dispatch records for this order
+		if err := tx.Model(&models.DispatchRecord{}).
+			Where("order_id = ? AND status = ?", orderID, protocol.StatusPending).
+			UpdateColumn("status", protocol.StatusCancelled).Error; err != nil {
+			log.Get().Warnf("Failed to cancel pending dispatches for order %s: %v", orderID, err)
 		}
 
 		// 恢复用户优惠券状态
@@ -285,6 +292,169 @@ func (s *OrderService) GetOrderInfo(order *models.Order) *protocol.Order {
 	}
 
 	return info
+}
+
+// GetOrderInfoSanitized returns order info with phone numbers masked based on
+// who is requesting. Only the assigned driver (after acceptance) can see the
+// passenger phone, and only the passenger (after a driver accepts) can see the
+// driver phone. Everyone else sees masked values.
+func (s *OrderService) GetOrderInfoSanitized(order *models.Order, requesterID, requesterType string) *protocol.Order {
+	info := s.GetOrderInfo(order)
+	if info == nil {
+		return nil
+	}
+
+	// Statuses where contact info is revealed between assigned parties
+	revealStatuses := map[string]bool{
+		protocol.StatusAccepted:      true,
+		protocol.StatusDriverComing:  true,
+		protocol.StatusDriverArrived: true,
+		protocol.StatusInProgress:    true,
+	}
+
+	orderStatus := order.GetStatus()
+	isAssignedDriver := requesterType == protocol.UserTypeDriver && order.GetProviderID() == requesterID && order.GetProviderID() != ""
+	isPassenger := requesterType == protocol.UserTypePassenger && order.GetUserID() == requesterID
+
+	// Mask passenger phone unless requester is the assigned driver with an active status
+	if info.Passenger != nil {
+		if !(isAssignedDriver && revealStatuses[orderStatus]) {
+			info.Passenger.Phone = utils.MaskPhone(info.Passenger.Phone)
+		}
+	}
+
+	// Mask driver phone unless requester is the passenger with an active status
+	if info.Driver != nil {
+		if !(isPassenger && revealStatuses[orderStatus]) {
+			info.Driver.Phone = utils.MaskPhone(info.Driver.Phone)
+		}
+	}
+
+	// Mask phone fields in OrderDetail as well
+	if info.Details != nil {
+		if !(isAssignedDriver && revealStatuses[orderStatus]) {
+			info.Details.PassengerPhone = utils.MaskPhone(info.Details.PassengerPhone)
+		}
+		if !(isPassenger && revealStatuses[orderStatus]) {
+			info.Details.DriverPhone = utils.MaskPhone(info.Details.DriverPhone)
+		}
+	}
+
+	return info
+}
+
+// GetOrderContactInfo returns the counterpart's phone number for calling,
+// only if the requester is the assigned driver or the passenger on an active order.
+func (s *OrderService) GetOrderContactInfo(req *protocol.OrderContactRequest) (*protocol.OrderContactResponse, protocol.ErrorCode) {
+	order := models.GetOrderByID(req.OrderID)
+	if order == nil || order.GetOrderType() != protocol.RideOrder {
+		return nil, protocol.OrderNotFound
+	}
+
+	revealStatuses := map[string]bool{
+		protocol.StatusAccepted:      true,
+		protocol.StatusDriverComing:  true,
+		protocol.StatusDriverArrived: true,
+		protocol.StatusInProgress:    true,
+	}
+
+	if !revealStatuses[order.GetStatus()] {
+		return &protocol.OrderContactResponse{Allowed: false}, protocol.Success
+	}
+
+	// Requester is the assigned driver -> return passenger phone
+	if order.GetProviderID() == req.UserID && order.GetProviderID() != "" {
+		passenger := models.GetUserByID(order.GetUserID())
+		if passenger != nil {
+			return &protocol.OrderContactResponse{
+				Allowed: true,
+				Phone:   passenger.GetPhone(),
+				Name:    passenger.GetFullName(),
+			}, protocol.Success
+		}
+	}
+
+	// Requester is the passenger -> return driver phone
+	if order.GetUserID() == req.UserID && order.GetProviderID() != "" {
+		driver := models.GetUserByID(order.GetProviderID())
+		if driver != nil {
+			return &protocol.OrderContactResponse{
+				Allowed: true,
+				Phone:   driver.GetPhone(),
+				Name:    driver.GetDisplayName(),
+			}, protocol.Success
+		}
+	}
+
+	return &protocol.OrderContactResponse{Allowed: false}, protocol.Success
+}
+
+// GetOrderETA returns live ETA from the assigned driver's location to the
+// pickup (pre-trip) or dropoff (in-progress). Uses Haversine rough estimate;
+// Google Directions integration will be added in Phase 3.
+func (s *OrderService) GetOrderETA(req *protocol.OrderETARequest) (*protocol.OrderETAResponse, protocol.ErrorCode) {
+	order := models.GetOrderByID(req.OrderID)
+	if order == nil || order.GetOrderType() != protocol.RideOrder {
+		return nil, protocol.OrderNotFound
+	}
+
+	// Permission: only passenger or assigned driver
+	if order.GetUserID() != req.UserID && order.GetProviderID() != req.UserID {
+		return nil, protocol.PermissionDenied
+	}
+
+	detail := models.GetOrderDetail(order.OrderID, order.GetOrderType())
+	if detail == nil {
+		return nil, protocol.OrderNotFound
+	}
+
+	resp := &protocol.OrderETAResponse{
+		OrderID:         order.OrderID,
+		PickupLatitude:  detail.GetPickupLatitude(),
+		PickupLongitude: detail.GetPickupLongitude(),
+		UpdatedAt:       utils.TimeNowMilli(),
+		Mode:            "rough",
+	}
+
+	// If no driver assigned yet, return estimate from order detail
+	if order.GetProviderID() == "" {
+		resp.ETAMinutes = detail.GetEstimatedDuration() / 60
+		resp.DistanceKm = detail.GetEstimatedDistance()
+		return resp, protocol.Success
+	}
+
+	driver := models.GetUserByID(order.GetProviderID())
+	if driver == nil {
+		return resp, protocol.Success
+	}
+
+	resp.DriverLatitude = driver.GetLatitude()
+	resp.DriverLongitude = driver.GetLongitude()
+
+	// Determine destination based on order status
+	var destLat, destLng float64
+	switch order.GetStatus() {
+	case protocol.StatusAccepted, protocol.StatusDriverComing, protocol.StatusDriverArrived:
+		// Driver heading to pickup
+		destLat = detail.GetPickupLatitude()
+		destLng = detail.GetPickupLongitude()
+	case protocol.StatusInProgress:
+		// Driver heading to dropoff
+		destLat = detail.GetDropoffLatitude()
+		destLng = detail.GetDropoffLongitude()
+	default:
+		return resp, protocol.Success
+	}
+
+	distKm := utils.CalculateDistanceHaversine(driver.GetLatitude(), driver.GetLongitude(), destLat, destLng)
+	etaMin := int(distKm * 2) // rough: 2 min per km
+	if etaMin < 1 && distKm > 0 {
+		etaMin = 1
+	}
+	resp.DistanceKm = distKm
+	resp.ETAMinutes = etaMin
+
+	return resp, protocol.Success
 }
 
 // ============================================================================
@@ -834,11 +1004,11 @@ func (s *OrderService) AcceptOrder(req *protocol.OrderActionRequest) protocol.Er
 	// 使用事务确保订单和车辆信息的一致性
 	hasAccepted := true
 	err := models.DB.Transaction(func(tx *gorm.DB) error {
-		// 更新主订单表
+		// 更新主订单表 (also allow pre-assigned driver to accept)
 		rs := tx.Model(&models.Order{}).
 			Where("order_id = ?", order.OrderID).
 			Where("status = ?", protocol.StatusRequested).
-			Where("provider_id IS NULL or provider_id =''").
+			Where("provider_id IS NULL OR provider_id = '' OR provider_id = ?", req.UserID).
 			UpdateColumns(orderValues)
 		if rs.Error != nil {
 			return rs.Error
@@ -932,7 +1102,13 @@ func (s *OrderService) GetNearbyOrders(req *protocol.GetNearbyOrdersRequest) (*p
 	var order_list []string
 	query := models.GetDB().Model(&models.Order{}).
 		Where("order_type = ?", req.OrderType).
-		Where("status = ?", protocol.StatusRequested)
+		Where("status = ?", protocol.StatusRequested).
+		// Exclude orders already pre-assigned to a specific driver
+		Where("t_orders.provider_id IS NULL OR t_orders.provider_id = ''").
+		// Exclude orders with active pending dispatch records (already being dispatched)
+		Where("t_orders.order_id NOT IN (?)",
+			models.GetDB().Model(&models.DispatchRecord{}).Select("order_id").
+				Where("status = ?", protocol.StatusPending))
 	//计算坐标范围,根据坐标和半径
 	if req.Radius != 0 && req.Latitude != 0 && req.Longitude != 0 {
 		minLat, maxLat, minLng, maxLng := utils.CalculateCoordinateRange(req.Latitude, req.Longitude, req.Radius)
@@ -947,7 +1123,15 @@ func (s *OrderService) GetNearbyOrders(req *protocol.GetNearbyOrdersRequest) (*p
 
 	var orderList []*protocol.Order
 	for _, orderID := range order_list {
-		orderList = append(orderList, s.GetOrderInfoByID(orderID))
+		order := models.GetOrderByID(orderID)
+		if order == nil {
+			continue
+		}
+		// Sanitize: browsing drivers should not see passenger phone
+		info := s.GetOrderInfoSanitized(order, req.RequesterID, protocol.UserTypeDriver)
+		if info != nil {
+			orderList = append(orderList, info)
+		}
 	}
 
 	response := &protocol.GetNearbyOrdersResponse{
@@ -1183,6 +1367,16 @@ func (s *OrderService) NotifyPassenger(order *models.Order, notificationType str
 		}
 	}
 
+	// Include ETA metadata in notification if present (set by NotifyOrderAccepted)
+	if meta := order.GetMetadata(); meta != nil {
+		if eta, ok := meta["driver_to_pickup_eta"]; ok {
+			params["DriverToPickupETA"] = eta
+		}
+		if dist, ok := meta["driver_to_pickup_distance"]; ok {
+			params["DriverToPickupDistance"] = dist
+		}
+	}
+
 	// 创建消息对象
 	message := &Message{
 		Type:     msgType,
@@ -1273,11 +1467,37 @@ func (s *OrderService) NotifyDriver(order *models.Order, notificationType string
 }
 
 // NotifyOrderAccepted 通知乘客订单已被接单（司机触发）
+// Includes driver-to-pickup ETA in the notification.
 func (s *OrderService) NotifyOrderAccepted(orderID string) error {
 	order := models.GetOrderByID(orderID)
 	if order == nil {
 		return errors.New("order not found")
 	}
+
+	// Calculate ETA from driver to pickup for the notification
+	if order.GetProviderID() != "" {
+		driver := models.GetUserByID(order.GetProviderID())
+		detail := models.GetOrderDetail(order.OrderID, order.GetOrderType())
+		if driver != nil && detail != nil && detail.GetPickupLatitude() != 0 {
+			distKm := utils.CalculateDistanceHaversine(
+				driver.GetLatitude(), driver.GetLongitude(),
+				detail.GetPickupLatitude(), detail.GetPickupLongitude(),
+			)
+			etaMin := int(distKm * 2) // rough: 2 min/km
+			if etaMin < 1 && distKm > 0 {
+				etaMin = 1
+			}
+			// Store ETA in order metadata so NotifyPassenger can include it
+			if order.GetMetadata() == nil {
+				order.SetMetadata(map[string]any{})
+			}
+			meta := order.GetMetadata()
+			meta["driver_to_pickup_eta"] = etaMin
+			meta["driver_to_pickup_distance"] = fmt.Sprintf("%.1f", distKm)
+			order.SetMetadata(meta)
+		}
+	}
+
 	return s.NotifyPassenger(order, protocol.NotificationTypeOrderAccepted)
 }
 

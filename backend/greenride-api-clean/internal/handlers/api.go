@@ -148,6 +148,8 @@ func (a *Api) SetupRouter() *gin.Engine {
 		authRequired.POST("/order/cancel", a.CancelOrder)       // 取消订单
 		authRequired.POST("/order/rating", a.CreateOrderRating) // 创建订单评价
 		authRequired.POST("/order/ratings", a.GetOrderRatings)  // 获取订单评价
+		authRequired.POST("/order/contact", a.GetOrderContact)  // 获取订单联系方式（通话权限）
+		authRequired.POST("/order/eta", a.GetOrderETA)          // 获取订单实时ETA
 
 		// 服务提供者接口 (司机、外卖员等)
 		authRequired.POST("/nearby", a.GetNearbyOrders)                // 获取附近订单

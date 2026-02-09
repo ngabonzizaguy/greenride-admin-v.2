@@ -186,11 +186,12 @@ type ReplyToRatingRequest struct {
 
 // GetNearbyOrdersRequest 获取附近订单请求
 type GetNearbyOrdersRequest struct {
-	Latitude  float64 `form:"latitude"`
-	Longitude float64 `form:"longitude" `
-	Radius    float64 `form:"radius,default=10"`    // 半径（公里）
-	OrderType string  `form:"order_type,omitempty"` // 订单类型过滤
-	Limit     int     `form:"limit,default=10"`     // 数量限制
+	Latitude    float64 `form:"latitude"`
+	Longitude   float64 `form:"longitude" `
+	Radius      float64 `form:"radius,default=10"`    // 半径（公里）
+	OrderType   string  `form:"order_type,omitempty"` // 订单类型过滤
+	Limit       int     `form:"limit,default=10"`     // 数量限制
+	RequesterID string  `json:"-"`                    // set from auth context
 }
 
 // =============================================================================
@@ -292,4 +293,44 @@ type NearbyDriver struct {
 type GetNearbyDriversResponse struct {
 	Drivers []*NearbyDriver `json:"drivers"`
 	Count   int             `json:"count"`
+}
+
+// =============================================================================
+// Order Contact (Call Permission) Request/Response
+// =============================================================================
+
+// OrderContactRequest request to get contact info for calling
+type OrderContactRequest struct {
+	OrderID string `json:"order_id" binding:"required"`
+	UserID  string `json:"-"` // set from auth context
+}
+
+// OrderContactResponse returns whether calling is allowed and the phone number
+type OrderContactResponse struct {
+	Allowed bool   `json:"allowed"`
+	Phone   string `json:"phone,omitempty"`
+	Name    string `json:"name,omitempty"`
+}
+
+// =============================================================================
+// Order ETA Request/Response
+// =============================================================================
+
+// OrderETARequest request for live ETA of an active order
+type OrderETARequest struct {
+	OrderID string `json:"order_id" binding:"required"`
+	UserID  string `json:"-"` // set from auth context
+}
+
+// OrderETAResponse returns live ETA and driver position
+type OrderETAResponse struct {
+	OrderID         string  `json:"order_id"`
+	ETAMinutes      int     `json:"eta_minutes"`
+	DistanceKm      float64 `json:"distance_km"`
+	DriverLatitude  float64 `json:"driver_latitude,omitempty"`
+	DriverLongitude float64 `json:"driver_longitude,omitempty"`
+	PickupLatitude  float64 `json:"pickup_latitude"`
+	PickupLongitude float64 `json:"pickup_longitude"`
+	Mode            string  `json:"mode"` // "rough" or "accurate"
+	UpdatedAt       int64   `json:"updated_at"`
 }

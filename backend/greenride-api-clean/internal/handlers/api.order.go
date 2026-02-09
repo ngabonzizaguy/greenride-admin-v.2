@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"greenride/internal/middleware"
+	"greenride/internal/models"
 	"greenride/internal/protocol"
 	"greenride/internal/services"
 
@@ -154,23 +155,25 @@ func (a *Api) GetOrderDetail(c *gin.Context) {
 		return
 	}
 
-	// 获取主订单
-	order := services.GetOrderService().GetOrderInfoByID(req.OrderID)
-	if order == nil {
+	// 获取原始订单用于权限检查
+	rawOrder := models.GetOrderByID(req.OrderID)
+	if rawOrder == nil {
 		c.JSON(http.StatusOK, protocol.NewErrorResult(protocol.DatabaseError, lang))
 		return
 	}
 
 	// 权限检查
 	userType := user.GetUserType()
-	if userType == protocol.UserTypeDriver && order.ProviderID != "" && order.ProviderID != user.UserID {
+	if userType == protocol.UserTypeDriver && rawOrder.GetProviderID() != "" && rawOrder.GetProviderID() != user.UserID {
 		c.JSON(http.StatusOK, protocol.NewErrorResult(protocol.PermissionDenied, lang))
 		return
 	}
-	if userType == protocol.UserTypePassenger && order.UserID != user.UserID {
+	if userType == protocol.UserTypePassenger && rawOrder.GetUserID() != user.UserID {
 		c.JSON(http.StatusOK, protocol.NewErrorResult(protocol.PermissionDenied, lang))
 		return
 	}
+	// Return sanitized order with phone masking based on requester role
+	order := services.GetOrderService().GetOrderInfoSanitized(rawOrder, user.UserID, userType)
 	c.JSON(http.StatusOK, protocol.NewSuccessResultWithLang(order, lang))
 }
 
@@ -406,6 +409,7 @@ func (a *Api) GetNearbyOrders(c *gin.Context) {
 		req.Limit = 10
 	}
 	req.OrderType = protocol.RideOrder
+	req.RequesterID = user.UserID
 	// 使用 OrderService 获取附近订单
 	response, errCode := services.GetOrderService().GetNearbyOrders(&req)
 	if errCode != protocol.Success {
@@ -413,6 +417,63 @@ func (a *Api) GetNearbyOrders(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, protocol.NewSuccessResultWithLang(response, lang))
+}
+
+// GetOrderContact returns the counterpart's phone number for calling.
+// Only the assigned driver or passenger on an active order can retrieve contact info.
+// @Summary Get order contact info for calling
+// @Tags Api,订单
+// @Accept json
+// @Produce json
+// @Param request body protocol.OrderContactRequest true "Order contact request"
+// @Success 200 {object} protocol.Result{data=protocol.OrderContactResponse}
+// @Security BearerAuth
+// @Router /order/contact [post]
+func (a *Api) GetOrderContact(c *gin.Context) {
+	lang := middleware.GetLanguageFromContext(c)
+	user := GetUserFromContext(c)
+
+	var req protocol.OrderContactRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, protocol.NewErrorResult(protocol.InvalidParams, lang, err.Error()))
+		return
+	}
+	req.UserID = user.UserID
+
+	response, errCode := services.GetOrderService().GetOrderContactInfo(&req)
+	if errCode != protocol.Success {
+		c.JSON(http.StatusOK, protocol.NewErrorResult(errCode, lang))
+		return
+	}
+	c.JSON(http.StatusOK, protocol.NewSuccessResult(response))
+}
+
+// GetOrderETA returns live ETA from the assigned driver's current location.
+// @Summary Get live ETA for an active order
+// @Tags Api,订单
+// @Accept json
+// @Produce json
+// @Param request body protocol.OrderETARequest true "Order ETA request"
+// @Success 200 {object} protocol.Result{data=protocol.OrderETAResponse}
+// @Security BearerAuth
+// @Router /order/eta [post]
+func (a *Api) GetOrderETA(c *gin.Context) {
+	lang := middleware.GetLanguageFromContext(c)
+	user := GetUserFromContext(c)
+
+	var req protocol.OrderETARequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, protocol.NewErrorResult(protocol.InvalidParams, lang, err.Error()))
+		return
+	}
+	req.UserID = user.UserID
+
+	response, errCode := services.GetOrderService().GetOrderETA(&req)
+	if errCode != protocol.Success {
+		c.JSON(http.StatusOK, protocol.NewErrorResult(errCode, lang))
+		return
+	}
+	c.JSON(http.StatusOK, protocol.NewSuccessResult(response))
 }
 
 // OrderCashReceived 确认现金收款

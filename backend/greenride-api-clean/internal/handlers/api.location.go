@@ -103,6 +103,14 @@ func (a *Api) GetNearbyDrivers(c *gin.Context) {
 		return
 	}
 
+	// Strip driver phone numbers for passengers (privacy)
+	user := GetUserFromContext(c)
+	if user != nil && user.IsPassenger() {
+		for i := range drivers {
+			drivers[i].Phone = ""
+		}
+	}
+
 	// 构造响应
 	response := &protocol.GetNearbyDriversResponse{
 		Drivers: drivers,
