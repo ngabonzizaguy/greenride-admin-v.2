@@ -373,6 +373,32 @@ func (a *Api) CancelOrder(c *gin.Context) {
 	c.JSON(http.StatusOK, protocol.NewSuccessResult(""))
 }
 
+// GetCancelReasons 获取取消原因列表
+// @Summary 获取取消原因列表
+// @Description 根据用户类型返回预定义的取消原因列表
+// @Tags Api,订单
+// @Produce json
+// @Param user_type query string false "用户类型: driver 或 passenger"
+// @Success 200 {object} protocol.Result "取消原因列表"
+// @Security BearerAuth
+// @Router /order/cancel-reasons [get]
+func (a *Api) GetCancelReasons(c *gin.Context) {
+	user := GetUserFromContext(c)
+	userType := c.Query("user_type")
+
+	// If user_type not provided, detect from authenticated user
+	if userType == "" {
+		if user.IsDriver() {
+			userType = protocol.UserTypeDriver
+		} else {
+			userType = protocol.UserTypePassenger
+		}
+	}
+
+	reasons := protocol.GetCancelReasonsByUserType(userType)
+	c.JSON(http.StatusOK, protocol.NewSuccessResult(reasons))
+}
+
 // =============================================================================
 // 附近订单和支付确认接口
 // =============================================================================

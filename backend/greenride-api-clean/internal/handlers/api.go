@@ -146,6 +146,7 @@ func (a *Api) SetupRouter() *gin.Engine {
 		authRequired.POST("/order/start", a.StartOrder)         // 开始订单
 		authRequired.POST("/order/finish", a.FinishOrder)       // 完成订单
 		authRequired.POST("/order/cancel", a.CancelOrder)       // 取消订单
+		authRequired.GET("/order/cancel-reasons", a.GetCancelReasons) // 获取取消原因列表
 		authRequired.POST("/order/rating", a.CreateOrderRating) // 创建订单评价
 		authRequired.POST("/order/ratings", a.GetOrderRatings)  // 获取订单评价
 		authRequired.POST("/order/contact", a.GetOrderContact)  // 获取订单联系方式（通话权限）

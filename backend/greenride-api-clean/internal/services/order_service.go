@@ -220,6 +220,12 @@ func (s *OrderService) CancelOrderRequest(req *protocol.CancelOrderRequest) prot
 		userType = protocol.UserTypeDriver
 	}
 
+	// Resolve cancellation reason (backward-compatible)
+	reason := s.resolveCancelReason(req, userType)
+	if reason == "" {
+		return protocol.InvalidParams // must provide either reason or reason_key
+	}
+
 	// 保存订单旧状态
 	oldOrder := models.GetOrderByID(req.OrderID)
 	if oldOrder == nil {
@@ -227,17 +233,41 @@ func (s *OrderService) CancelOrderRequest(req *protocol.CancelOrderRequest) prot
 	}
 
 	// 调用取消订单的内部方法
-	errCode := s.CancelOrder(req.OrderID, req.UserID, req.Reason)
+	errCode := s.CancelOrder(req.OrderID, req.UserID, reason)
 
 	// 如果取消成功，记录历史
 	if errCode == protocol.Success {
 		go func() {
 			newOrder := models.GetOrderByID(req.OrderID)
-			GetOrderHistoryService().RecordOrderCancelled(oldOrder, newOrder, req.UserID, userType, req.Reason)
+			GetOrderHistoryService().RecordOrderCancelled(oldOrder, newOrder, req.UserID, userType, reason)
 		}()
 	}
 
 	return errCode
+}
+
+// resolveCancelReason resolves the cancellation reason from either the new
+// reason_key/custom_reason fields or the legacy free-form reason field.
+func (s *OrderService) resolveCancelReason(req *protocol.CancelOrderRequest, userType string) string {
+	// New flow: reason_key provided
+	if req.ReasonKey != "" {
+		if req.ReasonKey == "other" {
+			if req.CustomReason != "" {
+				return req.CustomReason
+			}
+			return "Other"
+		}
+		// Validate key and resolve to label
+		label := protocol.GetCancelReasonLabel(req.ReasonKey, userType)
+		if label != "" {
+			return label
+		}
+		// Unknown key — treat as free-form text
+		return req.ReasonKey
+	}
+
+	// Legacy flow: free-form reason field
+	return req.Reason
 }
 
 // CanCancelOrder 检查订单是否可以取消

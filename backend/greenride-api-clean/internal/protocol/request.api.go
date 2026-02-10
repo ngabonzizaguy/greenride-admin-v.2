@@ -151,9 +151,11 @@ type UpdateOrderStatusRequest struct {
 
 // CancelOrderRequest 取消订单请求
 type CancelOrderRequest struct {
-	OrderID string `json:"order_id" binding:"required"`
-	UserID  string `json:"user_id"`                   // 内部设置
-	Reason  string `json:"reason" binding:"required"` // 取消原因
+	OrderID      string `json:"order_id" binding:"required"`
+	UserID       string `json:"user_id"`                  // 内部设置
+	Reason       string `json:"reason,omitempty"`         // 取消原因 (旧版兼容, free-form text)
+	ReasonKey    string `json:"reason_key,omitempty"`     // 预定义取消原因 key (新版)
+	CustomReason string `json:"custom_reason,omitempty"`  // 自定义原因 (当 reason_key="other" 时使用)
 }
 
 // =============================================================================

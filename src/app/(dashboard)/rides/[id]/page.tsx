@@ -73,6 +73,8 @@ interface RideData {
   started_at?: number;
   completed_at?: number;
   cancelled_at?: number;
+  cancelled_by?: string;
+  cancel_reason?: string;
   driver_ratings?: Array<{ rating?: number; comment?: string }>;
 }
 
@@ -130,6 +132,8 @@ export default function RideDetailPage({ params }: { params: Promise<{ id: strin
             started_at: data.started_at as number,
             completed_at: data.completed_at as number,
             cancelled_at: data.cancelled_at as number,
+            cancelled_by: data.cancelled_by as string,
+            cancel_reason: data.cancel_reason as string,
             driver_ratings: data.driver_ratings as Array<{ rating?: number; comment?: string }>,
           });
         } else {
@@ -371,6 +375,44 @@ export default function RideDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
                 {review && (
                   <p className="text-muted-foreground italic">&quot;{review}&quot;</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Cancellation Info */}
+          {ride.status === 'cancelled' && (
+            <Card className="border-red-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-red-700">
+                  <XCircle className="h-4 w-4" />
+                  Cancellation Details
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {ride.cancel_reason && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Reason</span>
+                    <span className="font-medium">{ride.cancel_reason}</span>
+                  </div>
+                )}
+                {ride.cancelled_by && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Cancelled by</span>
+                    <span className="font-medium">
+                      {ride.cancelled_by === ride.passenger?.user_id
+                        ? 'Passenger'
+                        : ride.cancelled_by === ride.driver?.user_id
+                        ? 'Driver'
+                        : 'System'}
+                    </span>
+                  </div>
+                )}
+                {ride.cancelled_at && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Cancelled at</span>
+                    <span>{new Date(ride.cancelled_at).toLocaleString()}</span>
+                  </div>
                 )}
               </CardContent>
             </Card>
