@@ -117,7 +117,7 @@ export default function QuickBookingPage() {
   // Auto-hide messages
   useEffect(() => {
     if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(null), 5000);
+      const timer = setTimeout(() => setSuccessMessage(null), 8000);
       return () => clearTimeout(timer);
     }
   }, [successMessage]);

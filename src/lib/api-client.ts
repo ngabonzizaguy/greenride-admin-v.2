@@ -1943,6 +1943,68 @@ class ApiClient {
       method: 'POST',
     });
   }
+
+  // ============================================
+  // SYSTEM CONFIG ENDPOINTS (Maintenance Mode)
+  // ============================================
+
+  /**
+   * Get system config (maintenance mode status, etc.)
+   * GET /system/config
+   */
+  async getSystemConfig(): Promise<ApiResponse<{
+    maintenance_mode: boolean;
+    maintenance_message: string;
+    maintenance_phone: string;
+    maintenance_started_at: number;
+  }>> {
+    if (DEMO_MODE) {
+      return {
+        code: API_CODES.SUCCESS,
+        msg: 'Success',
+        data: {
+          maintenance_mode: false,
+          maintenance_message: "We're currently improving your experience. Our services will resume shortly.",
+          maintenance_phone: '6996',
+          maintenance_started_at: 0,
+        },
+      };
+    }
+    return this.request('/system/config');
+  }
+
+  /**
+   * Update system config (maintenance mode, etc.)
+   * POST /system/config
+   */
+  async updateSystemConfig(config: {
+    maintenance_mode?: boolean;
+    maintenance_message?: string;
+    maintenance_phone?: string;
+  }): Promise<ApiResponse<{
+    maintenance_mode: boolean;
+    maintenance_message: string;
+    maintenance_phone: string;
+    maintenance_started_at: number;
+  }>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 300));
+      return {
+        code: API_CODES.SUCCESS,
+        msg: 'System config updated',
+        data: {
+          maintenance_mode: config.maintenance_mode ?? false,
+          maintenance_message: config.maintenance_message ?? '',
+          maintenance_phone: config.maintenance_phone ?? '6996',
+          maintenance_started_at: config.maintenance_mode ? Date.now() : 0,
+        },
+      };
+    }
+    return this.request('/system/config', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+  }
 }
 
 /**

@@ -177,6 +177,13 @@ func (t *Admin) registerAuthedRoutes(adminAPI *gin.RouterGroup) {
 			supportAPI.POST("/config", t.UpdateSupportConfig) // 更新支持配置
 		}
 
+		// 系统配置相关（维护模式等）
+		systemAPI := adminAPI.Group("/system")
+		{
+			systemAPI.GET("/config", t.AdminGetSystemConfig)     // 获取系统配置
+			systemAPI.POST("/config", t.AdminUpdateSystemConfig) // 更新系统配置
+		}
+
 		// 通知管理相关
 		notificationAPI := adminAPI.Group("/notifications")
 		{

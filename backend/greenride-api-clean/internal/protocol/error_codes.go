@@ -16,6 +16,7 @@ const (
 	FileError       ErrorCode = "1007" // 文件操作错误
 	JSONParseError  ErrorCode = "1008" // JSON解析错误
 	ThirdPartyError ErrorCode = "1009" // 第三方服务错误
+	MaintenanceMode ErrorCode = "1100" // 系统维护中
 )
 
 // 请求相关错误码 (2000-2999)
@@ -292,6 +293,7 @@ func (code ErrorCode) GetMessage() string {
 		FileError:       "File operation error",
 		JSONParseError:  "JSON parsing error",
 		ThirdPartyError: "Third-party service error",
+		MaintenanceMode: "System is under maintenance",
 
 		// 请求相关错误码
 		InvalidRequest:     "Invalid request",
@@ -524,6 +526,8 @@ func (code ErrorCode) GetCodeInt() int {
 		return 1004
 	case InternalError:
 		return 1005
+	case MaintenanceMode:
+		return 1100
 	case InvalidRequest:
 		return 2000
 	case InvalidParams:

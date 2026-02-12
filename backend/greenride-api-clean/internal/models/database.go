@@ -125,6 +125,9 @@ func AutoMigrate() error {
 		// 支持配置
 		&SupportConfig{},
 
+		// 系统配置
+		&SystemConfig{},
+
 		// 任务
 		&Task{},
 	}

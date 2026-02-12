@@ -84,12 +84,12 @@ type OrderDetail struct {
 	PassengerCount    int     `json:"passenger_count,omitempty"`
 	RideType          string  `json:"ride_type,omitempty"`
 	PickupAddress     string  `json:"pickup_address,omitempty"`
-	PickupLatitude    float64 `json:"pickup_latitude,omitempty"`
-	PickupLongitude   float64 `json:"pickup_longitude,omitempty"`
+	PickupLatitude    float64 `json:"pickup_latitude"`
+	PickupLongitude   float64 `json:"pickup_longitude"`
 	PickupLandmark    string  `json:"pickup_landmark,omitempty"`
 	DropoffAddress    string  `json:"dropoff_address,omitempty"`
-	DropoffLatitude   float64 `json:"dropoff_latitude,omitempty"`
-	DropoffLongitude  float64 `json:"dropoff_longitude,omitempty"`
+	DropoffLatitude   float64 `json:"dropoff_latitude"`
+	DropoffLongitude  float64 `json:"dropoff_longitude"`
 	DropoffLandmark   string  `json:"dropoff_landmark,omitempty"`
 	EstimatedDistance float64 `json:"estimated_distance,omitempty"`
 	EstimatedDuration int     `json:"estimated_duration,omitempty"`

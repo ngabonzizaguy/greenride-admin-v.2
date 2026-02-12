@@ -105,6 +105,7 @@ func (a *Api) SetupRouter() *gin.Engine {
 		api.POST("/reset-password", a.ResetPassword)
 		api.POST("/feedback/submit", a.SubmitFeedback) // 提交反馈 - 无需认证
 		api.GET("/support/config", a.GetSupportConfig)  // 获取支持配置 - 无需认证（公共信息）
+		api.GET("/system/config", a.GetSystemConfig)    // 获取系统配置 - 无需认证（维护模式检查）
 
 		// Checkout 状态查询接口
 		api.POST("/checkout/status", a.GetCheckoutStatus) // 查询checkout状态
@@ -119,7 +120,8 @@ func (a *Api) SetupRouter() *gin.Engine {
 
 	// 需要认证的路由
 	authRequired := api.Group("")
-	authRequired.Use(a.AuthMiddleware()) // 后续添加认证中间件
+	authRequired.Use(middleware.MaintenanceMiddleware()) // 维护模式检查
+	authRequired.Use(a.AuthMiddleware())
 	{
 		authRequired.GET("/profile", a.Profile)
 		authRequired.POST("/logout", a.Logout)

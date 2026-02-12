@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
+import {
   Save,
   Building,
   DollarSign,
@@ -9,7 +9,10 @@ import {
   Users,
   Bell,
   Loader2,
-  CheckCircle
+  CheckCircle,
+  AlertTriangle,
+  Wrench,
+  Phone
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +35,17 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
@@ -82,6 +96,16 @@ export default function SettingsPage() {
   const [operatingHours, setOperatingHours] = useState('24/7');
   const [is24x7, setIs24x7] = useState(true);
 
+  // System config state
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState('');
+  const [maintenancePhone, setMaintenancePhone] = useState('6996');
+  const [maintenanceStartedAt, setMaintenanceStartedAt] = useState(0);
+  const [isLoadingSystem, setIsLoadingSystem] = useState(true);
+  const [isSavingSystem, setIsSavingSystem] = useState(false);
+  const [showMaintenanceConfirm, setShowMaintenanceConfirm] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+
   // Load support config on mount
   useEffect(() => {
     const loadConfig = async () => {
@@ -104,6 +128,26 @@ export default function SettingsPage() {
       }
     };
     loadConfig();
+  }, []);
+
+  // Load system config on mount
+  useEffect(() => {
+    const loadSystemConfig = async () => {
+      try {
+        const response = await apiClient.getSystemConfig();
+        if (response.data) {
+          setMaintenanceMode(response.data.maintenance_mode);
+          setMaintenanceMessage(response.data.maintenance_message || '');
+          setMaintenancePhone(response.data.maintenance_phone || '6996');
+          setMaintenanceStartedAt(response.data.maintenance_started_at || 0);
+        }
+      } catch (error) {
+        console.error('Failed to load system config:', error);
+      } finally {
+        setIsLoadingSystem(false);
+      }
+    };
+    loadSystemConfig();
   }, []);
 
   // Save general settings
@@ -147,6 +191,78 @@ export default function SettingsPage() {
     });
   };
 
+  // Handle maintenance mode toggle
+  const handleMaintenanceToggle = () => {
+    if (!maintenanceMode) {
+      // Enabling maintenance - show confirmation dialog
+      setConfirmText('');
+      setShowMaintenanceConfirm(true);
+    } else {
+      // Disabling maintenance - save immediately
+      handleSaveSystem(false);
+    }
+  };
+
+  // Confirm enable maintenance mode
+  const handleConfirmMaintenance = () => {
+    setShowMaintenanceConfirm(false);
+    setConfirmText('');
+    handleSaveSystem(true);
+  };
+
+  // Save system config
+  const handleSaveSystem = async (newMaintenanceMode: boolean) => {
+    setIsSavingSystem(true);
+    try {
+      const response = await apiClient.updateSystemConfig({
+        maintenance_mode: newMaintenanceMode,
+        maintenance_message: maintenanceMessage,
+        maintenance_phone: maintenancePhone,
+      });
+      if (response.data) {
+        setMaintenanceMode(response.data.maintenance_mode);
+        setMaintenanceStartedAt(response.data.maintenance_started_at || 0);
+      }
+      toast.success(
+        newMaintenanceMode
+          ? 'Maintenance mode ENABLED. Users will see the maintenance screen.'
+          : 'Maintenance mode disabled. Service is back to normal.',
+        {
+          icon: newMaintenanceMode
+            ? <AlertTriangle className="h-4 w-4 text-amber-500" />
+            : <CheckCircle className="h-4 w-4 text-green-500" />,
+        }
+      );
+    } catch (error) {
+      toast.error('Failed to update system config. Please try again.');
+    } finally {
+      setIsSavingSystem(false);
+    }
+  };
+
+  // Save maintenance message/phone without toggling mode
+  const handleSaveSystemSettings = async () => {
+    setIsSavingSystem(true);
+    try {
+      const response = await apiClient.updateSystemConfig({
+        maintenance_mode: maintenanceMode,
+        maintenance_message: maintenanceMessage,
+        maintenance_phone: maintenancePhone,
+      });
+      if (response.data) {
+        setMaintenanceMode(response.data.maintenance_mode);
+        setMaintenanceStartedAt(response.data.maintenance_started_at || 0);
+      }
+      toast.success('System settings saved successfully!', {
+        icon: <CheckCircle className="h-4 w-4 text-green-500" />,
+      });
+    } catch (error) {
+      toast.error('Failed to save system settings. Please try again.');
+    } finally {
+      setIsSavingSystem(false);
+    }
+  };
+
   // Save notification settings (mock)
   const handleSaveNotifications = async () => {
     setIsSavingNotifications(true);
@@ -168,7 +284,7 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="general" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:grid-cols-none lg:flex">
+        <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:grid-cols-none lg:flex">
           <TabsTrigger value="general" className="gap-2">
             <Building className="h-4 w-4" />
             <span className="hidden sm:inline">General</span>
@@ -188,6 +304,10 @@ export default function SettingsPage() {
           <TabsTrigger value="notifications" className="gap-2">
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Notifications</span>
+          </TabsTrigger>
+          <TabsTrigger value="system" className="gap-2">
+            <Wrench className="h-4 w-4" />
+            <span className="hidden sm:inline">System</span>
           </TabsTrigger>
         </TabsList>
 
@@ -582,6 +702,187 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* System Settings (Maintenance Mode) */}
+        <TabsContent value="system">
+          <div className="space-y-4">
+            {/* Maintenance Mode Status Banner */}
+            {maintenanceMode && (
+              <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+                <div className="flex-1">
+                  <p className="font-medium text-amber-800">Maintenance Mode is ACTIVE</p>
+                  <p className="text-sm text-amber-600">
+                    Users are currently seeing the maintenance screen.
+                    {maintenanceStartedAt > 0 && (
+                      <> Started {new Date(maintenanceStartedAt * 1000).toLocaleString()}.</>
+                    )}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-amber-300 text-amber-700 hover:bg-amber-100"
+                  onClick={handleMaintenanceToggle}
+                  disabled={isSavingSystem}
+                >
+                  {isSavingSystem ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Disable'}
+                </Button>
+              </div>
+            )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Maintenance Mode</CardTitle>
+                <CardDescription>
+                  When enabled, all mobile app users will see a maintenance screen and cannot use the service.
+                  Active rides (in-progress) will NOT be interrupted.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {isLoadingSystem ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">Loading system config...</span>
+                  </div>
+                ) : (
+                  <>
+                    {/* Toggle */}
+                    <div
+                      className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                        maintenanceMode
+                          ? 'border-red-300 bg-red-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={handleMaintenanceToggle}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-full ${maintenanceMode ? 'bg-red-100' : 'bg-gray-100'}`}>
+                          <Wrench className={`h-5 w-5 ${maintenanceMode ? 'text-red-600' : 'text-gray-500'}`} />
+                        </div>
+                        <div>
+                          <p className="font-medium">
+                            {maintenanceMode ? 'Maintenance Mode is ON' : 'Maintenance Mode is OFF'}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {maintenanceMode
+                              ? 'Users cannot access the app. Click to disable.'
+                              : 'Service is running normally. Click to enable maintenance.'}
+                          </p>
+                        </div>
+                      </div>
+                      <div
+                        className={`w-12 h-7 rounded-full transition-colors relative ${
+                          maintenanceMode ? 'bg-red-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <div
+                          className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${
+                            maintenanceMode ? 'translate-x-5' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Maintenance Message */}
+                    <div className="space-y-2">
+                      <Label htmlFor="maintenance-message">Maintenance Message</Label>
+                      <Textarea
+                        id="maintenance-message"
+                        value={maintenanceMessage}
+                        onChange={(e) => setMaintenanceMessage(e.target.value)}
+                        placeholder="We're currently improving your experience. Our services will resume shortly."
+                        rows={3}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        This message is shown to users on the maintenance screen in the mobile app.
+                      </p>
+                    </div>
+
+                    {/* Support Phone */}
+                    <div className="space-y-2">
+                      <Label htmlFor="maintenance-phone">
+                        <span className="flex items-center gap-2">
+                          <Phone className="h-4 w-4" />
+                          Emergency Support Phone
+                        </span>
+                      </Label>
+                      <Input
+                        id="maintenance-phone"
+                        value={maintenancePhone}
+                        onChange={(e) => setMaintenancePhone(e.target.value)}
+                        placeholder="6996"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Shown on the maintenance screen so users can call for urgent matters.
+                      </p>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button
+                        className="gap-2"
+                        onClick={handleSaveSystemSettings}
+                        disabled={isSavingSystem}
+                      >
+                        {isSavingSystem ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                        {isSavingSystem ? 'Saving...' : 'Save Settings'}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Confirmation Dialog for enabling maintenance mode */}
+          <AlertDialog open={showMaintenanceConfirm} onOpenChange={setShowMaintenanceConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+                  <AlertTriangle className="h-5 w-5" />
+                  Enable Maintenance Mode?
+                </AlertDialogTitle>
+                <AlertDialogDescription className="space-y-3">
+                  <p>
+                    This will immediately block all mobile app users from accessing the service.
+                    They will see a maintenance screen instead.
+                  </p>
+                  <p className="font-medium text-foreground">
+                    Active rides (in-progress) will NOT be interrupted.
+                  </p>
+                  <div className="space-y-2 pt-2">
+                    <Label htmlFor="confirm-text" className="text-sm font-medium">
+                      Type <span className="font-mono text-red-600">MAINTENANCE</span> to confirm:
+                    </Label>
+                    <Input
+                      id="confirm-text"
+                      value={confirmText}
+                      onChange={(e) => setConfirmText(e.target.value)}
+                      placeholder="MAINTENANCE"
+                      className="font-mono"
+                    />
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setConfirmText('')}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleConfirmMaintenance}
+                  disabled={confirmText !== 'MAINTENANCE'}
+                  className="bg-red-600 hover:bg-red-700 disabled:opacity-50"
+                >
+                  Enable Maintenance Mode
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </TabsContent>
       </Tabs>
     </div>
