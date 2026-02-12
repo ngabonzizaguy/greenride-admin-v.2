@@ -122,15 +122,17 @@ deploy_backend() {
   cd "$REPO_DIR/backend/greenride-api-clean"
 
   # Build strategy: native Go > Docker-based build
+  # CGO_ENABLED=0 is REQUIRED — the binary runs on Alpine (musl), not glibc
   if command -v go &>/dev/null; then
     GO_INSTALLED=$(go version | grep -oP 'go\d+\.\d+' || echo "")
-    log "Using native Go ($GO_INSTALLED)"
-    GOOS=linux GOARCH=amd64 go build -o greenride-api-linux ./main
+    log "Using native Go ($GO_INSTALLED) with static linking (CGO_ENABLED=0)"
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o greenride-api-linux ./main
   else
     log "Go not installed — building inside Docker"
     docker run --rm \
       -v "$(pwd)":/src \
       -w /src \
+      -e CGO_ENABLED=0 \
       -e GOOS=linux \
       -e GOARCH=amd64 \
       golang:${GO_VERSION}-alpine \

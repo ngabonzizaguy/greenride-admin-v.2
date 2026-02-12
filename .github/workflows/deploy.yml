@@ -46,8 +46,8 @@ jobs:
       - name: Build Linux binary
         working-directory: ./backend/greenride-api-clean
         run: |
-          echo "Building Go binary for Linux..."
-          GOOS=linux GOARCH=amd64 go build -o greenride-api-linux ./main
+          echo "Building Go binary for Linux (static, Alpine-compatible)..."
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o greenride-api-linux ./main
           ls -la greenride-api-linux
 
       - name: Copy binary to server
