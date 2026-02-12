@@ -154,8 +154,8 @@ verify_code:
 # InnoPaaS OTP (v3): app_key + app_secret from Developer Tools → API Keys. Callback URL: https://api.greenrideafrica.com/webhook/innopaas
 innopaas:
   endpoint: "https://api.innopaas.com/api/otp/v3/msg/send/verify"
-  app_key: "PASTE_YOUR_INNOPAAS_API_KEY_HERE"
-  app_secret: "PASTE_YOUR_INNOPAAS_API_PASSWORD_HERE"
+  app_key: "7r5aBcdRxfh8Mv3R"
+  app_secret: "nUoKBW"
   sender_id: "GreenRide"
 
 
