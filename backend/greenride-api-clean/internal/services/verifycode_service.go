@@ -35,12 +35,13 @@ func SetupVerifyCodeService() {
 	// Ensure VerifyCode config exists with defaults
 	verifyCodeConfig := cfg.VerifyCode
 	if verifyCodeConfig == nil {
+		log.Get().Warn("[OTP] VerifyCode config is nil — using safe defaults (BypassOTP=false, real SMS will be sent)")
 		verifyCodeConfig = &config.VerifyCodeConfig{
 			Length:       4,
 			Expiration:   5,
 			SendInterval: 60,
 			MaxSendTimes: 10,
-			BypassOTP:    true,
+			BypassOTP:    false,
 		}
 	}
 
@@ -99,12 +100,13 @@ func (s *VerifyCodeService) SendVerifyCode(contactType, contact, user_type, purp
 	}
 	// Defensive nil check - ensure config is always initialized
 	if s.config == nil {
+		log.Get().Warn("[OTP] Config nil at send time — using safe defaults (BypassOTP=false)")
 		s.config = &config.VerifyCodeConfig{
 			Length:       4,
 			Expiration:   5,
 			SendInterval: 60,
 			MaxSendTimes: 10,
-			BypassOTP:    true,
+			BypassOTP:    false,
 		}
 	}
 
@@ -123,13 +125,23 @@ func (s *VerifyCodeService) SendVerifyCode(contactType, contact, user_type, purp
 		}
 	}
 	isSandbox := config.Get().IsSandbox()
+	sandboxReason := ""
+	if isSandbox {
+		sandboxReason = "env=sandbox"
+	}
 	if contactType == protocol.MsgChannelSms && strings.HasPrefix(contact, "+86") {
 		isSandbox = true
+		sandboxReason = "china_number"
 	}
 	// Universal Bypass: If enabled in config, force sandbox mode for ALL SMS
 	if s.config.BypassOTP && contactType == protocol.MsgChannelSms {
 		isSandbox = true
+		sandboxReason = "bypass_otp=true"
 	}
+
+	log.Get().Infof("[OTP] Preparing code for %s via %s (purpose=%s, user_type=%s, sandbox=%v reason=%s, env=%s)",
+		contact, contactType, purpose, user_type, isSandbox, sandboxReason, config.Get().Env)
+
 	// Generate verification code
 	var code string
 	if isSandbox {
@@ -143,6 +155,7 @@ func (s *VerifyCodeService) SendVerifyCode(contactType, contact, user_type, purp
 	// Store verification code in cache (convert minutes to seconds)
 	codeKey := fmt.Sprintf("%s_verify_code_%v_%v_%s", contactType, purpose, user_type, contact)
 	if err := models.SetCache(codeKey, code, time.Duration(s.config.Expiration)*time.Minute); err != nil {
+		log.Get().Errorf("[OTP] Failed to store code in cache for %s: %v", contact, err)
 		return protocol.CacheError, 0
 	}
 	if !isSandbox {
@@ -158,11 +171,14 @@ func (s *VerifyCodeService) SendVerifyCode(contactType, contact, user_type, purp
 			},
 		}
 		if err := s.msgService.SendMessage(msg); err != nil {
-			log.Get().Errorf("Failed to send verification code to %s: %v", contact, err)
+			log.Get().Errorf("[OTP] SEND FAILED to %s via %s: %v", contact, contactType, err)
 			return protocol.VerificationCodeSendFailed, 0
 		}
+		log.Get().Infof("[OTP] Code sent successfully to %s via %s", contact, contactType)
+	} else {
+		log.Get().Infof("[OTP] Sandbox mode — code %s stored for %s but NOT sent via SMS", code, contact)
 	}
-	log.Get().Infof("Sent verification code %s to %s for purpose %v and user type %v", code, contact, purpose, user_type)
+	log.Get().Infof("[OTP] Verification code %s prepared for %s (purpose=%v, user_type=%v)", code, contact, purpose, user_type)
 	// Update send records
 	s.setInt64ToCache(lastTimeKey, time.Now().Unix(), 24*time.Hour)
 

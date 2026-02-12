@@ -68,10 +68,10 @@ func SetupTwilioService() {
 				Password: accountCfg.AuthToken,
 			}),
 		}
-		// For OTP flows, we prefer failing fast and falling back to InnoPaaS rather than waiting
-		// on slow Twilio Verify requests. This timeout applies to Twilio requests for this client.
-		// NOTE: This is set once at init to avoid races from per-request toggling.
-		account.Client.SetTimeout(5 * time.Second)
+		// Timeout for Twilio HTTP requests. 15s allows for cross-region latency
+		// (e.g. Singapore EC2 → US Twilio). If Twilio times out, SMS service
+		// falls back to InnoPaaS.
+		account.Client.SetTimeout(15 * time.Second)
 
 		// If no default account is set and this is the first account, use it as default
 		if service.defaultAccount == nil && i == 0 {

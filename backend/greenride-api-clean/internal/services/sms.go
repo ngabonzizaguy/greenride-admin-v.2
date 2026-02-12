@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,6 +39,26 @@ func GetSMSService() *SMSService {
 func SetupSMSService() {
 	smsServiceInstance = &SMSService{
 		Handler: GetSMSServiceHandler(),
+	}
+
+	// Startup diagnostics: warn about misconfigured providers
+	cfg := config.Get()
+	if cfg.SMS != nil && cfg.SMS.ServiceName == "twilio" {
+		if cfg.InnoPaaS == nil {
+			log.Get().Warn("[SMS] InnoPaaS config is nil — Twilio has no fallback provider")
+		} else if strings.Contains(cfg.InnoPaaS.AppKey, "PASTE_YOUR") || cfg.InnoPaaS.AppKey == "" {
+			log.Get().Warn("[SMS] InnoPaaS has placeholder credentials — fallback will fail if Twilio is down")
+		}
+	}
+	if cfg.Twilio == nil || len(cfg.Twilio.Accounts) == 0 {
+		log.Get().Error("[SMS] No Twilio accounts configured — OTP sending will fail")
+	} else {
+		for _, acc := range cfg.Twilio.Accounts {
+			if acc.ServiceSID == "" {
+				log.Get().Warnf("[SMS] Twilio account %s has no Verify Service SID — OTP via Verify API will fail", acc.AccountSID)
+			}
+		}
+		log.Get().Infof("[SMS] Twilio initialized with %d account(s), primary service=%s", len(cfg.Twilio.Accounts), cfg.SMS.ServiceName)
 	}
 }
 
@@ -117,9 +138,10 @@ func (s *SMSService) SendMessage(message *Message) error {
 			return nil
 		}
 
-		log.Get().Warnf("OTP send via twilio failed after %s; falling back to innopaas: %v", elapsed, err)
+		log.Get().Warnf("[SMS] OTP via Twilio FAILED after %s: %v — attempting InnoPaaS fallback", elapsed, err)
 		fallback := GetInnoPaaSService()
 		if fallback == nil {
+			log.Get().Error("[SMS] InnoPaaS fallback is nil — no fallback available, OTP will NOT be delivered")
 			return err
 		}
 		startFb := time.Now()
