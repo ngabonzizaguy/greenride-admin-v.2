@@ -152,12 +152,14 @@ verify_code:
   bypass_otp: false   # Enable OTP bypass to ensure uninterrupted access
 
 # InnoPaaS OTP (v3): AppKey + Authorization token from Developer Tools → API Keys. Callback URL: https://api.greenrideafrica.com/webhook/innopaas
+# otp_type: "1"=WhatsApp (local rates, cheaper), "3"=SMS (international rates). Falls back to SMS if WhatsApp fails.
 innopaas:
   endpoint: "https://api.innopaas.com/api/otp/v3/msg/send/verify"
   app_key: "7r5aBcdRxfh8Mv3R"
   authorization: "eyJhbGciOiJIUzI1NiJ9.eyJhY2NvdW50SWQiOjMzMTk0Mywic3ViIjoiN3I1YUJjZFJ4Zmg4TXYzUiIsInJvbGUiOiJJbm5vUGFhc0FwaSIsImlzcyI6Iklubm9QYWFzIiwiYXBwS2V5IjoiN3I1YUJjZFJ4Zmg4TXYzUiIsImlhdCI6MTc3MDk0MTE3MH0.UPYyjWEit20IVMw3dGVm40TCUhxAqqglAia6wwj39hc"
-  template_id: "otp_000071"
+  # template_id: "otp_000071"
   sender_id: "GreenRide"
+  otp_type: "1"
 
 
 # 派单系统配置

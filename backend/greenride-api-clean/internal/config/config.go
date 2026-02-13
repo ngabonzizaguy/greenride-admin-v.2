@@ -312,12 +312,16 @@ type InnoPaaSConfig struct {
 	Authorization string `mapstructure:"authorization" yaml:"authorization" json:"authorization"`   // Token auth (AppKey + Authorization headers)
 	TemplateID    string `mapstructure:"template_id" yaml:"template_id" json:"template_id"`         // OTP template ID from InnoPaaS dashboard
 	SenderID      string `mapstructure:"sender_id" yaml:"sender_id" json:"sender_id"`               // Optional sender (e.g. WhatsApp)
+	OTPType       string `mapstructure:"otp_type" yaml:"otp_type" json:"otp_type"`                  // "1"=WhatsApp, "3"=SMS (default: "1")
 }
 
 // Validate 验证InnoPaaS配置
 func (c *InnoPaaSConfig) Validate() {
 	if c.Endpoint == "" {
 		c.Endpoint = "https://api.innopaas.com/api/otp/v3/msg/send/verify"
+	}
+	if c.OTPType == "" {
+		c.OTPType = "1" // Default to WhatsApp (cheaper local rates)
 	}
 }
 

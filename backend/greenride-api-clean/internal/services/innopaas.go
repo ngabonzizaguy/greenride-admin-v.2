@@ -47,10 +47,10 @@ func (s *InnoPaaSService) ServiceName() string {
 }
 
 // InnoPaaSRequest represents the OTP API v3.0 request body
-// type: "1"=WhatsApp, "3"=SMS
+// type: "1"=WhatsApp, "2"=Voice, "3"=SMS, "4"=Email, "5"=Telegram
 type InnoPaaSRequest struct {
 	TemplateID string `json:"templateId,omitempty"` // Template from InnoPaaS dashboard
-	Type       string `json:"type"`                 // "3" for SMS
+	Type       string `json:"type"`                 // "1"=WhatsApp, "3"=SMS
 	Language   string `json:"language"`             // "en"
 	To         string `json:"to"`                   // E.164 e.g. "+12025551234"
 	Code       string `json:"code"`
@@ -65,6 +65,7 @@ type InnoPaaSResponse struct {
 }
 
 // SendSmsMessage sends an OTP using InnoPaaS OTP API v3.0
+// Uses WhatsApp (type "1") by default, falls back to SMS (type "3") on failure
 func (s *InnoPaaSService) SendSmsMessage(message *Message) error {
 	cfg := config.Get().InnoPaaS
 	if cfg == nil {
@@ -96,8 +97,39 @@ func (s *InnoPaaSService) SendSmsMessage(message *Message) error {
 	// OTP v3.0: to in international format e.g. "+12025551234"
 	toE164 := "+" + cleanPhoneNumber(to)
 
+	// Determine primary OTP type from config (default: "1" = WhatsApp)
+	primaryType := cfg.OTPType
+	if primaryType == "" {
+		primaryType = "1"
+	}
+
+	// Try primary delivery method (WhatsApp)
+	err := s.sendOTP(cfg, toE164, code, primaryType)
+	if err == nil {
+		typeName := otpTypeName(primaryType)
+		log.Get().Infof("[InnoPaaS] OTP sent via %s to %s", typeName, toE164)
+		return nil
+	}
+
+	// If primary is WhatsApp, fall back to SMS
+	if primaryType == "1" {
+		log.Get().Warnf("[InnoPaaS] WhatsApp OTP failed for %s: %v — falling back to SMS", toE164, err)
+		smsErr := s.sendOTP(cfg, toE164, code, "3")
+		if smsErr == nil {
+			log.Get().Infof("[InnoPaaS] OTP sent via SMS (fallback) to %s", toE164)
+			return nil
+		}
+		log.Get().Errorf("[InnoPaaS] SMS fallback also failed for %s: %v", toE164, smsErr)
+		return fmt.Errorf("WhatsApp OTP failed: %v; SMS fallback failed: %v", err, smsErr)
+	}
+
+	return err
+}
+
+// sendOTP sends a single OTP request with the specified type
+func (s *InnoPaaSService) sendOTP(cfg *config.InnoPaaSConfig, toE164, code, otpType string) error {
 	reqBody := InnoPaaSRequest{
-		Type:     "3",  // SMS
+		Type:     otpType,
 		Language: "en",
 		To:       toE164,
 		Code:     code,
@@ -158,8 +190,25 @@ func (s *InnoPaaSService) SendSmsMessage(message *Message) error {
 		return fmt.Errorf("InnoPaaS API error: %s (code: %s)", apiResp.Message, apiResp.Code)
 	}
 
-	log.Get().Infof("SMS sent via InnoPaaS, MessageID: %s", apiResp.Data)
 	return nil
+}
+
+// otpTypeName returns a human-readable name for the OTP type
+func otpTypeName(t string) string {
+	switch t {
+	case "1":
+		return "whatsapp"
+	case "2":
+		return "voice"
+	case "3":
+		return "sms"
+	case "4":
+		return "email"
+	case "5":
+		return "telegram"
+	default:
+		return "unknown(" + t + ")"
+	}
 }
 
 // innopaasSign computes InnoPaaS MD5 signature: sort params, concat key+value for non-blank, append secret, MD5 hex lower
