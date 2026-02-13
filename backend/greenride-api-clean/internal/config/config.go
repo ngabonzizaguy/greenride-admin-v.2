@@ -309,7 +309,8 @@ type InnoPaaSConfig struct {
 	Endpoint      string `mapstructure:"endpoint" yaml:"endpoint" json:"endpoint"`
 	AppKey        string `mapstructure:"app_key" yaml:"app_key" json:"app_key"`
 	AppSecret     string `mapstructure:"app_secret" yaml:"app_secret" json:"app_secret"`           // For OTP v3 x-signature (MD5)
-	Authorization string `mapstructure:"authorization" yaml:"authorization" json:"authorization"`   // Legacy token auth (if no app_secret)
+	Authorization string `mapstructure:"authorization" yaml:"authorization" json:"authorization"`   // Token auth (AppKey + Authorization headers)
+	TemplateID    string `mapstructure:"template_id" yaml:"template_id" json:"template_id"`         // OTP template ID from InnoPaaS dashboard
 	SenderID      string `mapstructure:"sender_id" yaml:"sender_id" json:"sender_id"`               // Optional sender (e.g. WhatsApp)
 }
 

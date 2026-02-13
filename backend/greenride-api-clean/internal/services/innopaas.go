@@ -49,11 +49,12 @@ func (s *InnoPaaSService) ServiceName() string {
 // InnoPaaSRequest represents the OTP API v3.0 request body
 // type: "1"=WhatsApp, "3"=SMS
 type InnoPaaSRequest struct {
-	Type     string `json:"type"`     // "3" for SMS
-	Language string `json:"language"` // "en"
-	To       string `json:"to"`      // E.164 e.g. "+12025551234"
-	Code     string `json:"code"`
-	Sender   string `json:"sender,omitempty"` // Optional
+	TemplateID string `json:"templateId,omitempty"` // Template from InnoPaaS dashboard
+	Type       string `json:"type"`                 // "3" for SMS
+	Language   string `json:"language"`             // "en"
+	To         string `json:"to"`                   // E.164 e.g. "+12025551234"
+	Code       string `json:"code"`
+	Sender     string `json:"sender,omitempty"` // Optional
 }
 
 // InnoPaaSResponse represents the OTP API v3.0 response (success when code == "000000")
@@ -100,6 +101,9 @@ func (s *InnoPaaSService) SendSmsMessage(message *Message) error {
 		Language: "en",
 		To:       toE164,
 		Code:     code,
+	}
+	if cfg.TemplateID != "" {
+		reqBody.TemplateID = cfg.TemplateID
 	}
 	if cfg.SenderID != "" {
 		reqBody.Sender = cfg.SenderID

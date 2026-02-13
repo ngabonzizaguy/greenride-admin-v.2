@@ -127,7 +127,7 @@ aws:
 # SMS配置
 sms:
   # 服务类型：twilio, 后续可扩展其他服务商
-  service_name: "twilio"
+  service_name: "innopaas"
   
 # Twilio配置
 twilio:
@@ -151,11 +151,12 @@ verify_code:
   max_send_times: 10 # 每日最大发送次数
   bypass_otp: false   # Enable OTP bypass to ensure uninterrupted access
 
-# InnoPaaS OTP (v3): app_key + app_secret from Developer Tools → API Keys. Callback URL: https://api.greenrideafrica.com/webhook/innopaas
+# InnoPaaS OTP (v3): AppKey + Authorization token from Developer Tools → API Keys. Callback URL: https://api.greenrideafrica.com/webhook/innopaas
 innopaas:
   endpoint: "https://api.innopaas.com/api/otp/v3/msg/send/verify"
   app_key: "7r5aBcdRxfh8Mv3R"
-  app_secret: "nUoKBW"
+  authorization: "eyJhbGciOiJIUzI1NiJ9.eyJhY2NvdW50SWQiOjMzMTk0Mywic3ViIjoiN3I1YUJjZFJ4Zmg4TXYzUiIsInJvbGUiOiJJbm5vUGFhc0FwaSIsImlzcyI6Iklubm9QYWFzIiwiYXBwS2V5IjoiN3I1YUJjZFJ4Zmg4TXYzUiIsImlhdCI6MTc3MDk0MTE3MH0.UPYyjWEit20IVMw3dGVm40TCUhxAqqglAia6wwj39hc"
+  template_id: "otp_000071"
   sender_id: "GreenRide"
 
 
