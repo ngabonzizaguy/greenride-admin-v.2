@@ -321,7 +321,7 @@ func (c *InnoPaaSConfig) Validate() {
 		c.Endpoint = "https://api.innopaas.com/api/otp/v3/msg/send/verify"
 	}
 	if c.OTPType == "" {
-		c.OTPType = "1" // Default to WhatsApp (cheaper local rates)
+		c.OTPType = "3" // Default to SMS, falls back to WhatsApp
 	}
 }
 

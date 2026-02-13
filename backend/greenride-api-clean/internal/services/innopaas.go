@@ -97,33 +97,34 @@ func (s *InnoPaaSService) SendSmsMessage(message *Message) error {
 	// OTP v3.0: to in international format e.g. "+12025551234"
 	toE164 := "+" + cleanPhoneNumber(to)
 
-	// Determine primary OTP type from config (default: "1" = WhatsApp)
+	// Determine primary OTP type from config (default: "3" = SMS)
 	primaryType := cfg.OTPType
 	if primaryType == "" {
-		primaryType = "1"
+		primaryType = "3"
 	}
 
-	// Try primary delivery method (WhatsApp)
+	// Determine fallback type: SMS↔WhatsApp
+	fallbackType := "1" // WhatsApp
+	if primaryType == "1" {
+		fallbackType = "3" // SMS
+	}
+
+	// Try primary delivery method
 	err := s.sendOTP(cfg, toE164, code, primaryType)
 	if err == nil {
-		typeName := otpTypeName(primaryType)
-		log.Get().Infof("[InnoPaaS] OTP sent via %s to %s", typeName, toE164)
+		log.Get().Infof("[InnoPaaS] OTP sent via %s to %s", otpTypeName(primaryType), toE164)
 		return nil
 	}
 
-	// If primary is WhatsApp, fall back to SMS
-	if primaryType == "1" {
-		log.Get().Warnf("[InnoPaaS] WhatsApp OTP failed for %s: %v — falling back to SMS", toE164, err)
-		smsErr := s.sendOTP(cfg, toE164, code, "3")
-		if smsErr == nil {
-			log.Get().Infof("[InnoPaaS] OTP sent via SMS (fallback) to %s", toE164)
-			return nil
-		}
-		log.Get().Errorf("[InnoPaaS] SMS fallback also failed for %s: %v", toE164, smsErr)
-		return fmt.Errorf("WhatsApp OTP failed: %v; SMS fallback failed: %v", err, smsErr)
+	// Primary failed — try fallback
+	log.Get().Warnf("[InnoPaaS] %s OTP failed for %s: %v — falling back to %s", otpTypeName(primaryType), toE164, err, otpTypeName(fallbackType))
+	fbErr := s.sendOTP(cfg, toE164, code, fallbackType)
+	if fbErr == nil {
+		log.Get().Infof("[InnoPaaS] OTP sent via %s (fallback) to %s", otpTypeName(fallbackType), toE164)
+		return nil
 	}
-
-	return err
+	log.Get().Errorf("[InnoPaaS] %s fallback also failed for %s: %v", otpTypeName(fallbackType), toE164, fbErr)
+	return fmt.Errorf("%s OTP failed: %v; %s fallback failed: %v", otpTypeName(primaryType), err, otpTypeName(fallbackType), fbErr)
 }
 
 // sendOTP sends a single OTP request with the specified type
