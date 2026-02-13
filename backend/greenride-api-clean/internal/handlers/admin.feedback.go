@@ -252,6 +252,7 @@ func toFeedbackListItem(fb *services.FeedbackWithUser) *protocol.FeedbackListIte
 	item := &protocol.FeedbackListItem{
 		FeedbackID:   fb.FeedbackID,
 		Title:        fb.GetTitle(),
+		Content:      fb.GetContent(),
 		FeedbackType: fb.GetFeedbackType(),
 		Category:     fb.GetCategory(),
 		Status:       fb.GetStatus(),
@@ -262,14 +263,20 @@ func toFeedbackListItem(fb *services.FeedbackWithUser) *protocol.FeedbackListIte
 		UpdatedAt:    fb.UpdatedAt,
 	}
 
-	// Add user info if available
+	// Add user info from DB lookup first, then fall back to contact fields
 	if fb.UserFullName != "" {
 		item.UserName = fb.UserFullName
 		item.UserEmail = fb.UserEmail
-	} else if fb.ContactEmail != nil && *fb.ContactEmail != "" {
-		item.UserEmail = *fb.ContactEmail
-		if fb.ContactName != nil {
+		item.UserPhone = fb.UserPhone
+	} else {
+		if fb.ContactName != nil && *fb.ContactName != "" {
 			item.UserName = *fb.ContactName
+		}
+		if fb.ContactEmail != nil && *fb.ContactEmail != "" {
+			item.UserEmail = *fb.ContactEmail
+		}
+		if fb.ContactPhone != nil && *fb.ContactPhone != "" {
+			item.UserPhone = *fb.ContactPhone
 		}
 	}
 

@@ -51,7 +51,7 @@ func (a *Api) SubmitFeedback(c *gin.Context) {
 
 	// 创建反馈记录
 	feedbackService := services.GetFeedbackService()
-	feedback, err := feedbackService.CreateFeedback(req.Title, req.Content, req.Email)
+	feedback, err := feedbackService.CreateFeedback(req.Title, req.Content, req.Email, req.Name, req.Phone, req.UserID)
 	if err != nil {
 		log.Errorf("保存反馈失败: %v", err)
 		c.JSON(http.StatusInternalServerError, protocol.NewErrorResult(protocol.InternalError, lang))

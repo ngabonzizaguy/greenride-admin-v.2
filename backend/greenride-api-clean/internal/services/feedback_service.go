@@ -15,13 +15,17 @@ type FeedbackWithUser struct {
 	*models.Feedback
 	UserFullName string `json:"user_full_name"`
 	UserEmail    string `json:"user_email"`
+	UserPhone    string `json:"user_phone"`
 }
 
 // CreateFeedback 创建反馈记录
-func (s *FeedbackService) CreateFeedback(title, content, email string) (*models.Feedback, error) {
+func (s *FeedbackService) CreateFeedback(title, content, email, name, phone, userID string) (*models.Feedback, error) {
 	feedback := models.NewFeedback()
 	feedback.SetContent(title, content, "")
-	feedback.SetContact("", "", email)
+	feedback.SetContact(name, phone, email)
+	if userID != "" {
+		feedback.SetUserID(userID)
+	}
 	feedback.SetFeedbackType(protocol.FeedbackTypeSuggestion)
 	feedback.SetCategory(protocol.FeedbackCategoryOther)
 
@@ -112,6 +116,7 @@ func (s *FeedbackService) SearchFeedback(req *protocol.FeedbackSearchRequest) ([
 			if user != nil {
 				item.UserFullName = user.GetFullName()
 				item.UserEmail = user.GetEmail()
+				item.UserPhone = user.GetPhone()
 			}
 		}
 
@@ -141,6 +146,7 @@ func (s *FeedbackService) GetFeedbackByID(feedbackID string) (*FeedbackWithUser,
 		if user != nil {
 			result.UserFullName = user.GetFullName()
 			result.UserEmail = user.GetEmail()
+			result.UserPhone = user.GetPhone()
 		}
 	}
 

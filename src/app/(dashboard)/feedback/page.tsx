@@ -94,9 +94,10 @@ interface Feedback {
   id: string;
   feedback_id: string;
   order_id?: string;
-  user_id: string;
-  user_name: string;
-  user_phone: string;
+  user_id?: string;
+  user_name?: string;
+  user_phone?: string;
+  user_email?: string;
   driver_id?: string;
   driver_name?: string;
   category: FeedbackCategory;
@@ -734,12 +735,18 @@ export default function FeedbackPage() {
               <div className="bg-white/70 dark:bg-gray-800/70 rounded-xl p-4 space-y-2 border border-white/20 dark:border-white/5 backdrop-blur-sm">
                 <div className="flex justify-between py-1 border-b border-gray-100/20 dark:border-gray-700/30 pb-2">
                   <span className="text-sm text-gray-500 dark:text-gray-400">Name:</span>
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">{selectedFeedback.user_name}</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{selectedFeedback.user_name || 'Unknown'}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-gray-100/20 dark:border-gray-700/30 pb-2">
                   <span className="text-sm text-gray-500 dark:text-gray-400">Phone:</span>
-                  <span className="text-sm font-medium text-gray-900 dark:text-white font-mono">{selectedFeedback.user_phone}</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white font-mono">{selectedFeedback.user_phone || 'N/A'}</span>
                 </div>
+                {selectedFeedback.user_email && (
+                <div className="flex justify-between py-1 border-b border-gray-100/20 dark:border-gray-700/30 pb-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Email:</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{selectedFeedback.user_email}</span>
+                </div>
+                )}
                 {selectedFeedback.order_id && (
                   <div className="flex justify-between py-1 pt-2">
                     <span className="text-sm text-gray-500 dark:text-gray-400">Order ID:</span>

@@ -9,6 +9,9 @@ type FeedbackRequest struct {
 	Title   string `json:"title" binding:"required"`
 	Content string `json:"content" binding:"required"`
 	Email   string `json:"email" binding:"required,email"`
+	Name    string `json:"name,omitempty"`    // Optional: submitter name
+	Phone   string `json:"phone,omitempty"`   // Optional: submitter phone
+	UserID  string `json:"user_id,omitempty"` // Optional: authenticated user ID
 }
 
 // FeedbackResponse 反馈响应结构
@@ -66,6 +69,7 @@ type FeedbackUpdateRequest struct {
 type FeedbackListItem struct {
 	FeedbackID   string `json:"feedback_id"`
 	Title        string `json:"title"`
+	Content      string `json:"content"`
 	FeedbackType string `json:"feedback_type"`
 	Category     string `json:"category"`
 	Status       string `json:"status"`
@@ -74,6 +78,7 @@ type FeedbackListItem struct {
 	Rating       int    `json:"rating"`
 	UserName     string `json:"user_name,omitempty"`
 	UserEmail    string `json:"user_email,omitempty"`
+	UserPhone    string `json:"user_phone,omitempty"`
 	CreatedAt    int64  `json:"created_at"`
 	UpdatedAt    int64  `json:"updated_at"`
 }
