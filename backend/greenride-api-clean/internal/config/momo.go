@@ -8,7 +8,7 @@ import (
 const (
 	// MoMo API Base URLs
 	MoMoSandboxBaseURL    = "https://sandbox.momodeveloper.mtn.com"
-	MoMoProductionBaseURL = "https://proxy.momoapi.mtn.com"
+	MoMoProductionBaseURL = "https://proxy.momoapi.mtn.co.rw"
 
 	// Default callback URL path
 	DefaultMoMoCallbackURL = "/webhook/momo"
