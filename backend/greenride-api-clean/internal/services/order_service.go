@@ -718,6 +718,9 @@ func (s *OrderService) FinishOrder(req *protocol.OrderActionRequest) protocol.Er
 	// 发送FCM通知
 	go s.NotifyTripEnded(req.OrderID)
 
+	// Increment ride counts for both driver and passenger
+	go s.incrementRideCountsForOrder(order)
+
 	// 记录订单完成历史
 	go func() {
 		// 获取更新后的订单

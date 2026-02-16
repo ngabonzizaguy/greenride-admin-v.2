@@ -68,7 +68,7 @@ i18n:
   supported_langs: ["en", "fr", "rw"]
 
 google:
-  maps_api_key: "AIzaSyBXaxfZrk9-qdmnuYY-3YMhNcnxyH_lj8Q"
+  maps_api_key: "AIzaSyAspV9K8X3expWFbpfmJMeTIV2KocguFjc"
 
 task:
   enabled: true
@@ -166,6 +166,7 @@ innopaas:
 dispatch:
   # 基础配置
   enabled: true
+  max_distance: 15.0  # Max driver-to-pickup distance in km (0 = no limit)
   # 司机筛选配置
   driver_selection:
     fetch_all_online: true      # 获取所有在线司机，不管有单无单

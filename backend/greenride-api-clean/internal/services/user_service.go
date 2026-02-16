@@ -974,25 +974,23 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 		case "accurate":
 			// Start with rough and upgrade to accurate for the closest drivers to control cost/latency.
 			etaMinutes = int(row.DistanceKm * 2) // 2 minutes per km
-			if etaMinutes < 1 {
-				etaMinutes = 1
-			}
 			if idx < 12 && row.Latitude != nil && row.Longitude != nil {
 				ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 				route, err := GetGoogleService().CalculateRidehailingRoute(ctx, *row.Latitude, *row.Longitude, latitude, longitude, false)
 				cancel()
 				if err == nil && route != nil && route.Duration != nil && route.Duration.Value > 0 {
-					minutes := int((route.Duration.Value + 59) / 60) // ceil seconds->minutes
-					if minutes < 1 {
-						minutes = 1
-					}
-					etaMinutes = minutes
+					etaMinutes = int((route.Duration.Value + 59) / 60) // ceil seconds->minutes
+				} else if err != nil {
+					log.Printf("[NearbyDrivers] Google ETA failed for driver %s: %v", row.UserID, err)
 				}
+			}
+			if etaMinutes < 2 {
+				etaMinutes = 2 // minimum 2 minutes for urban driving
 			}
 		default: // rough
 			etaMinutes = int(row.DistanceKm * 2) // 2 minutes per km
-			if etaMinutes < 1 {
-				etaMinutes = 1
+			if etaMinutes < 2 {
+				etaMinutes = 2 // minimum 2 minutes for urban driving
 			}
 		}
 

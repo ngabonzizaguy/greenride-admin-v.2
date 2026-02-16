@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 
@@ -257,15 +258,35 @@ func (s *DispatchService) SendDispatchNotifications(record *models.DispatchRecor
 		}
 	}
 
-	// Add driver-to-pickup ETA and distance
+	// Add driver-to-pickup ETA and distance (Google API with rough fallback)
 	if driver.GetLatitude() != 0 && orderDetail.GetPickupLatitude() != 0 {
 		distKm := utils.CalculateDistanceHaversine(
 			driver.GetLatitude(), driver.GetLongitude(),
 			orderDetail.GetPickupLatitude(), orderDetail.GetPickupLongitude(),
 		)
-		etaMin := int(distKm * 2) // rough: 2 min/km
-		if etaMin < 1 && distKm > 0 {
-			etaMin = 1
+
+		// Try Google Directions API for accurate ETA
+		etaMin := 0
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		route, err := GetGoogleService().CalculateRidehailingRoute(
+			ctx, driver.GetLatitude(), driver.GetLongitude(),
+			orderDetail.GetPickupLatitude(), orderDetail.GetPickupLongitude(), false,
+		)
+		cancel()
+		if err == nil && route != nil && route.Duration != nil && route.Duration.Value > 0 {
+			etaMin = int((route.Duration.Value + 59) / 60) // ceil seconds→minutes
+			if route.Distance != nil && route.Distance.Value > 0 {
+				distKm = float64(route.Distance.Value) / 1000.0 // use routing distance
+			}
+		} else {
+			// Fallback to rough estimate
+			if err != nil {
+				log.Get().Warnf("[Dispatch] Google ETA failed for driver %s → pickup: %v, using rough estimate", record.DriverID, err)
+			}
+			etaMin = int(distKm * 2) // rough: 2 min/km
+		}
+		if etaMin < 2 {
+			etaMin = 2 // minimum 2 minutes (more realistic for urban driving)
 		}
 		params["DriverToPickupETA"] = etaMin
 		params["DriverToPickupDistance"] = fmt.Sprintf("%.1f", distKm)

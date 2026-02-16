@@ -60,8 +60,9 @@ func IsValidRejectReason(reason string) bool {
 
 // CancelReason represents a predefined cancellation reason
 type CancelReason struct {
-	Key   string `json:"key"`
-	Label string `json:"label"`
+	Key    string `json:"key"`
+	Label  string `json:"label"`
+	Reason string `json:"reason"` // alias for Label — Flutter app reads this field
 }
 
 // 司机取消原因
@@ -85,22 +86,22 @@ const (
 // GetDriverCancelReasons returns predefined cancellation reasons for drivers
 func GetDriverCancelReasons() []CancelReason {
 	return []CancelReason{
-		{Key: CancelReasonDriverPassengerNoShow, Label: "Passenger not at pickup"},
-		{Key: CancelReasonDriverTooFar, Label: "Too far away"},
-		{Key: CancelReasonDriverVehicleIssue, Label: "Vehicle issue"},
-		{Key: CancelReasonDriverEmergency, Label: "Emergency"},
-		{Key: CancelReasonDriverOther, Label: "Other"},
+		{Key: CancelReasonDriverPassengerNoShow, Label: "Passenger not at pickup", Reason: "Passenger not at pickup"},
+		{Key: CancelReasonDriverTooFar, Label: "Too far away", Reason: "Too far away"},
+		{Key: CancelReasonDriverVehicleIssue, Label: "Vehicle issue", Reason: "Vehicle issue"},
+		{Key: CancelReasonDriverEmergency, Label: "Emergency", Reason: "Emergency"},
+		{Key: CancelReasonDriverOther, Label: "Other", Reason: "Other"},
 	}
 }
 
 // GetPassengerCancelReasons returns predefined cancellation reasons for passengers
 func GetPassengerCancelReasons() []CancelReason {
 	return []CancelReason{
-		{Key: CancelReasonPassengerDriverTooLong, Label: "Driver taking too long"},
-		{Key: CancelReasonPassengerChangedMind, Label: "Changed my mind"},
-		{Key: CancelReasonPassengerFoundAnother, Label: "Found another ride"},
-		{Key: CancelReasonPassengerEmergency, Label: "Emergency"},
-		{Key: CancelReasonPassengerOther, Label: "Other"},
+		{Key: CancelReasonPassengerDriverTooLong, Label: "Driver taking too long", Reason: "Driver taking too long"},
+		{Key: CancelReasonPassengerChangedMind, Label: "Changed my mind", Reason: "Changed my mind"},
+		{Key: CancelReasonPassengerFoundAnother, Label: "Found another ride", Reason: "Found another ride"},
+		{Key: CancelReasonPassengerEmergency, Label: "Emergency", Reason: "Emergency"},
+		{Key: CancelReasonPassengerOther, Label: "Other", Reason: "Other"},
 	}
 }
 
