@@ -97,7 +97,7 @@ func (a *Api) GetNearbyDrivers(c *gin.Context) {
 		etaMode = "rough"
 	}
 	// 调用服务获取附近司机
-	drivers, err := services.GetUserService().GetNearbyDrivers(req.Latitude, req.Longitude, req.RadiusKm, req.Limit, etaMode)
+	drivers, err := services.GetUserService().GetNearbyDrivers(req.Latitude, req.Longitude, req.RadiusKm, req.Limit, etaMode, req.ExcludeBusy)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, protocol.NewErrorResult(protocol.SystemError, lang))
 		return

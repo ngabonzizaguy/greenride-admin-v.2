@@ -261,11 +261,12 @@ type UserPromotionsRequest struct {
 
 // GetNearbyDriversRequest 获取附近司机请求
 type GetNearbyDriversRequest struct {
-	Latitude  float64 `form:"latitude" binding:"required"`  // 乘客当前纬度
-	Longitude float64 `form:"longitude" binding:"required"` // 乘客当前经度
-	RadiusKm  float64 `form:"radius_km"`                    // 搜索半径（公里），默认5km
-	Limit     int     `form:"limit"`                        // 返回数量限制，默认20
-	EtaMode   string  `form:"eta_mode"`                     // ETA模式：rough|accurate|none
+	Latitude    float64 `form:"latitude" binding:"required"`  // 乘客当前纬度
+	Longitude   float64 `form:"longitude" binding:"required"` // 乘客当前经度
+	RadiusKm    float64 `form:"radius_km"`                    // 搜索半径（公里），默认5km
+	Limit       int     `form:"limit"`                        // 返回数量限制，默认20
+	EtaMode     string  `form:"eta_mode"`                     // ETA模式：rough|accurate|none
+	ExcludeBusy bool    `form:"exclude_busy"`                 // 排除忙碌司机（正在接单中）
 }
 
 // NearbyDriver 附近司机信息

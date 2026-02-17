@@ -859,7 +859,7 @@ func (s *UserService) issueWelcomeCouponSync(userID string, adminID string) erro
 // - "rough": distance-based estimate
 // - "accurate": use Google routing for closest few (fallback to rough)
 // - "none": return 0 for eta_minutes (for fleet map, etc.)
-func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, limit int, etaMode string) ([]*protocol.NearbyDriver, error) {
+func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, limit int, etaMode string, excludeBusy ...bool) ([]*protocol.NearbyDriver, error) {
 	// Set defaults
 	if radiusKm <= 0 {
 		radiusKm = 5.0 // Default 5km radius
@@ -871,11 +871,17 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 		etaMode = "rough"
 	}
 
+	// Determine online status filter
+	onlineFilter := `(u.online_status = 'online' OR u.online_status = 'busy' OR ulh.online_status = 'online' OR ulh.online_status = 'busy')`
+	if len(excludeBusy) > 0 && excludeBusy[0] {
+		// Only show available drivers (not currently in a ride)
+		onlineFilter = `(u.online_status = 'online' OR ulh.online_status = 'online')`
+	}
+
 	// Query online drivers within radius using Haversine formula
-	// Distance in km = 6371 * acos(cos(radians(lat1)) * cos(radians(lat2)) * cos(radians(lng2) - radians(lng1)) + sin(radians(lat1)) * sin(radians(lat2)))
 	// Uses t_user_location_history for recent location updates (within last 2 minutes = 120000ms)
 	query := `
-		SELECT 
+		SELECT
 			u.user_id,
 			u.first_name,
 			u.last_name,
@@ -908,7 +914,7 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 		) ulh ON u.user_id = ulh.user_id AND ulh.rn = 1
 		LEFT JOIN t_vehicles v ON u.user_id = v.driver_id AND v.status = 'active'
 		WHERE u.user_type = 'driver'
-			AND (u.online_status = 'online' OR u.online_status = 'busy' OR ulh.online_status = 'online' OR ulh.online_status = 'busy')
+			AND ` + onlineFilter + `
 			AND u.status = 'active'
 			AND (u.latitude IS NOT NULL OR ulh.latitude IS NOT NULL)
 			AND (u.longitude IS NOT NULL OR ulh.longitude IS NOT NULL)

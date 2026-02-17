@@ -60,6 +60,7 @@ func IsValidRejectReason(reason string) bool {
 
 // CancelReason represents a predefined cancellation reason
 type CancelReason struct {
+	ID     string `json:"id"`     // unique identifier — Flutter app uses this for RadioListTile value
 	Key    string `json:"key"`
 	Label  string `json:"label"`
 	Reason string `json:"reason"` // alias for Label — Flutter app reads this field
@@ -86,22 +87,22 @@ const (
 // GetDriverCancelReasons returns predefined cancellation reasons for drivers
 func GetDriverCancelReasons() []CancelReason {
 	return []CancelReason{
-		{Key: CancelReasonDriverPassengerNoShow, Label: "Passenger not at pickup", Reason: "Passenger not at pickup"},
-		{Key: CancelReasonDriverTooFar, Label: "Too far away", Reason: "Too far away"},
-		{Key: CancelReasonDriverVehicleIssue, Label: "Vehicle issue", Reason: "Vehicle issue"},
-		{Key: CancelReasonDriverEmergency, Label: "Emergency", Reason: "Emergency"},
-		{Key: CancelReasonDriverOther, Label: "Other", Reason: "Other"},
+		{ID: CancelReasonDriverPassengerNoShow, Key: CancelReasonDriverPassengerNoShow, Label: "Passenger not at pickup", Reason: "Passenger not at pickup"},
+		{ID: CancelReasonDriverTooFar, Key: CancelReasonDriverTooFar, Label: "Too far away", Reason: "Too far away"},
+		{ID: CancelReasonDriverVehicleIssue, Key: CancelReasonDriverVehicleIssue, Label: "Vehicle issue", Reason: "Vehicle issue"},
+		{ID: CancelReasonDriverEmergency, Key: CancelReasonDriverEmergency, Label: "Emergency", Reason: "Emergency"},
+		{ID: CancelReasonDriverOther, Key: CancelReasonDriverOther, Label: "Other", Reason: "Other"},
 	}
 }
 
 // GetPassengerCancelReasons returns predefined cancellation reasons for passengers
 func GetPassengerCancelReasons() []CancelReason {
 	return []CancelReason{
-		{Key: CancelReasonPassengerDriverTooLong, Label: "Driver taking too long", Reason: "Driver taking too long"},
-		{Key: CancelReasonPassengerChangedMind, Label: "Changed my mind", Reason: "Changed my mind"},
-		{Key: CancelReasonPassengerFoundAnother, Label: "Found another ride", Reason: "Found another ride"},
-		{Key: CancelReasonPassengerEmergency, Label: "Emergency", Reason: "Emergency"},
-		{Key: CancelReasonPassengerOther, Label: "Other", Reason: "Other"},
+		{ID: CancelReasonPassengerDriverTooLong, Key: CancelReasonPassengerDriverTooLong, Label: "Driver taking too long", Reason: "Driver taking too long"},
+		{ID: CancelReasonPassengerChangedMind, Key: CancelReasonPassengerChangedMind, Label: "Changed my mind", Reason: "Changed my mind"},
+		{ID: CancelReasonPassengerFoundAnother, Key: CancelReasonPassengerFoundAnother, Label: "Found another ride", Reason: "Found another ride"},
+		{ID: CancelReasonPassengerEmergency, Key: CancelReasonPassengerEmergency, Label: "Emergency", Reason: "Emergency"},
+		{ID: CancelReasonPassengerOther, Key: CancelReasonPassengerOther, Label: "Other", Reason: "Other"},
 	}
 }
 
