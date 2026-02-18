@@ -209,7 +209,7 @@ i18n:
   supported_langs: ["en", "fr", "rw"]
 
 google:
-  maps_api_key: "AIzaSyDn6dJYuB7a2VvY4KStOfFwPNgL8DS4PgE"
+  maps_api_key: "AIzaSyAspV9K8X3expWFbpfmJMeTIV2KocguFjc"
 
 task:
   enabled: true

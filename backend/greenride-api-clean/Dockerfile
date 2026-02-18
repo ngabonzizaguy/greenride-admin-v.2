@@ -1,3 +1,25 @@
+###############################################
+# Stage 1: Build the Go binary
+###############################################
+FROM golang:1.23-alpine AS builder
+
+RUN apk --no-cache add git ca-certificates tzdata
+
+WORKDIR /build
+
+# Cache dependency downloads
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy all source code
+COPY . .
+
+# Build a statically-linked Linux binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o greenride-api ./main
+
+###############################################
+# Stage 2: Minimal runtime image
+###############################################
 FROM alpine:latest
 
 # Install certificates and timezone data
@@ -14,8 +36,8 @@ RUN mkdir -p /app/logs /logs
 
 WORKDIR /app
 
-# Copy the pre-built binary from the local folder
-COPY greenride-api-linux ./greenride-api
+# Copy the compiled binary from the builder stage
+COPY --from=builder /build/greenride-api ./greenride-api
 
 # Copy required static assets and configs
 COPY internal/locales ./internal/locales

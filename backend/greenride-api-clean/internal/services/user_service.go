@@ -864,6 +864,9 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 	if radiusKm <= 0 {
 		radiusKm = 5.0 // Default 5km radius
 	}
+	if radiusKm > 10 {
+		radiusKm = 10.0 // Cap at 10km to avoid returning distant drivers
+	}
 	if limit <= 0 || limit > 50 {
 		limit = 20 // Default 20 drivers, max 50
 	}
@@ -879,7 +882,8 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 	}
 
 	// Query online drivers within radius using Haversine formula
-	// Uses t_user_location_history for recent location updates (within last 2 minutes = 120000ms)
+	// INNER JOIN on location history: only include drivers with a GPS update in last 5 minutes (300000ms).
+	// This prevents stale u.latitude fallback from making distant drivers appear nearby.
 	query := `
 		SELECT
 			u.user_id,
@@ -888,8 +892,8 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 			u.display_name,
 			u.avatar,
 			u.phone,
-			COALESCE(ulh.latitude, u.latitude) as latitude,
-			COALESCE(ulh.longitude, u.longitude) as longitude,
+			ulh.latitude as latitude,
+			ulh.longitude as longitude,
 			COALESCE(ulh.heading, 0) as heading,
 			COALESCE(ulh.online_status, u.online_status) as online_status,
 			u.score,
@@ -901,23 +905,23 @@ func (s *UserService) GetNearbyDrivers(latitude, longitude, radiusKm float64, li
 			v.category,
 			(6371 * acos(
 				LEAST(1.0, GREATEST(-1.0,
-					cos(radians(?)) * cos(radians(COALESCE(ulh.latitude, u.latitude))) * cos(radians(COALESCE(ulh.longitude, u.longitude)) - radians(?)) +
-					sin(radians(?)) * sin(radians(COALESCE(ulh.latitude, u.latitude)))
+					cos(radians(?)) * cos(radians(ulh.latitude)) * cos(radians(ulh.longitude) - radians(?)) +
+					sin(radians(?)) * sin(radians(ulh.latitude))
 				))
 			)) AS distance_km
 		FROM t_users u
-		LEFT JOIN (
+		INNER JOIN (
 			SELECT user_id, latitude, longitude, heading, online_status, recorded_at,
 				ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY recorded_at DESC) as rn
 			FROM t_user_location_history
-			WHERE recorded_at > (UNIX_TIMESTAMP(NOW()) * 1000 - 120000)
+			WHERE recorded_at > (UNIX_TIMESTAMP(NOW()) * 1000 - 300000)
 		) ulh ON u.user_id = ulh.user_id AND ulh.rn = 1
 		LEFT JOIN t_vehicles v ON u.user_id = v.driver_id AND v.status = 'active'
 		WHERE u.user_type = 'driver'
 			AND ` + onlineFilter + `
 			AND u.status = 'active'
-			AND (u.latitude IS NOT NULL OR ulh.latitude IS NOT NULL)
-			AND (u.longitude IS NOT NULL OR ulh.longitude IS NOT NULL)
+			AND ulh.latitude IS NOT NULL
+			AND ulh.longitude IS NOT NULL
 			AND u.deleted_at IS NULL
 		HAVING distance_km <= ?
 		ORDER BY distance_km ASC
