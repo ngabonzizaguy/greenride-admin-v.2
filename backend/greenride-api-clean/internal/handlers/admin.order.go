@@ -67,7 +67,13 @@ func (t *Admin) SearchOrders(c *gin.Context) {
 	db := models.GetDB()
 	var activeCount int64
 	db.Model(&models.Order{}).
-		Where("status IN ?", []string{protocol.StatusRequested, protocol.StatusAccepted, protocol.StatusInProgress}).
+		Where("status IN ?", []string{
+			protocol.StatusRequested,
+			protocol.StatusAccepted,
+			protocol.StatusDriverComing,
+			protocol.StatusDriverArrived,
+			protocol.StatusInProgress,
+		}).
 		Count(&activeCount)
 
 	// Today's completed and cancelled (Rwanda timezone, UTC+2)
@@ -79,8 +85,8 @@ func (t *Admin) SearchOrders(c *gin.Context) {
 	todayStartMs := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).UnixMilli()
 
 	var completedToday, cancelledToday int64
-	db.Model(&models.Order{}).Where("status = ? AND updated_at >= ?", protocol.StatusCompleted, todayStartMs).Count(&completedToday)
-	db.Model(&models.Order{}).Where("status = ? AND updated_at >= ?", protocol.StatusCancelled, todayStartMs).Count(&cancelledToday)
+	db.Model(&models.Order{}).Where("status = ? AND completed_at >= ?", protocol.StatusCompleted, todayStartMs).Count(&completedToday)
+	db.Model(&models.Order{}).Where("status = ? AND cancelled_at >= ?", protocol.StatusCancelled, todayStartMs).Count(&cancelledToday)
 
 	// 返回结果
 	result := protocol.NewPageResult(list, total, &protocol.Pagination{

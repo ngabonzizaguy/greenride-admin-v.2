@@ -53,28 +53,38 @@ func (s *DispatchService) StartAutoDispatch(order *protocol.Order) (result *prot
 		Success:     false,
 		DriverCount: 0,
 	}
-	//cfg := s.config
 	// 1. 查找合格司机
+	log.Get().Infof("[Dispatch] Order %s: max_distance=%.1f km, vehicle_category=%s",
+		order.OrderID, s.config.MaxDistance, order.Details.VehicleCategory)
 	driver_list := s.FindEligibleDrivers(order)
 	if len(driver_list) == 0 {
 		result.Message = "No eligible drivers found"
+		log.Get().Warnf("[Dispatch] Order %s: No drivers found with bound vehicles (category=%s)",
+			order.OrderID, order.Details.VehicleCategory)
 		return
 	}
+	log.Get().Infof("[Dispatch] Order %s: Found %d drivers with matching vehicles", order.OrderID, len(driver_list))
 	runtime_list := GetUserService().GetDriversRuntime(driver_list)
 	if len(runtime_list) == 0 {
 		result.Message = "No online drivers found"
+		log.Get().Warnf("[Dispatch] Order %s: None of %d drivers have runtime data", order.OrderID, len(driver_list))
 		return
 	}
+	log.Get().Infof("[Dispatch] Order %s: %d drivers have runtime data", order.OrderID, len(runtime_list))
 	// 4. 评估每个司机
 	var eligible_drivers []*protocol.DispatchDriver
 	for _, item := range runtime_list {
 		// 评估司机是否适合接单
 		eligibleDriver := s.EvaluateDriverForOrder(item, order)
 		if !eligibleDriver.IsEligible {
+			log.Get().Infof("[Dispatch] Order %s: Driver %s rejected — %s (dist=%.1f km, status=%s)",
+				order.OrderID, item.DriverID, eligibleDriver.RejectReason, eligibleDriver.Distance, item.OnlineStatus)
 			continue
 		}
 		eligible_drivers = append(eligible_drivers, eligibleDriver)
 	}
+	log.Get().Infof("[Dispatch] Order %s: %d/%d drivers eligible after evaluation",
+		order.OrderID, len(eligible_drivers), len(runtime_list))
 
 	// 2. 司机按评分排序
 	sort.Slice(eligible_drivers, func(i, j int) bool {

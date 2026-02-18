@@ -105,22 +105,23 @@ export default function RideDetailPage({ params }: { params: Promise<{ id: strin
         const response = await apiClient.getOrderDetail(id);
         if (response.code === '0000' && response.data) {
           const data = response.data as Record<string, unknown>;
+          const details = (data.details || {}) as Record<string, unknown>;
           setRide({
             order_id: (data.order_id as string) || id,
             status: (data.status as string) || 'pending',
             passenger: data.passenger as RideData['passenger'],
             driver: data.driver as RideData['driver'],
             vehicle: data.vehicle as RideData['vehicle'],
-            pickup_address: data.pickup_address as string,
-            pickup_latitude: data.pickup_latitude as number,
-            pickup_longitude: data.pickup_longitude as number,
-            dropoff_address: data.dropoff_address as string,
-            dropoff_latitude: data.dropoff_latitude as number,
-            dropoff_longitude: data.dropoff_longitude as number,
-            estimated_distance: data.estimated_distance as number,
-            actual_distance: data.actual_distance as number,
-            estimated_duration: data.estimated_duration as number,
-            actual_duration: data.actual_duration as number,
+            pickup_address: (details.pickup_address as string) || (data.pickup_address as string),
+            pickup_latitude: (details.pickup_latitude as number) || (data.pickup_latitude as number),
+            pickup_longitude: (details.pickup_longitude as number) || (data.pickup_longitude as number),
+            dropoff_address: (details.dropoff_address as string) || (data.dropoff_address as string),
+            dropoff_latitude: (details.dropoff_latitude as number) || (data.dropoff_latitude as number),
+            dropoff_longitude: (details.dropoff_longitude as number) || (data.dropoff_longitude as number),
+            estimated_distance: (details.estimated_distance as number) || (data.estimated_distance as number),
+            actual_distance: (details.actual_distance as number) || (data.actual_distance as number),
+            estimated_duration: (details.estimated_duration as number) || (data.estimated_duration as number),
+            actual_duration: (details.actual_duration as number) || (data.actual_duration as number),
             payment_amount: data.payment_amount as number,
             payment_method: data.payment_method as string,
             payment_status: data.payment_status as string,

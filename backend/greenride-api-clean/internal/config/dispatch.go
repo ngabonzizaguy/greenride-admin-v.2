@@ -8,21 +8,21 @@ type DispatchConfig struct {
 	Scoring         *ScoringConfig         `mapstructure:"scoring"`          // 评分配置
 	Rounds          *RoundsConfig          `mapstructure:"rounds"`           // 派单轮次配置
 
-	MaxRounds                 int     `json:"max_rounds"`                    // 最大派单轮次
-	TimeoutSeconds            int     `json:"timeout_seconds"`               // 司机响应超时时间
-	MaxDistance               float64 `json:"max_distance"`                  // 最大距离(公里)
-	MaxWaitTime               int     `json:"max_wait_time"`                 // 最大等待时间(分钟)
-	MaxIdleTime               int     `json:"max_idle_time"`                 // 最大空闲时间(分钟)
-	MaxIdleDistance           float64 `json:"max_idle_distance"`             // 最大空闲距离(公里)
-	MaxNextOrderDelayTime     int     `json:"max_next_order_delay_time"`     // 最大下单延迟时间(分钟)
-	MaxNextOrderDelayDistance float64 `json:"max_next_order_delay_distance"` // 最大下单延迟距离(公里)
+	MaxRounds                 int     `mapstructure:"max_rounds" json:"max_rounds"`                             // 最大派单轮次
+	TimeoutSeconds            int     `mapstructure:"timeout_seconds" json:"timeout_seconds"`                   // 司机响应超时时间
+	MaxDistance               float64 `mapstructure:"max_distance" json:"max_distance"`                         // 最大距离(公里)
+	MaxWaitTime               int     `mapstructure:"max_wait_time" json:"max_wait_time"`                       // 最大等待时间(分钟)
+	MaxIdleTime               int     `mapstructure:"max_idle_time" json:"max_idle_time"`                       // 最大空闲时间(分钟)
+	MaxIdleDistance           float64 `mapstructure:"max_idle_distance" json:"max_idle_distance"`               // 最大空闲距离(公里)
+	MaxNextOrderDelayTime     int     `mapstructure:"max_next_order_delay_time" json:"max_next_order_delay_time"`     // 最大下单延迟时间(分钟)
+	MaxNextOrderDelayDistance float64 `mapstructure:"max_next_order_delay_distance" json:"max_next_order_delay_distance"` // 最大下单延迟距离(公里)
 
 	// 评分权重
-	DistanceWeight   float64 `json:"distance_weight"`
-	TimeWeight       float64 `json:"time_weight"`
-	RatingWeight     float64 `json:"rating_weight"`
-	QueueWeight      float64 `json:"queue_weight"`
-	ExperienceWeight float64 `json:"experience_weight"`
+	DistanceWeight   float64 `mapstructure:"distance_weight" json:"distance_weight"`
+	TimeWeight       float64 `mapstructure:"time_weight" json:"time_weight"`
+	RatingWeight     float64 `mapstructure:"rating_weight" json:"rating_weight"`
+	QueueWeight      float64 `mapstructure:"queue_weight" json:"queue_weight"`
+	ExperienceWeight float64 `mapstructure:"experience_weight" json:"experience_weight"`
 }
 
 // RoundStrategy 轮次策略

@@ -98,6 +98,7 @@ export default function QuickBookingPage() {
   // Messages
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [estimatedFare, setEstimatedFare] = useState<number | undefined>(undefined);
   
   // Create new passenger modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -389,13 +390,14 @@ export default function QuickBookingPage() {
       const estimateResponse = await apiClient.estimateOrder(estimateData);
       
       let priceId: string | undefined;
-      let estimatedFare: number | undefined;
-      
+      let fare: number | undefined;
+
       if (estimateResponse.code === '0000' && estimateResponse.data) {
         const estimate = estimateResponse.data as Record<string, unknown>;
         priceId = estimate.price_id as string;
-        estimatedFare = estimate.final_fare as number || estimate.estimated_fare as number;
-        console.log('[QuickBooking] Got price_id:', priceId, 'fare:', estimatedFare);
+        fare = (estimate.discounted_fare as number) || (estimate.original_fare as number);
+        setEstimatedFare(fare);
+        console.log('[QuickBooking] Got price_id:', priceId, 'fare:', fare);
       }
 
       if (!priceId) {
@@ -426,8 +428,8 @@ export default function QuickBookingPage() {
       if (priceId) {
         orderData.price_id = priceId;
       }
-      if (estimatedFare) {
-        orderData.estimated_fare = estimatedFare;
+      if (fare) {
+        orderData.estimated_fare = fare;
       }
 
       console.log('[QuickBooking] Creating order with data:', orderData);
@@ -487,7 +489,7 @@ export default function QuickBookingPage() {
           driverLocation,
           pickup: pickupLocation,
           dropoff: dropoffLocation,
-          eta: estimatedFare ? `~${estimatedFare.toLocaleString()} RWF` : 'Estimated',
+          eta: fare ? `~${Math.round(fare).toLocaleString()} RWF` : 'Calculating...',
         });
         
         setBookingComplete(true);
@@ -524,6 +526,7 @@ export default function QuickBookingPage() {
     setDriversError(null);
     setBookingComplete(false);
     setBookingDetails(null);
+    setEstimatedFare(undefined);
     setNewPassengerForm({ first_name: '', last_name: '', phone: '', email: '' });
   };
 
@@ -954,6 +957,16 @@ export default function QuickBookingPage() {
                 </div>
               </div>
             </div>
+
+            {/* Estimated Fare */}
+            {estimatedFare && (
+              <div className="p-4 rounded-lg bg-green-50 border border-green-200">
+                <p className="text-sm text-muted-foreground mb-1">Estimated Fare</p>
+                <p className="text-2xl font-bold text-green-800">
+                  {Math.round(estimatedFare).toLocaleString()} RWF
+                </p>
+              </div>
+            )}
 
             {/* Driver Assignment Note */}
             <div className="p-4 rounded-lg bg-blue-50 border border-blue-200 space-y-3">
