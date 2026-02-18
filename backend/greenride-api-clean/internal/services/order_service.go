@@ -527,29 +527,6 @@ func (s *OrderService) EstimateOrder(req *protocol.EstimateRequest) (*protocol.O
 		s.EnrichRouteByGoogleMap(req)
 	}
 
-	// 1b. Haversine fallback if Google API failed (e.g. key suspended/quota exceeded)
-	if req.EstimatedDistance == 0 || req.EstimatedDuration == 0 {
-		straightLine := utils.CalculateDistanceHaversine(
-			req.PickupLatitude, req.PickupLongitude,
-			req.DropoffLatitude, req.DropoffLongitude,
-		)
-		if straightLine > 0 {
-			req.EstimatedDistance = straightLine * 1.3 // road factor ~1.3x straight line
-			req.EstimatedDuration = int(req.EstimatedDistance * 2) // ~2 min/km rough estimate
-			if req.EstimatedDuration < 1 {
-				req.EstimatedDuration = 1
-			}
-			log.Warnf("Google API unavailable, using Haversine fallback: %.2f km, %d min", req.EstimatedDistance, req.EstimatedDuration)
-		}
-	}
-
-	// 1c. Final validation — cannot price without distance
-	if req.EstimatedDistance <= 0 {
-		log.Errorf("EstimateOrder failed: no distance available (pickup=%.4f,%.4f dropoff=%.4f,%.4f)",
-			req.PickupLatitude, req.PickupLongitude, req.DropoffLatitude, req.DropoffLongitude)
-		return nil, protocol.InvalidParams
-	}
-
 	// 2. 使用 PriceRuleService 进行价格计算
 	pricingService := GetPriceRuleService()
 	req.SnapshotDuration = 30
