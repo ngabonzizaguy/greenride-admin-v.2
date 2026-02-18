@@ -12,6 +12,7 @@ COPY . .
 # NO trailing slash!
 ENV NEXT_PUBLIC_API_URL=https://admin-api.greenrideafrica.com
 ENV NEXT_PUBLIC_DEMO_MODE=false
+ENV NEXT_PUBLIC_GOOGLE_MAPS_KEY=AIzaSyCAISZkx7emNiv6fWeG6QdfW7eqSHDtzes
 RUN npm run build
 
 FROM base AS runner
