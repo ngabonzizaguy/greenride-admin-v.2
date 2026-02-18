@@ -396,9 +396,12 @@ export default function QuickBookingPage() {
         priceId = estimate.price_id as string;
         estimatedFare = estimate.final_fare as number || estimate.estimated_fare as number;
         console.log('[QuickBooking] Got price_id:', priceId, 'fare:', estimatedFare);
-      } else {
-        // If estimate fails, try to proceed without price_id (backend may auto-generate)
-        console.warn('[QuickBooking] Estimate failed, proceeding without price_id:', estimateResponse.msg);
+      }
+
+      if (!priceId) {
+        setError(`Price estimation failed: ${estimateResponse.msg || 'No price ID returned'}. Please verify the locations and try again.`);
+        setIsBooking(false);
+        return;
       }
 
       // Step 2: Create order with price_id

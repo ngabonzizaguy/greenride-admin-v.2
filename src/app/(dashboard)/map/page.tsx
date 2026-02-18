@@ -233,6 +233,7 @@ const createCarIcon = (color: string, heading: number) => {
 
 export default function MapPage() {
   const [drivers, setDrivers] = useState<MapDriver[]>([]);
+  const [backendStats, setBackendStats] = useState<{ online: number; busy: number; offline: number; total: number } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isLiveConnected, setIsLiveConnected] = useState(false);
@@ -315,6 +316,9 @@ export default function MapPage() {
         });
         
         setDrivers(mapDrivers);
+        if (response.data.stats) {
+          setBackendStats(response.data.stats);
+        }
         setLastUpdated(new Date());
         setIsLiveConnected(true);
         setError(null);
@@ -387,13 +391,13 @@ export default function MapPage() {
     [filteredDrivers]
   );
 
-  // Stats
+  // Stats - prefer backend-provided counts (includes offline drivers not in the nearby list)
   const stats = useMemo(() => ({
-    total: drivers.length,
-    available: drivers.filter(d => d.status === 'available').length,
-    onTrip: drivers.filter(d => d.status === 'on_trip').length,
-    offline: drivers.filter(d => d.status === 'offline').length,
-  }), [drivers]);
+    total: backendStats?.total ?? drivers.length,
+    available: backendStats?.online ?? drivers.filter(d => d.status === 'available').length,
+    onTrip: backendStats?.busy ?? drivers.filter(d => d.status === 'on_trip').length,
+    offline: backendStats?.offline ?? drivers.filter(d => d.status === 'offline').length,
+  }), [drivers, backendStats]);
 
   // Focus on driver
   const focusOnDriver = useCallback((driver: MapDriver) => {
@@ -424,11 +428,22 @@ export default function MapPage() {
   };
 
   if (loadError) {
+    const maskedKey = GOOGLE_MAPS_API_KEY
+      ? `${GOOGLE_MAPS_API_KEY.slice(0, 8)}...${GOOGLE_MAPS_API_KEY.slice(-4)}`
+      : '(not set)';
     return (
       <div className="h-[calc(100vh-8rem)] flex items-center justify-center bg-gray-100 rounded-lg">
-        <div className="text-center">
+        <div className="text-center max-w-md px-4">
+          <AlertCircle className="h-10 w-10 text-red-500 mx-auto mb-3" />
           <p className="text-red-500 font-medium">Failed to load Google Maps</p>
           <p className="text-sm text-muted-foreground mt-2">{loadError.message}</p>
+          <div className="mt-4 text-xs text-muted-foreground space-y-1 text-left bg-white rounded p-3 border">
+            <p><strong>Troubleshooting:</strong></p>
+            <p>1. Ensure <em>Maps JavaScript API</em> is enabled in Google Cloud Console</p>
+            <p>2. Check API key restrictions (HTTP referrers must include this domain)</p>
+            <p>3. Verify billing is enabled on the Google Cloud project</p>
+            <p className="mt-2 font-mono text-[10px]">Key: {maskedKey}</p>
+          </div>
         </div>
       </div>
     );

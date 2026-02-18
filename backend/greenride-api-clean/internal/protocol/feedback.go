@@ -6,12 +6,15 @@ package protocol
 
 // FeedbackRequest 简化的反馈请求结构
 type FeedbackRequest struct {
-	Title   string `json:"title" binding:"required"`
-	Content string `json:"content" binding:"required"`
-	Email   string `json:"email" binding:"required,email"`
-	Name    string `json:"name,omitempty"`    // Optional: submitter name
-	Phone   string `json:"phone,omitempty"`   // Optional: submitter phone
-	UserID  string `json:"user_id,omitempty"` // Optional: authenticated user ID
+	Title        string `json:"title" binding:"required"`
+	Content      string `json:"content" binding:"required"`
+	Email        string `json:"email" binding:"required,email"`
+	Name         string `json:"name,omitempty"`          // Optional: submitter name
+	Phone        string `json:"phone,omitempty"`         // Optional: submitter phone
+	UserID       string `json:"user_id,omitempty"`       // Optional: authenticated user ID
+	Category     string `json:"category,omitempty"`      // Optional: service, driver, vehicle, app, payment, safety, other
+	FeedbackType string `json:"feedback_type,omitempty"` // Optional: complaint, suggestion, compliment, bug_report
+	Severity     string `json:"severity,omitempty"`      // Optional: low, medium, high, critical
 }
 
 // FeedbackResponse 反馈响应结构

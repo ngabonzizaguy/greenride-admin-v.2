@@ -19,15 +19,26 @@ type FeedbackWithUser struct {
 }
 
 // CreateFeedback 创建反馈记录
-func (s *FeedbackService) CreateFeedback(title, content, email, name, phone, userID string) (*models.Feedback, error) {
+func (s *FeedbackService) CreateFeedback(title, content, email, name, phone, userID, category, feedbackType, severity string) (*models.Feedback, error) {
 	feedback := models.NewFeedback()
 	feedback.SetContent(title, content, "")
 	feedback.SetContact(name, phone, email)
 	if userID != "" {
 		feedback.SetUserID(userID)
 	}
-	feedback.SetFeedbackType(protocol.FeedbackTypeSuggestion)
-	feedback.SetCategory(protocol.FeedbackCategoryOther)
+	if feedbackType != "" {
+		feedback.SetFeedbackType(feedbackType)
+	} else {
+		feedback.SetFeedbackType(protocol.FeedbackTypeSuggestion)
+	}
+	if category != "" {
+		feedback.SetCategory(category)
+	} else {
+		feedback.SetCategory(protocol.FeedbackCategoryOther)
+	}
+	if severity != "" {
+		feedback.SetSeverity(severity)
+	}
 
 	db := models.GetDB()
 	if db == nil {

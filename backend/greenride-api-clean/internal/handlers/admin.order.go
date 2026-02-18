@@ -3,9 +3,11 @@ package handlers
 import (
 	"greenride/internal/log"
 	"greenride/internal/middleware"
+	"greenride/internal/models"
 	"greenride/internal/protocol"
 	"greenride/internal/services"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -61,12 +63,35 @@ func (t *Admin) SearchOrders(c *gin.Context) {
 		list[i] = orderInfo
 	}
 
+	// Calculate ride stats for dashboard cards
+	db := models.GetDB()
+	var activeCount int64
+	db.Model(&models.Order{}).
+		Where("status IN ?", []string{protocol.StatusRequested, protocol.StatusAccepted, protocol.StatusInProgress}).
+		Count(&activeCount)
+
+	// Today's completed and cancelled (Rwanda timezone, UTC+2)
+	loc, _ := time.LoadLocation("Africa/Kigali")
+	if loc == nil {
+		loc = time.FixedZone("CAT", 2*3600)
+	}
+	now := time.Now().In(loc)
+	todayStartMs := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc).UnixMilli()
+
+	var completedToday, cancelledToday int64
+	db.Model(&models.Order{}).Where("status = ? AND updated_at >= ?", protocol.StatusCompleted, todayStartMs).Count(&completedToday)
+	db.Model(&models.Order{}).Where("status = ? AND updated_at >= ?", protocol.StatusCancelled, todayStartMs).Count(&cancelledToday)
+
 	// 返回结果
 	result := protocol.NewPageResult(list, total, &protocol.Pagination{
 		Page: req.Page,
 		Size: req.Limit,
 	})
 	result.AddAttach("params", req)
+	result.AddAttach("total_count", total)
+	result.AddAttach("active_count", activeCount)
+	result.AddAttach("completed_today", completedToday)
+	result.AddAttach("cancelled_today", cancelledToday)
 	c.JSON(http.StatusOK, protocol.NewSuccessResult(result))
 }
 

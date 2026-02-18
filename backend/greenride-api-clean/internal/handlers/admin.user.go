@@ -499,10 +499,25 @@ func (t *Admin) GetNearbyDrivers(c *gin.Context) {
 		return
 	}
 
+	// Count total driver statuses for fleet tracker
+	db := models.GetDB()
+	var totalDrivers, onlineCount, busyCount int64
+	db.Model(&models.User{}).Where("user_type = ?", protocol.UserTypeDriver).Count(&totalDrivers)
+	db.Model(&models.User{}).Where("user_type = ? AND online_status = ?", protocol.UserTypeDriver, "online").Count(&onlineCount)
+	db.Model(&models.User{}).Where("user_type = ? AND online_status = ?", protocol.UserTypeDriver, "busy").Count(&busyCount)
+	offlineCount := totalDrivers - onlineCount - busyCount
+	if offlineCount < 0 {
+		offlineCount = 0
+	}
+
 	// 构造响应
 	response := &protocol.GetNearbyDriversResponse{
-		Drivers: drivers,
-		Count:   len(drivers),
+		Drivers:      drivers,
+		Count:        len(drivers),
+		TotalDrivers: totalDrivers,
+		OnlineCount:  onlineCount,
+		BusyCount:    busyCount,
+		OfflineCount: offlineCount,
 	}
 
 	c.JSON(http.StatusOK, protocol.NewSuccessResult(response))

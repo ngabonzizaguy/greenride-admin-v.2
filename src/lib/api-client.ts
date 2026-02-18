@@ -1744,9 +1744,13 @@ class ApiClient {
 
       if (response.code === API_CODES.SUCCESS) {
         const drivers = response.data.drivers;
-        const onlineCount = drivers.filter(d => d.is_online && !d.is_busy).length;
-        const busyCount = drivers.filter(d => d.is_busy).length;
-        const offlineCount = drivers.filter(d => !d.is_online && !d.is_busy).length;
+        const rawData = response.data as Record<string, unknown>;
+
+        // Prefer backend-provided counts (includes offline drivers not in the list)
+        const onlineCount = (rawData.online_count as number) ?? drivers.filter(d => d.is_online && !d.is_busy).length;
+        const busyCount = (rawData.busy_count as number) ?? drivers.filter(d => d.is_busy).length;
+        const offlineCount = (rawData.offline_count as number) ?? drivers.filter(d => !d.is_online && !d.is_busy).length;
+        const totalDrivers = (rawData.total_drivers as number) ?? drivers.length;
 
         return {
           code: API_CODES.SUCCESS,
@@ -1758,7 +1762,7 @@ class ApiClient {
               online: onlineCount,
               busy: busyCount,
               offline: offlineCount,
-              total: drivers.length,
+              total: totalDrivers,
             },
           },
         };

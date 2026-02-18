@@ -294,8 +294,12 @@ type NearbyDriver struct {
 
 // GetNearbyDriversResponse 附近司机响应
 type GetNearbyDriversResponse struct {
-	Drivers []*NearbyDriver `json:"drivers"`
-	Count   int             `json:"count"`
+	Drivers      []*NearbyDriver `json:"drivers"`
+	Count        int             `json:"count"`
+	TotalDrivers int64           `json:"total_drivers,omitempty"`
+	OnlineCount  int64           `json:"online_count,omitempty"`
+	BusyCount    int64           `json:"busy_count,omitempty"`
+	OfflineCount int64           `json:"offline_count,omitempty"`
 }
 
 // =============================================================================
