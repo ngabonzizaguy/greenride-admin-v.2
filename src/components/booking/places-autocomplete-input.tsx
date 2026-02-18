@@ -34,10 +34,15 @@ export function PlacesAutocompleteInput(props: {
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
 
-  const canUsePlaces = useMemo(
-    () => typeof window !== 'undefined' && Boolean((window as any).google?.maps?.places),
-    []
-  );
+  // Check which Places API is available (new AutocompleteSuggestion or legacy AutocompleteService)
+  const placesApi = useMemo(() => {
+    if (typeof window === 'undefined') return 'none';
+    const places = (window as any).google?.maps?.places;
+    if (!places) return 'none';
+    if (typeof places.AutocompleteSuggestion?.fetchAutocompleteSuggestions === 'function') return 'new';
+    if (typeof places.AutocompleteService === 'function') return 'legacy';
+    return 'none';
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -51,9 +56,9 @@ export function PlacesAutocompleteInput(props: {
     return () => document.removeEventListener('mousedown', onDocMouseDown);
   }, [isOpen]);
 
+  // Fetch suggestions using whichever API is available
   useEffect(() => {
-    if (disabled) return;
-    if (!canUsePlaces) return;
+    if (disabled || placesApi === 'none') return;
 
     const q = value.trim();
     if (!q) {
@@ -64,34 +69,48 @@ export function PlacesAutocompleteInput(props: {
 
     setIsLoading(true);
     setError(null);
-    const handle = window.setTimeout(() => {
+
+    const handle = window.setTimeout(async () => {
       try {
-        const service = new google.maps.places.AutocompleteService();
-        service.getPlacePredictions(
-          {
+        if (placesApi === 'new') {
+          // New API: AutocompleteSuggestion (March 2025+)
+          const gPlaces = (google.maps.places as any);
+          const response = await gPlaces.AutocompleteSuggestion.fetchAutocompleteSuggestions({
             input: q,
-            // Bias toward Rwanda
-            componentRestrictions: { country: 'rw' },
-          },
-          (predictions, status) => {
-            setIsLoading(false);
-            if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
-              setSuggestions([]);
-              if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-                setError(null);
-              } else {
-                setError('Unable to load suggestions');
+            includedRegionCodes: ['rw'],
+          });
+          const results = (response.suggestions || [])
+            .filter((s: any) => s.placePrediction)
+            .slice(0, 7)
+            .map((s: any) => ({
+              placeId: s.placePrediction.placeId,
+              description: s.placePrediction.text.text,
+            }));
+          setSuggestions(results);
+          setIsLoading(false);
+        } else {
+          // Legacy API: AutocompleteService (deprecated but still works for existing customers)
+          const service = new google.maps.places.AutocompleteService();
+          service.getPlacePredictions(
+            { input: q, componentRestrictions: { country: 'rw' } },
+            (predictions, status) => {
+              setIsLoading(false);
+              if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
+                setSuggestions([]);
+                if (status !== google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+                  setError('Unable to load suggestions');
+                }
+                return;
               }
-              return;
+              setSuggestions(
+                predictions.slice(0, 7).map((p) => ({
+                  placeId: p.place_id,
+                  description: p.description,
+                }))
+              );
             }
-            setSuggestions(
-              predictions.slice(0, 7).map((p) => ({
-                placeId: p.place_id,
-                description: p.description,
-              }))
-            );
-          }
-        );
+          );
+        }
       } catch (e) {
         setIsLoading(false);
         setSuggestions([]);
@@ -100,39 +119,47 @@ export function PlacesAutocompleteInput(props: {
     }, 220);
 
     return () => window.clearTimeout(handle);
-  }, [value, disabled, canUsePlaces]);
+  }, [value, disabled, placesApi]);
 
   const resolvePlace = async (placeId: string, description: string) => {
-    if (!canUsePlaces) return;
+    if (placesApi === 'none') return;
     setIsLoading(true);
     setError(null);
 
     try {
-      // PlacesService requires an HTMLDivElement.
-      const el = document.createElement('div');
-      const service = new google.maps.places.PlacesService(el);
-
-      service.getDetails(
-        {
-          placeId,
-          fields: ['formatted_address', 'geometry', 'name'],
-        },
-        (place, status) => {
-          setIsLoading(false);
-          if (status !== google.maps.places.PlacesServiceStatus.OK || !place?.geometry?.location) {
-            setError('Unable to resolve selected place');
-            return;
+      if (placesApi === 'new') {
+        // New API: Place.fetchFields()
+        const gPlaces = (google.maps.places as any);
+        const place = new gPlaces.Place({ id: placeId });
+        await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location'] });
+        const lat = place.location.lat();
+        const lng = place.location.lng();
+        const address = place.formattedAddress || place.displayName || description;
+        onSelect({ placeId, address, lat, lng });
+        setIsOpen(false);
+        setSuggestions([]);
+        setIsLoading(false);
+      } else {
+        // Legacy API: PlacesService.getDetails()
+        const el = document.createElement('div');
+        const service = new google.maps.places.PlacesService(el);
+        service.getDetails(
+          { placeId, fields: ['formatted_address', 'geometry', 'name'] },
+          (place, status) => {
+            setIsLoading(false);
+            if (status !== google.maps.places.PlacesServiceStatus.OK || !place?.geometry?.location) {
+              setError('Unable to resolve selected place');
+              return;
+            }
+            const lat = place.geometry.location.lat();
+            const lng = place.geometry.location.lng();
+            const address = place.formatted_address || place.name || description;
+            onSelect({ placeId, address, lat, lng });
+            setIsOpen(false);
+            setSuggestions([]);
           }
-
-          const lat = place.geometry.location.lat();
-          const lng = place.geometry.location.lng();
-          const address = place.formatted_address || place.name || description;
-
-          onSelect({ placeId, address, lat, lng });
-          setIsOpen(false);
-          setSuggestions([]);
-        }
-      );
+        );
+      }
     } catch (e) {
       setIsLoading(false);
       setError(e instanceof Error ? e.message : 'Unable to resolve selected place');
@@ -163,14 +190,14 @@ export function PlacesAutocompleteInput(props: {
 
           {error && <div className="px-2 pb-2 text-xs text-red-600">{error}</div>}
 
-          {!canUsePlaces && (
+          {placesApi === 'none' && (
             <div className="px-2 pb-2 text-xs text-amber-700">
-              Google Places isn’t available (check API key + “Places API” enabled). Falling back to
+              Google Places isn&apos;t available (check API key + &quot;Places API&quot; enabled). Falling back to
               basic geocoding.
             </div>
           )}
 
-          {canUsePlaces && suggestions.length === 0 && value.trim() && !isLoading && !error && (
+          {placesApi !== 'none' && suggestions.length === 0 && value.trim() && !isLoading && !error && (
             <div className="px-2 pb-2 text-xs text-muted-foreground">No suggestions</div>
           )}
 
@@ -189,4 +216,3 @@ export function PlacesAutocompleteInput(props: {
     </div>
   );
 }
-
