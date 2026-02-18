@@ -64,6 +64,24 @@ type InnoPaaSResponse struct {
 	Data    string `json:"data"` // Message ID on success
 }
 
+// InnoPaaSSMSRequest represents the SMS API v3.0 request body (different from OTP)
+type InnoPaaSSMSRequest struct {
+	Mobile      string `json:"mobile"`                // Phone number without +, e.g. "250788123456"
+	Msg         string `json:"msg"`                   // Full SMS text content
+	SenderID    string `json:"senderId,omitempty"`    // Sender name (e.g. "GreenRide")
+	UID         string `json:"uid,omitempty"`         // Optional batch number
+	CallbackURL string `json:"callBackUrl,omitempty"` // Delivery status callback
+}
+
+// InnoPaaSSMSResponse represents the SMS API v3.0 response (success when code == "0")
+type InnoPaaSSMSResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Data    struct {
+		MessageID string `json:"messageId"`
+	} `json:"data"`
+}
+
 // SendSmsMessage sends an OTP using InnoPaaS OTP API v3.0
 // Uses WhatsApp (type "1") by default, falls back to SMS (type "3") on failure
 func (s *InnoPaaSService) SendSmsMessage(message *Message) error {
@@ -116,15 +134,24 @@ func (s *InnoPaaSService) SendSmsMessage(message *Message) error {
 		return nil
 	}
 
-	// Primary failed — try fallback
+	// Primary failed — try OTP fallback channel
 	log.Get().Warnf("[InnoPaaS] %s OTP failed for %s: %v — falling back to %s", otpTypeName(primaryType), toE164, err, otpTypeName(fallbackType))
 	fbErr := s.sendOTP(cfg, toE164, code, fallbackType)
 	if fbErr == nil {
 		log.Get().Infof("[InnoPaaS] OTP sent via %s (fallback) to %s", otpTypeName(fallbackType), toE164)
 		return nil
 	}
-	log.Get().Errorf("[InnoPaaS] %s fallback also failed for %s: %v", otpTypeName(fallbackType), toE164, fbErr)
-	return fmt.Errorf("%s OTP failed: %v; %s fallback failed: %v", otpTypeName(primaryType), err, otpTypeName(fallbackType), fbErr)
+	log.Get().Warnf("[InnoPaaS] %s OTP fallback also failed for %s: %v — trying SMS API", otpTypeName(fallbackType), toE164, fbErr)
+
+	// Final fallback: send as plain SMS via the SMS API (separate credit pool)
+	smsErr := s.sendSMSAPI(cfg, cleanPhoneNumber(to), code)
+	if smsErr == nil {
+		log.Get().Infof("[InnoPaaS] OTP sent via SMS API (final fallback) to %s", toE164)
+		return nil
+	}
+	log.Get().Errorf("[InnoPaaS] All delivery methods failed for %s: OTP %s: %v, OTP %s: %v, SMS API: %v",
+		toE164, otpTypeName(primaryType), err, otpTypeName(fallbackType), fbErr, smsErr)
+	return fmt.Errorf("all OTP delivery failed for %s", toE164)
 }
 
 // sendOTP sends a single OTP request with the specified type
@@ -191,6 +218,60 @@ func (s *InnoPaaSService) sendOTP(cfg *config.InnoPaaSConfig, toE164, code, otpT
 		return fmt.Errorf("InnoPaaS API error: %s (code: %s)", apiResp.Message, apiResp.Code)
 	}
 
+	return nil
+}
+
+// sendSMSAPI sends an OTP code as a plain SMS via InnoPaaS SMS API v3.0.
+// This is a separate product from the OTP API and may have its own credit pool.
+func (s *InnoPaaSService) sendSMSAPI(cfg *config.InnoPaaSConfig, mobile, code string) error {
+	smsBody := InnoPaaSSMSRequest{
+		Mobile: mobile,
+		Msg:    fmt.Sprintf("Your GreenRide verification code is %s. Valid for 5 minutes.", code),
+	}
+	if cfg.SenderID != "" {
+		smsBody.SenderID = cfg.SenderID
+	}
+	if cfg.CallbackURL != "" {
+		smsBody.CallbackURL = cfg.CallbackURL
+	}
+
+	jsonBody, err := json.Marshal(smsBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal SMS request: %v", err)
+	}
+
+	req, err := http.NewRequest("POST", cfg.SMSEndpoint, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("failed to create SMS request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json;charset=utf-8")
+	req.Header.Set("Authorization", cfg.Authorization)
+	req.Header.Set("appKey", cfg.AppKey)
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("SMS API request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read SMS API response: %v", err)
+	}
+
+	var apiResp InnoPaaSSMSResponse
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		log.Get().Errorf("[InnoPaaS] SMS API raw response: %s", string(body))
+		return fmt.Errorf("failed to parse SMS API response: %v", err)
+	}
+
+	// SMS API success code is "0" (different from OTP's "000000")
+	if apiResp.Code != "0" {
+		return fmt.Errorf("SMS API error: %s (code: %s)", apiResp.Message, apiResp.Code)
+	}
+
+	log.Get().Infof("[InnoPaaS] SMS API message sent, messageId: %s", apiResp.Data.MessageID)
 	return nil
 }
 

@@ -307,18 +307,23 @@ func (c *AWSConfig) ValidateAWS() error {
 
 type InnoPaaSConfig struct {
 	Endpoint      string `mapstructure:"endpoint" yaml:"endpoint" json:"endpoint"`
+	SMSEndpoint   string `mapstructure:"sms_endpoint" yaml:"sms_endpoint" json:"sms_endpoint"`     // SMS API v3 endpoint (fallback when OTP credits expire)
 	AppKey        string `mapstructure:"app_key" yaml:"app_key" json:"app_key"`
 	AppSecret     string `mapstructure:"app_secret" yaml:"app_secret" json:"app_secret"`           // For OTP v3 x-signature (MD5)
 	Authorization string `mapstructure:"authorization" yaml:"authorization" json:"authorization"`   // Token auth (AppKey + Authorization headers)
 	TemplateID    string `mapstructure:"template_id" yaml:"template_id" json:"template_id"`         // OTP template ID from InnoPaaS dashboard
 	SenderID      string `mapstructure:"sender_id" yaml:"sender_id" json:"sender_id"`               // Optional sender (e.g. WhatsApp)
 	OTPType       string `mapstructure:"otp_type" yaml:"otp_type" json:"otp_type"`                  // "1"=WhatsApp, "3"=SMS (default: "1")
+	CallbackURL   string `mapstructure:"callback_url" yaml:"callback_url" json:"callback_url"`     // SMS delivery status callback URL
 }
 
 // Validate 验证InnoPaaS配置
 func (c *InnoPaaSConfig) Validate() {
 	if c.Endpoint == "" {
 		c.Endpoint = "https://api.innopaas.com/api/otp/v3/msg/send/verify"
+	}
+	if c.SMSEndpoint == "" {
+		c.SMSEndpoint = "https://api.innopaas.com/api/sms/v3/msg/send"
 	}
 	if c.OTPType == "" {
 		c.OTPType = "3" // Default to SMS, falls back to WhatsApp
