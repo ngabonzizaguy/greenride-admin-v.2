@@ -316,6 +316,7 @@ export default function QuickBookingPage() {
 
   // Load nearby available drivers with accurate ETA (polling while on confirm step)
   useEffect(() => {
+    if (!FEATURE_NEARBY_DRIVERS) return;
     if (currentStep !== 'confirm') return;
     if (!pickupCoords) return;
 
@@ -1000,76 +1001,84 @@ export default function QuickBookingPage() {
               </div>
             )}
 
-            {/* Driver Assignment Note */}
-            <div className="p-4 rounded-lg bg-blue-50 border border-blue-200 space-y-3">
-              <div className="flex items-start gap-2">
-                <Car className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-medium text-blue-900">Driver Assignment</p>
-                  <p className="text-sm text-blue-700">
-                    Choose an available driver (with live location + ETA), or leave it on auto-assign.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="driver-select">Select Driver</Label>
-                <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
-                  <SelectTrigger id="driver-select">
-                    <SelectValue placeholder="Select a driver" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">Auto-assign (system)</SelectItem>
-                    {availableDrivers.map((d) => (
-                      <SelectItem key={d.driver_id} value={d.driver_id}>
-                        {d.name} • {Math.round(d.distance_km * 10) / 10} km • {d.eta_minutes} min
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="text-xs text-muted-foreground">
-                  {isLoadingDrivers ? 'Updating drivers (10s)…' : 'Live updates every 10s.'}
-                  {driversError ? ` • ${driversError}` : ''}
-                </div>
-              </div>
-
-              {selectedDriverId !== 'auto' && selectedDriver && (
-                <div className="rounded-md bg-background border p-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-medium">{selectedDriver.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        ETA to pickup: <strong>{selectedDriver.eta_minutes} min</strong> • Distance:{' '}
-                        <strong>{Math.round(selectedDriver.distance_km * 10) / 10} km</strong>
-                      </p>
-                    </div>
-                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Available</Badge>
+            {/* Driver Assignment — off when FEATURE_NEARBY_DRIVERS is false */}
+            {FEATURE_NEARBY_DRIVERS ? (
+              <div className="p-4 rounded-lg bg-blue-50 border border-blue-200 space-y-3">
+                <div className="flex items-start gap-2">
+                  <Car className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-medium text-blue-900">Driver Assignment</p>
+                    <p className="text-sm text-blue-700">
+                      Choose an available driver (with live location + ETA), or leave it on auto-assign.
+                    </p>
                   </div>
-
-                  {isGoogleLoaded && pickupCoords && (
-                    <div className="h-48 w-full rounded-md overflow-hidden">
-                      <GoogleMap
-                        mapContainerStyle={{ width: '100%', height: '100%' }}
-                        center={{ lat: pickupCoords.lat, lng: pickupCoords.lng }}
-                        zoom={14}
-                        options={{ disableDefaultUI: true, zoomControl: true }}
-                      >
-                        <Marker
-                          position={{ lat: pickupCoords.lat, lng: pickupCoords.lng }}
-                          title="Pickup"
-                          label={{ text: 'P', color: 'white' }}
-                        />
-                        <Marker
-                          position={{ lat: selectedDriver.latitude, lng: selectedDriver.longitude }}
-                          title={selectedDriver.name}
-                          label={{ text: 'D', color: 'white' }}
-                        />
-                      </GoogleMap>
-                    </div>
-                  )}
                 </div>
-              )}
-            </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="driver-select">Select Driver</Label>
+                  <Select value={selectedDriverId} onValueChange={setSelectedDriverId}>
+                    <SelectTrigger id="driver-select">
+                      <SelectValue placeholder="Select a driver" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Auto-assign (system)</SelectItem>
+                      {availableDrivers.map((d) => (
+                        <SelectItem key={d.driver_id} value={d.driver_id}>
+                          {d.name} • {Math.round(d.distance_km * 10) / 10} km • {d.eta_minutes} min
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="text-xs text-muted-foreground">
+                    {isLoadingDrivers ? 'Updating drivers (10s)…' : 'Live updates every 10s.'}
+                    {driversError ? ` • ${driversError}` : ''}
+                  </div>
+                </div>
+
+                {selectedDriverId !== 'auto' && selectedDriver && (
+                  <div className="rounded-md bg-background border p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">{selectedDriver.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          ETA to pickup: <strong>{selectedDriver.eta_minutes} min</strong> • Distance:{' '}
+                          <strong>{Math.round(selectedDriver.distance_km * 10) / 10} km</strong>
+                        </p>
+                      </div>
+                      <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Available</Badge>
+                    </div>
+
+                    {isGoogleLoaded && pickupCoords && (
+                      <div className="h-48 w-full rounded-md overflow-hidden">
+                        <GoogleMap
+                          mapContainerStyle={{ width: '100%', height: '100%' }}
+                          center={{ lat: pickupCoords.lat, lng: pickupCoords.lng }}
+                          zoom={14}
+                          options={{ disableDefaultUI: true, zoomControl: true }}
+                        >
+                          <Marker
+                            position={{ lat: pickupCoords.lat, lng: pickupCoords.lng }}
+                            title="Pickup"
+                            label={{ text: 'P', color: 'white' }}
+                          />
+                          <Marker
+                            position={{ lat: selectedDriver.latitude, lng: selectedDriver.longitude }}
+                            title={selectedDriver.name}
+                            label={{ text: 'D', color: 'white' }}
+                          />
+                        </GoogleMap>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-4 rounded-lg bg-muted/50 border">
+                <p className="text-sm text-muted-foreground">
+                  Driver will be auto-assigned by the system when the booking is created.
+                </p>
+              </div>
+            )}
 
             <Separator />
 

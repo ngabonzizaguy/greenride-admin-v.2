@@ -53,14 +53,17 @@ func (s *DispatchService) StartAutoDispatch(order *protocol.Order) (result *prot
 		Success:     false,
 		DriverCount: 0,
 	}
-	// 1. 查找合格司机
+	vehicleCategory := ""
+	if order.Details != nil {
+		vehicleCategory = order.Details.VehicleCategory
+	}
 	log.Get().Infof("[Dispatch] Order %s: max_distance=%.1f km, vehicle_category=%s",
-		order.OrderID, s.config.MaxDistance, order.Details.VehicleCategory)
+		order.OrderID, s.config.MaxDistance, vehicleCategory)
 	driver_list := s.FindEligibleDrivers(order)
 	if len(driver_list) == 0 {
 		result.Message = "No eligible drivers found"
 		log.Get().Warnf("[Dispatch] Order %s: No drivers found with bound vehicles (category=%s)",
-			order.OrderID, order.Details.VehicleCategory)
+			order.OrderID, vehicleCategory)
 		return
 	}
 	log.Get().Infof("[Dispatch] Order %s: Found %d drivers with matching vehicles", order.OrderID, len(driver_list))
@@ -106,68 +109,51 @@ func (s *DispatchService) StartAutoDispatch(order *protocol.Order) (result *prot
 	return
 }
 
-// FindEligibleDrivers 查找符合条件的司机
+// FindEligibleDrivers 查找符合条件的司机（广播模式：只要求有车辆，不按车型筛选；在线+无当前订单在 EvaluateDriverForOrder 中过滤）
 func (s *DispatchService) FindEligibleDrivers(order *protocol.Order) []string {
-	// 1. 获取附近司机列表
-	vehicle_category, vehicle_level := "", ""
-	if order.Details != nil {
-		vehicle_category = order.Details.VehicleCategory
-		vehicle_level = order.Details.VehicleLevel
-	}
-	driverList := models.FindDriversByVehicle(vehicle_category, vehicle_level)
-	/*
-		if s.config.DriverSelection.UseGeolocation {
-			// 使用地理位置查找附近司机
-			nearbyDriverIDs, err := s.getNearbyDriverIDs(order.Details.PickupLatitude, order.Details.PickupLongitude, 5)
-			if err != nil && len(nearbyDriverIDs) > 0 {
-				for _, item := range nearbyDriverIDs {
-					if _, ok := driverLib[item]; ok {
-						driverList = append(driverList, item)
-					}
-				}
-			}
-		}
-		if err := models.GetDB().Model(&models.User{}).Select([]string{"user_id"}).
-			Where("online_status=?", protocol.StatusOnline).
-			Where("user_type=?", protocol.UserTypeDriver).
-			Find(&driverList).Error; err != nil {
-			log.Get().Errorf("get drivers error:%v", err.Error())
-		}
-	*/
+	// Broadcast: include all drivers who have a vehicle. Eligibility (online, no active ride) is enforced in EvaluateDriverForOrder.
+	// Vehicle category/level are not required to match — order goes to all such drivers; first to accept wins.
+	driverList := models.FindDriversByVehicle("", "")
 	return driverList
 }
 
-// EvaluateDriverForOrder 评估单个司机是否适合接单
+// EvaluateDriverForOrder 评估单个司机是否适合接单（仅强制：在线、无当前订单；其余为可选）
 func (s *DispatchService) EvaluateDriverForOrder(rt *protocol.DriverRuntime, order *protocol.Order) (driver *protocol.DispatchDriver) {
 	driver = &protocol.DispatchDriver{
 		DriverID:   rt.DriverID,
 		IsEligible: false,
 	}
-	// 1. 基础状态检查
+	// 1. Mandatory: must be online
 	if !rt.IsAvailable() {
 		driver.RejectReason = "Driver not available"
 		return
 	}
+	// 2. Mandatory: must have no active ride (one ride at a time)
+	if rt.HasCurrentOrder() {
+		driver.RejectReason = "Driver has active ride"
+		return
+	}
+	// 3. Optional: queue capacity (if configured)
+	if !rt.CanAcceptMoreOrders() {
+		driver.RejectReason = "Driver queue is full"
+		return
+	}
 
-	// 2. 距离检查
-	driver.Distance = utils.CalculateDistanceHaversine(
-		rt.Latitude,
-		rt.Longitude,
-		order.Details.PickupLatitude,
-		order.Details.PickupLongitude,
-	)
-
+	driver.Distance = 0
+	if order.Details != nil {
+		driver.Distance = utils.CalculateDistanceHaversine(
+			rt.Latitude,
+			rt.Longitude,
+			order.Details.PickupLatitude,
+			order.Details.PickupLongitude,
+		)
+	}
+	// 4. Optional: distance filter only when MaxDistance > 0
 	if s.config.MaxDistance > 0 && driver.Distance > s.config.MaxDistance {
 		driver.RejectReason = "Distance too far"
 		return
 	}
 
-	// 3. 队列容量检查
-	if !rt.CanAcceptMoreOrders() {
-		driver.RejectReason = "Driver queue is full"
-		return
-	}
-	// 4. 时间窗口分析
 	timeWindow := s.analyzeDriverTimeWindow(rt, order)
 	if !timeWindow.CanAcceptNewOrder {
 		driver.RejectReason = "Cannot accept new order due to time window"
@@ -175,7 +161,6 @@ func (s *DispatchService) EvaluateDriverForOrder(rt *protocol.DriverRuntime, ord
 		return
 	}
 
-	// 7. 设置其他字段
 	driver.IsEligible = true
 	driver.CanAcceptNewOrder = timeWindow.CanAcceptNewOrder
 	driver.WaitTimeMinutes = timeWindow.WaitTimeMinutes

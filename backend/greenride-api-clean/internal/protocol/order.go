@@ -45,6 +45,7 @@ type Order struct {
 	CancelReason string `json:"cancel_reason,omitempty"`
 
 	// 派单相关信息
+	DispatchID          string `json:"dispatch_id,omitempty"`   // 当司机从「派给我的单」接单时必填，用于 first-accept-wins
 	DispatchStatus      string `json:"dispatch_status"`
 	CurrentRound        int    `json:"current_round"`
 	MaxRounds           int    `json:"max_rounds"`

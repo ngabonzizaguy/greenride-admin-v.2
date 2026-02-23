@@ -1158,48 +1158,79 @@ func (s *OrderService) RejectOrder(req *protocol.OrderActionRequest) protocol.Er
 	return protocol.Success
 }
 
-// GetNearbyOrders gets nearby orders
+// GetNearbyOrders gets nearby orders for the requesting driver. It returns:
+// 1) Orders with status=requested, no provider_id, that are NOT in any pending dispatch (broadcast-style).
+// 2) Orders that have a pending dispatch TO this driver (so drivers actually receive requests sent to them).
+// For (2), each order includes dispatch_id so the app can send it on accept for first-accept-wins.
 func (s *OrderService) GetNearbyOrders(req *protocol.GetNearbyOrdersRequest) (*protocol.GetNearbyOrdersResponse, protocol.ErrorCode) {
-	var order_list []string
+	seen := make(map[string]bool)
+	var orderList []*protocol.Order
+
+	// 1) Broadcast-style: requested, no provider, no pending dispatch for anyone
+	subNoPending := models.GetDB().Model(&models.DispatchRecord{}).Select("order_id").Where("status = ?", protocol.StatusPending)
 	query := models.GetDB().Model(&models.Order{}).
 		Where("order_type = ?", req.OrderType).
 		Where("status = ?", protocol.StatusRequested).
-		// Exclude orders already pre-assigned to a specific driver
 		Where("t_orders.provider_id IS NULL OR t_orders.provider_id = ''").
-		// Exclude orders with active pending dispatch records (already being dispatched)
-		Where("t_orders.order_id NOT IN (?)",
-			models.GetDB().Model(&models.DispatchRecord{}).Select("order_id").
-				Where("status = ?", protocol.StatusPending))
-	//计算坐标范围,根据坐标和半径
+		Where("t_orders.order_id NOT IN (?)", subNoPending)
 	if req.Radius != 0 && req.Latitude != 0 && req.Longitude != 0 {
 		minLat, maxLat, minLng, maxLng := utils.CalculateCoordinateRange(req.Latitude, req.Longitude, req.Radius)
-		// 添加地理范围过滤
 		query = query.Joins("JOIN t_ride_orders ON t_orders.order_id = t_ride_orders.order_id").
 			Where("t_ride_orders.pickup_latitude BETWEEN ? AND ?", minLat, maxLat).
 			Where("t_ride_orders.pickup_longitude BETWEEN ? AND ?", minLng, maxLng)
 	}
-
-	// Mock implementation - in real app would use spatial queries
-	query.Select([]string{"order_id"}).Limit(req.Limit).Order("created_at DESC").Find(&order_list)
-
-	var orderList []*protocol.Order
-	for _, orderID := range order_list {
+	var broadcastIDs []string
+	query.Limit(req.Limit).Order("t_orders.created_at DESC").Pluck("t_orders.order_id", &broadcastIDs)
+	for _, orderID := range broadcastIDs {
+		if seen[orderID] {
+			continue
+		}
+		seen[orderID] = true
 		order := models.GetOrderByID(orderID)
 		if order == nil {
 			continue
 		}
-		// Sanitize: browsing drivers should not see passenger phone
 		info := s.GetOrderInfoSanitized(order, req.RequesterID, protocol.UserTypeDriver)
 		if info != nil {
 			orderList = append(orderList, info)
 		}
 	}
 
+	// 2) Dispatched to this driver: pending dispatch records for req.RequesterID
+	var dispatchedToMe []struct {
+		OrderID    string
+		DispatchID string
+	}
+	models.GetDB().Model(&models.DispatchRecord{}).
+		Select("order_id, dispatch_id").
+		Where("driver_id = ?", req.RequesterID).
+		Where("status = ?", protocol.StatusPending).
+		Find(&dispatchedToMe)
+	for _, row := range dispatchedToMe {
+		if seen[row.OrderID] {
+			continue
+		}
+		order := models.GetOrderByID(row.OrderID)
+		if order == nil || order.GetStatus() != protocol.StatusRequested {
+			continue
+		}
+		seen[row.OrderID] = true
+		info := s.GetOrderInfoSanitized(order, req.RequesterID, protocol.UserTypeDriver)
+		if info != nil {
+			info.DispatchID = row.DispatchID
+			orderList = append(orderList, info)
+		}
+	}
+
+	// Keep a reasonable total (broadcast first, then dispatched-to-me)
+	if len(orderList) > req.Limit {
+		orderList = orderList[:req.Limit]
+	}
+
 	response := &protocol.GetNearbyOrdersResponse{
 		Orders: orderList,
 		Count:  len(orderList),
 	}
-
 	return response, protocol.Success
 }
 
