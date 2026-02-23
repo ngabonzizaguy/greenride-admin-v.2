@@ -41,7 +41,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { apiClient, NearbyDriverLocation } from '@/lib/api-client';
+import { apiClient, ApiError, NearbyDriverLocation } from '@/lib/api-client';
 import { geocodeAddress, POPULAR_LOCATIONS } from '@/lib/geocoding';
 import type { User as UserType, PageResult } from '@/types';
 
@@ -97,6 +97,7 @@ export default function QuickBookingPage() {
   
   // Messages
   const [error, setError] = useState<string | null>(null);
+  const [bookingErrorCode, setBookingErrorCode] = useState<string | null>(null); // e.g. 6007 = ride in progress
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [estimatedFare, setEstimatedFare] = useState<number | undefined>(undefined);
   
@@ -364,6 +365,7 @@ export default function QuickBookingPage() {
 
     setIsBooking(true);
     setError(null);
+    setBookingErrorCode(null);
 
     // Validate coordinates are available
     if (!pickupCoords || !dropoffCoords) {
@@ -383,7 +385,8 @@ export default function QuickBookingPage() {
         dropoff_longitude: dropoffCoords.lng,
         dropoff_address: dropoffLocation,
         order_type: 'ride',
-        vehicle_category: 'sedan', // Fixed: vehicle_type → vehicle_category
+        vehicle_category: 'sedan',
+        vehicle_level: 'economy', // Match app defaults for same pricing
       };
 
       console.log('[QuickBooking] Getting price estimate...');
@@ -503,8 +506,11 @@ export default function QuickBookingPage() {
       }
     } catch (err) {
       console.error('Booking failed:', err);
+      const isApiError = err instanceof ApiError;
+      const code = isApiError ? err.code : null;
       const errorMsg = err instanceof Error ? err.message : 'Failed to create booking';
-      setError(`Booking failed: ${errorMsg}. Please try again.`);
+      setBookingErrorCode(code);
+      setError(isApiError && err.serverMessage ? err.serverMessage : `Booking failed: ${errorMsg}. Please try again.`);
       setSuccessMessage(null);
     } finally {
       setIsBooking(false);
@@ -527,7 +533,13 @@ export default function QuickBookingPage() {
     setBookingComplete(false);
     setBookingDetails(null);
     setEstimatedFare(undefined);
+    setBookingErrorCode(null);
     setNewPassengerForm({ first_name: '', last_name: '', phone: '', email: '' });
+  };
+
+  const dismissError = () => {
+    setError(null);
+    setBookingErrorCode(null);
   };
 
   // Render step indicator
@@ -632,7 +644,7 @@ export default function QuickBookingPage() {
             <Separator />
             <div className="flex items-center gap-2 text-sm">
               <Clock className="h-4 w-4 text-muted-foreground" />
-              <span>Estimated arrival: <strong>{bookingDetails.eta}</strong></span>
+              <span>Estimated fare: <strong>{bookingDetails.eta}</strong></span>
             </div>
           </CardContent>
         </Card>
@@ -667,12 +679,32 @@ export default function QuickBookingPage() {
       )}
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          <span>{error}</span>
-          <Button variant="ghost" size="sm" className="ml-auto h-6 w-6 p-0" onClick={() => setError(null)}>
-            <X className="h-4 w-4" />
-          </Button>
+        <div
+          className={
+            bookingErrorCode === '6007'
+              ? 'rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900'
+              : 'flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800'
+          }
+        >
+          <div className="flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              {bookingErrorCode === '6007' ? (
+                <>
+                  <p className="font-medium text-amber-900">Ride in progress</p>
+                  <p className="text-sm text-amber-800 mt-1">{error}</p>
+                  <p className="text-sm text-amber-700 mt-2">
+                    This passenger already has an active ride. Cancel it from <strong>Rides</strong> (find the order → Cancel), then try again.
+                  </p>
+                </>
+              ) : (
+                <span>{error}</span>
+              )}
+            </div>
+            <Button variant="ghost" size="sm" className="flex-shrink-0 h-6 w-6 p-0" onClick={dismissError}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       )}
 

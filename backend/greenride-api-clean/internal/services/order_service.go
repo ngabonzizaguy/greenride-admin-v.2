@@ -546,36 +546,42 @@ func (s *OrderService) EstimateOrder(req *protocol.EstimateRequest) (*protocol.O
 	return orderPrice, protocol.Success
 }
 
-// EnrichRouteByGoogleMap 使用 GoogleService 丰富路线数据
+// EnrichRouteByGoogleMap 使用 GoogleService 丰富路线数据；若 Google 不可用或失败则用 Haversine 距离 + 估算时长，避免始终返回最低价
 func (s *OrderService) EnrichRouteByGoogleMap(req *protocol.EstimateRequest) {
 	googleService := GetGoogleService()
-	if googleService == nil {
-		return
+	if googleService != nil {
+		avoidTolls := req.VehicleLevel == "economy"
+		ctx := context.Background()
+		route, err := googleService.CalculateRidehailingRoute(ctx,
+			req.PickupLatitude, req.PickupLongitude,
+			req.DropoffLatitude, req.DropoffLongitude,
+			avoidTolls)
+		if err == nil && route != nil {
+			if route.Distance != nil {
+				req.EstimatedDistance = float64(route.Distance.Value) / 1000.0 // 米 -> 公里
+			}
+			if route.Duration != nil {
+				req.EstimatedDuration = route.Duration.Value / 60 // 秒 -> 分钟
+			}
+			if req.EstimatedDistance > 0 || req.EstimatedDuration > 0 {
+				return
+			}
+		}
 	}
 
-	// 根据服务类型设置路线偏好
-	avoidTolls := false
-	if req.VehicleLevel == "economy" {
-		avoidTolls = true // 标准服务避开收费路段
-	}
-
-	// 调用 GoogleService 计算路线
-	ctx := context.Background()
-	route, err := googleService.CalculateRidehailingRoute(ctx,
-		req.PickupLatitude, req.PickupLongitude,
-		req.DropoffLatitude, req.DropoffLongitude,
-		avoidTolls)
-	if err != nil {
-		return
-	}
-
-	// 单位转换并填充到请求中
-	// Google API 返回米和秒，转换为公里和分钟
-	if route.Distance != nil {
-		req.EstimatedDistance = float64(route.Distance.Value) / 1000.0 // 米 -> 公里
-	}
-	if route.Duration != nil {
-		req.EstimatedDuration = route.Duration.Value / 60 // 秒 -> 分钟
+	// Fallback: Haversine 距离 + 粗略时长（约 2.5 分钟/公里，与 app 定价一致，避免总是最低价）
+	if req.EstimatedDistance == 0 && (req.PickupLatitude != 0 || req.PickupLongitude != 0) && (req.DropoffLatitude != 0 || req.DropoffLongitude != 0) {
+		req.EstimatedDistance = utils.CalculateDistanceHaversine(
+			req.PickupLatitude, req.PickupLongitude,
+			req.DropoffLatitude, req.DropoffLongitude)
+		if req.EstimatedDistance > 0 && req.EstimatedDuration == 0 {
+			// 城市路况约 2.5 min/km
+			req.EstimatedDuration = int(req.EstimatedDistance*2.5 + 0.5)
+			if req.EstimatedDuration < 1 {
+				req.EstimatedDuration = 1
+			}
+			log.Get().Infof("EnrichRouteByGoogleMap: using haversine fallback distance=%.2f km, duration=%d min", req.EstimatedDistance, req.EstimatedDuration)
+		}
 	}
 }
 

@@ -154,10 +154,12 @@ func (t *Admin) registerAuthedRoutes(adminAPI *gin.RouterGroup) {
 		{
 			ordersAPI.POST("/search", t.SearchOrders)    // 搜索订单
 			ordersAPI.POST("/detail", t.GetOrderDetail)  // 获取订单详情
-			ordersAPI.POST("/estimate", t.EstimateOrder) // 管理员订单预估
+			ordersAPI.POST("/estimate", t.EstimateOrder) // 管理员订单预估（与 app 同一套定价逻辑）
 			ordersAPI.POST("/create", t.CreateOrder)     // 管理员创建订单
 			ordersAPI.POST("/cancel", t.CancelOrder)     // 取消订单
 		}
+		// 与 app 一致的 ETA 接口（admin 需支持 /order/eta 与 /admin/order/eta）
+		adminAPI.POST("/order/eta", t.GetOrderETA)
 
 		// 反馈/投诉管理相关
 		feedbackAPI := adminAPI.Group("/feedback")

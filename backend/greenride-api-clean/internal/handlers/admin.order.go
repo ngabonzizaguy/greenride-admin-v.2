@@ -195,11 +195,11 @@ func (t *Admin) EstimateOrder(c *gin.Context) {
 	if req.EstimateRequest.OrderType == "" {
 		req.EstimateRequest.OrderType = protocol.RideOrder // 使用正确的订单类型常量
 	}
-	// 调用价格预估服务
+	// 与 app 同一套定价逻辑；业务错误返回 200 + 错误体，便于前端展示
 	estimate, errCode := services.GetAdminOrderService().EstimateOrder(&req)
 	if errCode != protocol.Success {
-		log.Get().Errorf("Error estimating order with error code: %s", errCode)
-		c.JSON(http.StatusInternalServerError, protocol.NewErrorResult(errCode, lang))
+		log.Get().Warnf("Admin EstimateOrder error: %s", errCode)
+		c.JSON(http.StatusOK, protocol.NewErrorResult(errCode, lang))
 		return
 	}
 
@@ -233,13 +233,46 @@ func (t *Admin) CreateOrder(c *gin.Context) {
 	admin := t.GetUserFromContext(c)
 	req.AdminID = admin.AdminID
 
-	// 创建订单
+	// 创建订单（业务错误如 6007 用 200 + code/msg 返回，便于前端展示）
 	order, errCode := services.GetAdminOrderService().CreateOrderForUser(&req)
 	if errCode != protocol.Success {
-		log.Get().Errorf("Admin CreateOrder failed with error code: %s", errCode)
-		c.JSON(http.StatusInternalServerError, protocol.NewErrorResult(errCode, lang))
+		log.Get().Warnf("Admin CreateOrder business error: %s", errCode)
+		c.JSON(http.StatusOK, protocol.NewErrorResult(errCode, lang))
 		return
 	}
 
 	c.JSON(http.StatusOK, protocol.NewSuccessResult(order))
+}
+
+// GetOrderETA 管理员获取订单 ETA（与 app 使用同一套逻辑）
+// @Summary 获取订单 ETA
+// @Description 获取订单的司机到达时间预估，逻辑与公众 API /order/eta 一致
+// @Tags Admin,管理员-订单
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body protocol.OrderETARequest true "order_id"
+// @Success 200 {object} protocol.Result{data=protocol.OrderETAResponse}
+// @Router /order/eta [post]
+func (t *Admin) GetOrderETA(c *gin.Context) {
+	lang := middleware.GetLanguageFromContext(c)
+
+	var req protocol.OrderETARequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, protocol.NewErrorResult(protocol.InvalidParams, lang, err.Error()))
+		return
+	}
+	order := models.GetOrderByID(req.OrderID)
+	if order == nil {
+		c.JSON(http.StatusOK, protocol.NewErrorResult(protocol.OrderNotFound, lang))
+		return
+	}
+	// 以乘客身份调用同一套 ETA 逻辑，保证与 app 一致
+	req.UserID = order.GetUserID()
+	response, errCode := services.GetOrderService().GetOrderETA(&req)
+	if errCode != protocol.Success {
+		c.JSON(http.StatusOK, protocol.NewErrorResult(errCode, lang))
+		return
+	}
+	c.JSON(http.StatusOK, protocol.NewSuccessResult(response))
 }
