@@ -2006,7 +2006,7 @@ class ApiClient {
     }
     return this.request('/system/config', {
       method: 'POST',
-      body: JSON.stringify(config),
+      body: config,
     });
   }
 }

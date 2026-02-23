@@ -150,6 +150,11 @@ npm run build
 npm run start
 ```
 
+### Deployment
+
+**What do I do next?** → **[docs/DEPLOY_WHAT_TO_DO.md](docs/DEPLOY_WHAT_TO_DO.md)** (short, step-by-step).  
+More detail: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and [PRODUCTION_DEPLOYMENT_GUIDE.md](PRODUCTION_DEPLOYMENT_GUIDE.md).
+
 ## 🔑 Authentication
 
 For demo purposes, the login accepts any email and password. In production, connect to the GreenRide API:

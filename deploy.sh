@@ -32,8 +32,8 @@ API_PORT=8610
 ADMIN_PORT=8611
 FRONTEND_PORT=3601
 
-# Go version for building backend
-GO_VERSION="1.21"
+# Go version (used only when building binary outside Docker; image uses Dockerfile's Go version)
+GO_VERSION="1.23"
 
 # ─── Colors ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -116,43 +116,14 @@ echo ""
 #  BACKEND DEPLOYMENT
 # ═════════════════════════════════════════════════════════════════════════════
 deploy_backend() {
-  step "Building backend Go binary"
+  step "Preparing backend config and assets"
 
   mkdir -p "$BACKEND_DIR"
+  mkdir -p "$BACKEND_DIR/internal"
+  mkdir -p "$BACKEND_DIR/logs"
   cd "$REPO_DIR/backend/greenride-api-clean"
 
-  # Build strategy: native Go > Docker-based build
-  # CGO_ENABLED=0 is REQUIRED — the binary runs on Alpine (musl), not glibc
-  if command -v go &>/dev/null; then
-    GO_INSTALLED=$(go version | grep -oP 'go\d+\.\d+' || echo "")
-    log "Using native Go ($GO_INSTALLED) with static linking (CGO_ENABLED=0)"
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o greenride-api-linux ./main
-  else
-    log "Go not installed — building inside Docker"
-    docker run --rm \
-      -v "$(pwd)":/src \
-      -w /src \
-      -e CGO_ENABLED=0 \
-      -e GOOS=linux \
-      -e GOARCH=amd64 \
-      golang:${GO_VERSION}-alpine \
-      go build -o greenride-api-linux ./main
-  fi
-
-  if [ ! -f "greenride-api-linux" ]; then
-    err "Binary not found after build. Build failed."
-    return 1
-  fi
-  BINARY_SIZE=$(du -h greenride-api-linux | cut -f1)
-  ok "Binary built: greenride-api-linux ($BINARY_SIZE)"
-
-  step "Deploying backend"
-
-  # Copy binary to deployment dir
-  cp greenride-api-linux "$BACKEND_DIR/"
-  chmod +x "$BACKEND_DIR/greenride-api-linux"
-
-  # Copy config and locale files
+  # Copy config and locale files to BACKEND_DIR (used as volume mounts)
   cp -r internal/locales "$BACKEND_DIR/internal/" 2>/dev/null || {
     mkdir -p "$BACKEND_DIR/internal/locales"
     cp -r internal/locales/* "$BACKEND_DIR/internal/locales/"
@@ -169,8 +140,11 @@ deploy_backend() {
     log "prod.yaml already exists on server — not overwriting"
   fi
 
-  # Copy Dockerfile
-  cp Dockerfile "$BACKEND_DIR/"
+  step "Building backend Docker image (from repo source)"
+
+  cd "$REPO_DIR"
+  docker build -t "$BACKEND_CONTAINER" -f backend/greenride-api-clean/Dockerfile backend/greenride-api-clean
+  ok "Docker image built"
 
   step "Restarting backend container"
 
@@ -179,10 +153,6 @@ deploy_backend() {
   # Stop existing container
   docker stop "$BACKEND_CONTAINER" 2>/dev/null && log "Stopped $BACKEND_CONTAINER" || true
   docker rm "$BACKEND_CONTAINER" 2>/dev/null && log "Removed $BACKEND_CONTAINER" || true
-
-  # Build new image
-  docker build -t "$BACKEND_CONTAINER" .
-  ok "Docker image built"
 
   # Find the Docker network (if exists)
   NETWORK_FLAG=""
@@ -229,9 +199,6 @@ deploy_backend() {
   else
     warn "Admin API health check: HTTP $ADMIN_HTTP"
   fi
-
-  # Clean up build artifact from repo dir
-  rm -f "$REPO_DIR/backend/greenride-api-clean/greenride-api-linux"
 }
 
 # ═════════════════════════════════════════════════════════════════════════════

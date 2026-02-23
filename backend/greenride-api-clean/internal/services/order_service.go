@@ -277,6 +277,7 @@ func (s *OrderService) CanCancelOrder(status string) bool {
 		protocol.StatusAccepted,
 		protocol.StatusDriverArrived,
 		protocol.StatusDriverComing,
+		protocol.StatusInProgress, // allow admin/system to cancel stuck in-progress orders
 	}
 
 	return slices.Contains(cancellableStates, status)
