@@ -47,6 +47,9 @@ import type { User as UserType, PageResult } from '@/types';
 
 type BookingStep = 'passenger' | 'locations' | 'confirm';
 
+/** When true, quick booking shows nearby drivers and driver assignment on confirm step. */
+const FEATURE_NEARBY_DRIVERS = true;
+
 export default function QuickBookingPage() {
   const { isLoaded: isGoogleLoaded } = useJsApiLoader({
     id: 'google-map-script',
