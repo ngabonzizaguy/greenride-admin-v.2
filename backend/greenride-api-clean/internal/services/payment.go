@@ -115,6 +115,31 @@ func (s *PaymentService) OrderPayment(req *ChannelPaymentRequest) (*protocol.Cha
 	// 2. 检查是否已有非失败的支付记录
 	payment := models.GetNotFailedPaymentByOrderID(order.OrderID)
 	if payment != nil {
+		// For MoMo: allow re-initiation when an existing pending request has expired,
+		// otherwise users keep getting the same stale pending record with no fresh prompt.
+		if req.PaymentMethod == protocol.PaymentMethodMomo &&
+			payment.GetPaymentMethod() == protocol.PaymentMethodMomo &&
+			payment.GetStatus() == protocol.StatusPending {
+			now := utils.TimeNowMilli()
+			expiredAt := payment.GetExpiredAt()
+			isExpired := expiredAt > 0 && now >= expiredAt
+			if isExpired {
+				expiredMsg := "Previous pending MoMo request expired; creating a new request"
+				recycleValues := &models.PaymentValues{}
+				recycleValues.
+					SetStatus(protocol.StatusFailed).
+					SetResCode(protocol.ResCodeRequestTimeout).
+					SetResMsg(expiredMsg)
+				if err := models.UpdatePaymentValues(models.DB, payment, recycleValues); err != nil {
+					log.Get().Errorf("过期MoMo支付记录标记失败: order_id=%s payment_id=%s error=%v", order.OrderID, payment.PaymentID, err)
+					return nil, protocol.DatabaseError
+				}
+				log.Get().Infof("过期MoMo支付记录已回收: order_id=%s old_payment_id=%s", order.OrderID, payment.PaymentID)
+				payment = nil
+			}
+		}
+	}
+	if payment != nil {
 		if req.PaymentMethod == protocol.PaymentMethodCash {
 			if payment.GetStatus() == protocol.StatusPending {
 				return nil, protocol.OnlinePaymentPending
@@ -160,6 +185,15 @@ func (s *PaymentService) OrderPayment(req *ChannelPaymentRequest) (*protocol.Cha
 		SetReturnURL(fmt.Sprintf("%v?user_id=%v&checkout_id=%v", cfg.ReturnURL, order.GetUserID(), s.GetCheckoutID(payment)))
 	// 5. 创建支付记录
 	if err := models.DB.Create(payment).Error; err != nil {
+		log.Get().Errorf(
+			"创建支付记录失败: order_id=%s payment_method=%s user_id=%s amount=%s currency=%s error=%v",
+			order.OrderID,
+			req.PaymentMethod,
+			order.GetUserID(),
+			paymentAmount.String(),
+			order.GetCurrency(),
+			err,
+		)
 		return nil, protocol.DatabaseError
 	}
 

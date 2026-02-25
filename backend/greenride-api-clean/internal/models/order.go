@@ -991,9 +991,16 @@ func UpdateOrder(tx *gorm.DB, order *Order, values *OrderValues) error {
 	if rs.Error != nil {
 		return rs.Error
 	}
-	// 检查是否有行被更新（乐观锁检查）
+	// RowsAffected can be 0 when data is unchanged.
+	// Treat that as success if the order row still exists.
 	if rs.RowsAffected == 0 {
-		return errors.New("order version conflict or order not found")
+		var count int64
+		if err := tx.Model(&Order{}).Where("order_id = ?", order.OrderID).Count(&count).Error; err != nil {
+			return err
+		}
+		if count == 0 {
+			return errors.New("order not found")
+		}
 	}
 	order.SetValues(values)
 

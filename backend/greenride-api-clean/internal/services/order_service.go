@@ -1302,6 +1302,15 @@ func (s *OrderService) OrderPayment(req *protocol.OrderPaymentRequest) (result *
 		values.SetPaymentResult(paymentResult)
 	}
 	if err := models.UpdateOrder(models.DB, order, values); err != nil {
+		log.Get().Errorf(
+			"OrderPayment 更新订单支付信息失败: order_id=%s payment_method=%s payment_id=%s channel_payment_id=%s status=%s error=%v",
+			order.OrderID,
+			req.PaymentMethod,
+			cresult.PaymentID,
+			cresult.ChannelPaymentID,
+			cresult.Status,
+			err,
+		)
 		errCode = protocol.DatabaseError
 		return
 	}
