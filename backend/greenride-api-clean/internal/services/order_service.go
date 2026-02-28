@@ -1280,6 +1280,10 @@ func (s *OrderService) PrepareCashPayment(req *protocol.OrderCashRequest) (*prot
 	values.
 		SetPaymentMethod(protocol.PaymentMethodCash).
 		SetPaymentStatus(protocol.StatusPending).
+		SetPaymentID("").
+		SetChannelPaymentID("").
+		SetPaymentRedirectURL("").
+		SetPaymentResult("").
 		SetMetadata(metadata)
 	if err := models.UpdateOrder(models.DB, order, values); err != nil {
 		return nil, protocol.DatabaseError
