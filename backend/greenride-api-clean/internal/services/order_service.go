@@ -1234,6 +1234,65 @@ func (s *OrderService) GetNearbyOrders(req *protocol.GetNearbyOrdersRequest) (*p
 	return response, protocol.Success
 }
 
+// PrepareCashPayment stores passenger-generated cash verification code on the order.
+func (s *OrderService) PrepareCashPayment(req *protocol.OrderCashRequest) (*protocol.OrderCashResponse, protocol.ErrorCode) {
+	user := models.GetUserByID(req.UserID)
+	if user == nil {
+		return nil, protocol.UserNotFound
+	}
+	if !user.IsPassenger() {
+		return nil, protocol.PermissionDenied
+	}
+	order := models.GetOrderByID(req.OrderID)
+	if order == nil || order.GetUserID() != user.UserID {
+		return nil, protocol.OrderNotFound
+	}
+	if order.GetStatus() != protocol.StatusTripEnded {
+		return nil, protocol.InvalidRideStatus
+	}
+	if order.GetPaymentStatus() == protocol.StatusSuccess {
+		return &protocol.OrderCashResponse{
+			OrderID:       order.OrderID,
+			Status:        protocol.StatusSuccess,
+			PaymentMethod: protocol.PaymentMethodCash,
+			CashCode:      "",
+		}, protocol.Success
+	}
+
+	code := strings.TrimSpace(req.CashCode)
+	if len(code) < 4 || len(code) > 8 {
+		return nil, protocol.InvalidParams
+	}
+	for _, ch := range code {
+		if ch < '0' || ch > '9' {
+			return nil, protocol.InvalidParams
+		}
+	}
+
+	metadata := order.GetMetadata()
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	metadata["cash_verification_code"] = code
+	metadata["cash_requested_at"] = utils.TimeNowMilli()
+
+	values := &models.OrderValues{}
+	values.
+		SetPaymentMethod(protocol.PaymentMethodCash).
+		SetPaymentStatus(protocol.StatusPending).
+		SetMetadata(metadata)
+	if err := models.UpdateOrder(models.DB, order, values); err != nil {
+		return nil, protocol.DatabaseError
+	}
+
+	return &protocol.OrderCashResponse{
+		OrderID:       order.OrderID,
+		Status:        protocol.StatusPending,
+		PaymentMethod: protocol.PaymentMethodCash,
+		CashCode:      code,
+	}, protocol.Success
+}
+
 func (s *OrderService) OrderPayment(req *protocol.OrderPaymentRequest) (result *protocol.OrderPaymentResult, errCode protocol.ErrorCode) {
 	errCode = protocol.Success
 	user := models.GetUserByID(req.UserID)
@@ -1255,6 +1314,19 @@ func (s *OrderService) OrderPayment(req *protocol.OrderPaymentRequest) (result *
 	if order == nil || (order.GetProviderID() != user.UserID && order.GetUserID() != user.UserID) {
 		errCode = protocol.OrderNotFound
 		return
+	}
+	if req.PaymentMethod == protocol.PaymentMethodCash && user.IsDriver() {
+		expectedCode := ""
+		if rawCode, ok := order.GetMetadata()["cash_verification_code"]; ok && rawCode != nil {
+			expectedCode = strings.TrimSpace(fmt.Sprintf("%v", rawCode))
+		}
+		if expectedCode != "" {
+			givenCode := strings.TrimSpace(req.CashCode)
+			if givenCode == "" || givenCode != expectedCode {
+				errCode = protocol.InvalidParams
+				return
+			}
+		}
 	}
 	if order.GetPaymentStatus() == protocol.StatusSuccess {
 		result = &protocol.OrderPaymentResult{
@@ -1296,6 +1368,12 @@ func (s *OrderService) OrderPayment(req *protocol.OrderPaymentRequest) (result *
 	case protocol.StatusSuccess:
 		values.CompleteOrder().
 			SetPaymentStatus(protocol.StatusSuccess)
+		if req.PaymentMethod == protocol.PaymentMethodCash {
+			metadata := order.GetMetadata()
+			delete(metadata, "cash_verification_code")
+			delete(metadata, "cash_requested_at")
+			values.SetMetadata(metadata)
+		}
 	case protocol.StatusFailed:
 		// 根据req.Language，判断ResCode是否预定义的结果码，如果是，PaymentResult就用[ResCode]对应翻译
 		paymentResult := s.getTranslatedPaymentResult(cresult.ResCode, cresult.ResMsg, req.Language)

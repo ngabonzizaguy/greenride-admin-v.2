@@ -152,10 +152,10 @@ type UpdateOrderStatusRequest struct {
 // CancelOrderRequest 取消订单请求
 type CancelOrderRequest struct {
 	OrderID      string `json:"order_id" binding:"required"`
-	UserID       string `json:"user_id"`                  // 内部设置
-	Reason       string `json:"reason,omitempty"`         // 取消原因 (旧版兼容, free-form text)
-	ReasonKey    string `json:"reason_key,omitempty"`     // 预定义取消原因 key (新版)
-	CustomReason string `json:"custom_reason,omitempty"`  // 自定义原因 (当 reason_key="other" 时使用)
+	UserID       string `json:"user_id"`                 // 内部设置
+	Reason       string `json:"reason,omitempty"`        // 取消原因 (旧版兼容, free-form text)
+	ReasonKey    string `json:"reason_key,omitempty"`    // 预定义取消原因 key (新版)
+	CustomReason string `json:"custom_reason,omitempty"` // 自定义原因 (当 reason_key="other" 时使用)
 }
 
 // =============================================================================
@@ -206,10 +206,25 @@ type OrderPaymentRequest struct {
 	OrderID       string `json:"order_id" binding:"required"`
 	UserID        string `json:"user_id"`                  // 内部设置
 	PaymentMethod string `json:"payment_method,omitempty"` // 内部设置
+	CashCode      string `json:"cash_code,omitempty"`
 	Phone         string `json:"phone,omitempty"`
 	Email         string `json:"email,omitempty"`
 	AccountNo     string `json:"account_no,omitempty"`
 	AccountName   string `json:"account_name,omitempty"`
+}
+
+// OrderCashRequest passenger requests cash payment with a verification code.
+type OrderCashRequest struct {
+	OrderID  string `json:"order_id" binding:"required"`
+	UserID   string `json:"user_id"` // 内部设置
+	CashCode string `json:"cash_code" binding:"required"`
+}
+
+type OrderCashResponse struct {
+	OrderID       string `json:"order_id"`
+	Status        string `json:"status"`
+	PaymentMethod string `json:"payment_method"`
+	CashCode      string `json:"cash_code"`
 }
 
 type OrderPaymentResult struct {
@@ -234,15 +249,15 @@ type GetNearbyOrdersResponse struct {
 
 // UpdateLocationRequest 位置更新请求
 type UpdateLocationRequest struct {
-	UserID       string  `json:"user_id"`                                      // 内部设置
-	Latitude     float64 `json:"latitude" binding:"required,min=-90,max=90"`   // 纬度
+	UserID       string  `json:"user_id"`                                       // 内部设置
+	Latitude     float64 `json:"latitude" binding:"required,min=-90,max=90"`    // 纬度
 	Longitude    float64 `json:"longitude" binding:"required,min=-180,max=180"` // 经度
-	Heading      float64 `json:"heading,omitempty"`                            // 行驶方向 (0-360度)
-	Speed        float64 `json:"speed,omitempty"`                              // 速度 km/h
-	Accuracy     float64 `json:"accuracy,omitempty"`                           // GPS精度 (米)
-	Altitude     float64 `json:"altitude,omitempty"`                           // 海拔 (米)
-	OnlineStatus string  `json:"online_status,omitempty"`                      // online, busy, offline
-	UpdatedAt    int64   `json:"updated_at,omitempty"`                         // 时间戳，毫秒
+	Heading      float64 `json:"heading,omitempty"`                             // 行驶方向 (0-360度)
+	Speed        float64 `json:"speed,omitempty"`                               // 速度 km/h
+	Accuracy     float64 `json:"accuracy,omitempty"`                            // GPS精度 (米)
+	Altitude     float64 `json:"altitude,omitempty"`                            // 海拔 (米)
+	OnlineStatus string  `json:"online_status,omitempty"`                       // online, busy, offline
+	UpdatedAt    int64   `json:"updated_at,omitempty"`                          // 时间戳，毫秒
 }
 
 type UserPromotionsRequest struct {
@@ -287,8 +302,8 @@ type NearbyDriver struct {
 	Rating          float64 `json:"rating"`
 	TotalRides      int     `json:"total_rides"`
 	IsOnline        bool    `json:"is_online"`
-	IsBusy          bool    `json:"is_busy"`   // 是否正在接单
-	Heading         float64 `json:"heading"`   // 行驶方向角度 (0-360)
+	IsBusy          bool    `json:"is_busy"`         // 是否正在接单
+	Heading         float64 `json:"heading"`         // 行驶方向角度 (0-360)
 	Phone           string  `json:"phone,omitempty"` // 联系电话
 }
 

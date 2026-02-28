@@ -104,17 +104,17 @@ func (a *Api) SetupRouter() *gin.Engine {
 		api.POST("/verify-code", a.VerifyCode)
 		api.POST("/reset-password", a.ResetPassword)
 		api.POST("/feedback/submit", a.SubmitFeedback) // 提交反馈 - 无需认证
-		api.GET("/support/config", a.GetSupportConfig)  // 获取支持配置 - 无需认证（公共信息）
-		api.GET("/system/config", a.GetSystemConfig)    // 获取系统配置 - 无需认证（维护模式检查）
+		api.GET("/support/config", a.GetSupportConfig) // 获取支持配置 - 无需认证（公共信息）
+		api.GET("/system/config", a.GetSystemConfig)   // 获取系统配置 - 无需认证（维护模式检查）
 
 		// Checkout 状态查询接口
 		api.POST("/checkout/status", a.GetCheckoutStatus) // 查询checkout状态
 
 		// Webhook 回调接口 - 无需认证（第三方支付回调）
-		api.POST("/webhook/kpay/:payment_id", a.KPayWebhook)   // KPay 支付回调
-		api.POST("/webhook/momo/:payment_id", a.MoMoWebhook)   // MTN MoMo 支付回调
-		api.POST("/webhook/stripe", a.StripeWebhook)           // Stripe 支付回调
-		api.POST("/webhook/innopaas", a.InnoPaaSWebhook)       // InnoPaaS OTP/消息状态回调
+		api.POST("/webhook/kpay/:payment_id", a.KPayWebhook) // KPay 支付回调
+		api.POST("/webhook/momo/:payment_id", a.MoMoWebhook) // MTN MoMo 支付回调
+		api.POST("/webhook/stripe", a.StripeWebhook)         // Stripe 支付回调
+		api.POST("/webhook/innopaas", a.InnoPaaSWebhook)     // InnoPaaS OTP/消息状态回调
 
 	}
 
@@ -139,24 +139,25 @@ func (a *Api) SetupRouter() *gin.Engine {
 		authRequired.POST("/order/estimate", a.EstimateOrder) // 预估订单
 
 		// 通用订单接口
-		authRequired.POST("/order/create", a.CreateOrder)       // 创建订单
-		authRequired.POST("/orders", a.GetOrders)               // 获取订单列表
-		authRequired.POST("/order/detail", a.GetOrderDetail)    // 获取订单详情
-		authRequired.POST("/order/accept", a.AcceptOrder)       // 接受订单
-		authRequired.POST("/order/reject", a.RejectOrder)       // 拒绝订单
-		authRequired.POST("/order/arrived", a.ArrivedOrder)     // 到达订单
-		authRequired.POST("/order/start", a.StartOrder)         // 开始订单
-		authRequired.POST("/order/finish", a.FinishOrder)       // 完成订单
-		authRequired.POST("/order/cancel", a.CancelOrder)       // 取消订单
+		authRequired.POST("/order/create", a.CreateOrder)             // 创建订单
+		authRequired.POST("/orders", a.GetOrders)                     // 获取订单列表
+		authRequired.POST("/order/detail", a.GetOrderDetail)          // 获取订单详情
+		authRequired.POST("/order/accept", a.AcceptOrder)             // 接受订单
+		authRequired.POST("/order/reject", a.RejectOrder)             // 拒绝订单
+		authRequired.POST("/order/arrived", a.ArrivedOrder)           // 到达订单
+		authRequired.POST("/order/start", a.StartOrder)               // 开始订单
+		authRequired.POST("/order/finish", a.FinishOrder)             // 完成订单
+		authRequired.POST("/order/cancel", a.CancelOrder)             // 取消订单
 		authRequired.GET("/order/cancel-reasons", a.GetCancelReasons) // 获取取消原因列表
-		authRequired.POST("/order/rating", a.CreateOrderRating) // 创建订单评价
-		authRequired.POST("/order/ratings", a.GetOrderRatings)  // 获取订单评价
-		authRequired.POST("/order/contact", a.GetOrderContact)  // 获取订单联系方式（通话权限）
-		authRequired.POST("/order/eta", a.GetOrderETA)          // 获取订单实时ETA
+		authRequired.POST("/order/rating", a.CreateOrderRating)       // 创建订单评价
+		authRequired.POST("/order/ratings", a.GetOrderRatings)        // 获取订单评价
+		authRequired.POST("/order/contact", a.GetOrderContact)        // 获取订单联系方式（通话权限）
+		authRequired.POST("/order/eta", a.GetOrderETA)                // 获取订单实时ETA
 
 		// 服务提供者接口 (司机、外卖员等)
 		authRequired.POST("/nearby", a.GetNearbyOrders)                // 获取附近订单
 		authRequired.POST("/order/nearby", a.GetNearbyOrders)          // 获取附近订单
+		authRequired.POST("/order/cash/request", a.OrderCashRequest)   // 乘客发起现金支付并生成验证码
 		authRequired.POST("/order/cash/received", a.OrderCashReceived) // 确认现金收款
 		authRequired.POST("/order/payment", a.OrderPayment)            // 处理订单支付
 

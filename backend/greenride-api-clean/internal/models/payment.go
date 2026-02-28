@@ -8,6 +8,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const paymentResMsgMaxLen = 255
+
 // Payment 支付表 - 基于最新设计文档
 type Payment struct {
 	ID        int64  `json:"id" gorm:"column:id;primaryKey;autoIncrement"`
@@ -410,6 +412,10 @@ func (p *PaymentValues) SetResCode(code string) *PaymentValues {
 }
 
 func (p *PaymentValues) SetResMsg(msg string) *PaymentValues {
+	if len([]rune(msg)) > paymentResMsgMaxLen {
+		runes := []rune(msg)
+		msg = string(runes[:paymentResMsgMaxLen-3]) + "..."
+	}
 	p.ResMsg = &msg
 	return p
 }

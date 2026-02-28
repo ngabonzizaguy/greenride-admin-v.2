@@ -502,6 +502,37 @@ func (a *Api) GetOrderETA(c *gin.Context) {
 	c.JSON(http.StatusOK, protocol.NewSuccessResult(response))
 }
 
+// OrderCashRequest passenger initiates cash payment by generating verification code.
+// @Summary 发起现金支付并生成验证码
+// @Description 乘客发起现金支付，生成并保存验证码，司机确认收款时需输入该验证码
+// @Tags Api,订单,支付
+// @Accept json
+// @Produce json
+// @Param request body protocol.OrderCashRequest true "现金支付请求"
+// @Success 200 {object} protocol.Result{data=protocol.OrderCashResponse}
+// @Failure 200 {object} protocol.Result
+// @Security BearerAuth
+// @Router /order/cash/request [post]
+func (a *Api) OrderCashRequest(c *gin.Context) {
+	lang := middleware.GetLanguageFromContext(c)
+
+	var req protocol.OrderCashRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, protocol.NewErrorResult(protocol.InvalidJSON, lang, err.Error()))
+		return
+	}
+	user := GetUserFromContext(c)
+	req.UserID = user.UserID
+
+	result, errCode := services.GetOrderService().PrepareCashPayment(&req)
+	if errCode != protocol.Success {
+		c.JSON(http.StatusOK, protocol.NewErrorResult(errCode, lang))
+		return
+	}
+
+	c.JSON(http.StatusOK, protocol.NewSuccessResult(result))
+}
+
 // OrderCashReceived 确认现金收款
 // @Summary 确认现金收款
 // @Description 司机确认已收到现金支付
