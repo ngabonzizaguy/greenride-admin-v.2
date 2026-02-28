@@ -114,6 +114,14 @@ func (s *VerifyCodeService) SendVerifyCode(contactType, contact, user_type, purp
 	if contactType != protocol.MsgChannelEmail && contactType != protocol.MsgChannelSms {
 		return protocol.InvalidVerificationMethod, 0
 	}
+	if contactType == protocol.MsgChannelSms {
+		normalized, ok := normalizeSMSPhone(contact)
+		if !ok {
+			log.Get().Warnf("[OTP] Invalid phone format rejected: raw=%s purpose=%s user_type=%s", contact, purpose, user_type)
+			return protocol.InvalidParams, 0
+		}
+		contact = normalized
+	}
 
 	// Check send frequency
 	lastTimeKey := fmt.Sprintf("%s_verify_code_%v_%v_%s_time", contactType, purpose, user_type, contact)
@@ -201,6 +209,13 @@ func (s *VerifyCodeService) VerifyCode(contactType, purpose, user_type, contact,
 	if contactType != protocol.MsgChannelEmail && contactType != protocol.MsgChannelSms {
 		return false
 	}
+	if contactType == protocol.MsgChannelSms {
+		normalized, ok := normalizeSMSPhone(contact)
+		if !ok {
+			return false
+		}
+		contact = normalized
+	}
 
 	codeKey := fmt.Sprintf("%s_verify_code_%v_%v_%s", contactType, purpose, user_type, contact)
 	var storedCode string
@@ -226,4 +241,59 @@ func (s *VerifyCodeService) VerifyEmailCode(purpose, user_type, email, code stri
 // VerifySMSCode verifies SMS verification code
 func (s *VerifyCodeService) VerifySMSCode(purpose, user_type, phone, code string) bool {
 	return s.VerifyCode(protocol.MsgChannelSms, purpose, user_type, phone, code)
+}
+
+// normalizeSMSPhone converts various user inputs into a strict E.164-like value.
+// Returns false when the phone is not valid enough for OTP delivery.
+func normalizeSMSPhone(raw string) (string, bool) {
+	phone := strings.TrimSpace(raw)
+	if phone == "" {
+		return "", false
+	}
+	phone = strings.ReplaceAll(phone, " ", "")
+	phone = strings.ReplaceAll(phone, "-", "")
+	phone = strings.ReplaceAll(phone, "(", "")
+	phone = strings.ReplaceAll(phone, ")", "")
+
+	// Convert international prefix 00 -> +
+	if strings.HasPrefix(phone, "00") {
+		phone = "+" + phone[2:]
+	}
+	// Rwanda local format 07XXXXXXXX -> +2507XXXXXXXX
+	if strings.HasPrefix(phone, "0") && len(phone) == 10 {
+		phone = "+250" + phone[1:]
+	}
+	// Rwanda with country digits but no plus
+	if strings.HasPrefix(phone, "250") && len(phone) == 12 {
+		phone = "+" + phone
+	}
+	// Reject accidental trunk zero after +250 (e.g. +25007...).
+	// This format frequently causes carrier-side delivery failures.
+	if strings.HasPrefix(phone, "+2500") {
+		return "", false
+	}
+	if !strings.HasPrefix(phone, "+") {
+		return "", false
+	}
+	digits := phone[1:]
+	for _, ch := range digits {
+		if ch < '0' || ch > '9' {
+			return "", false
+		}
+	}
+	// E.164 max digits after "+" is 15
+	if len(digits) < 8 || len(digits) > 15 {
+		return "", false
+	}
+	// Rwanda-specific hard checks to prevent malformed +2500... numbers
+	if strings.HasPrefix(digits, "250") {
+		if len(digits) != 12 {
+			return "", false
+		}
+		// Mobile ranges in Rwanda are currently under 7XXXXXXXX.
+		if digits[3] != '7' {
+			return "", false
+		}
+	}
+	return "+" + digits, true
 }

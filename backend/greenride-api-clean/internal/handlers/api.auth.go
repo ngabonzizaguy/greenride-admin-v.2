@@ -260,6 +260,10 @@ func (a *Api) Login(c *gin.Context) {
 		user = services.GetUserService().GetUserByPhoneAndType(req.Phone, req.UserType)
 	} else {
 		token := middleware.ValidToken(c, []byte(a.Jwt.Secret))
+		if token == nil {
+			c.JSON(http.StatusOK, protocol.NewErrorResult(protocol.InvalidToken, lang))
+			return
+		}
 		// 提取用户信息
 		if claims, ok := token.Claims.(*middleware.JWTClaims); ok {
 			user = services.GetUserService().GetUserByID(cast.ToString(claims.UserID))
