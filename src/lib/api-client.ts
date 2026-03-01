@@ -5,7 +5,7 @@
  * Based on BACKEND_API_EXTRACTION.md
  */
 
-import { Feedback, SupportConfig, FeedbackStatus } from '@/types';
+import { Feedback, FeedbackStatus } from '@/types';
 
 // API Base URL - defaults to local development server
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8611';
@@ -1961,6 +1961,14 @@ class ApiClient {
     maintenance_message: string;
     maintenance_phone: string;
     maintenance_started_at: number;
+    update_notice_enabled: boolean;
+    update_notice_title: string;
+    update_notice_message: string;
+    force_update_enabled: boolean;
+    minimum_app_version: string;
+    latest_app_version: string;
+    android_store_url: string;
+    ios_store_url: string;
   }>> {
     if (DEMO_MODE) {
       return {
@@ -1971,6 +1979,14 @@ class ApiClient {
           maintenance_message: "We're currently improving your experience. Our services will resume shortly.",
           maintenance_phone: '6996',
           maintenance_started_at: 0,
+          update_notice_enabled: false,
+          update_notice_title: 'Update available',
+          update_notice_message: 'A new version of Green Ride is available. Please update for the best experience.',
+          force_update_enabled: false,
+          minimum_app_version: '',
+          latest_app_version: '',
+          android_store_url: '',
+          ios_store_url: '',
         },
       };
     }
@@ -1985,11 +2001,27 @@ class ApiClient {
     maintenance_mode?: boolean;
     maintenance_message?: string;
     maintenance_phone?: string;
+    update_notice_enabled?: boolean;
+    update_notice_title?: string;
+    update_notice_message?: string;
+    force_update_enabled?: boolean;
+    minimum_app_version?: string;
+    latest_app_version?: string;
+    android_store_url?: string;
+    ios_store_url?: string;
   }): Promise<ApiResponse<{
     maintenance_mode: boolean;
     maintenance_message: string;
     maintenance_phone: string;
     maintenance_started_at: number;
+    update_notice_enabled: boolean;
+    update_notice_title: string;
+    update_notice_message: string;
+    force_update_enabled: boolean;
+    minimum_app_version: string;
+    latest_app_version: string;
+    android_store_url: string;
+    ios_store_url: string;
   }>> {
     if (DEMO_MODE) {
       await new Promise(r => setTimeout(r, 300));
@@ -2001,12 +2033,63 @@ class ApiClient {
           maintenance_message: config.maintenance_message ?? '',
           maintenance_phone: config.maintenance_phone ?? '6996',
           maintenance_started_at: config.maintenance_mode ? Date.now() : 0,
+          update_notice_enabled: config.update_notice_enabled ?? false,
+          update_notice_title: config.update_notice_title ?? 'Update available',
+          update_notice_message: config.update_notice_message ?? '',
+          force_update_enabled: config.force_update_enabled ?? false,
+          minimum_app_version: config.minimum_app_version ?? '',
+          latest_app_version: config.latest_app_version ?? '',
+          android_store_url: config.android_store_url ?? '',
+          ios_store_url: config.ios_store_url ?? '',
         },
       };
     }
     return this.request('/system/config', {
       method: 'POST',
       body: config,
+    });
+  }
+
+  /**
+   * Purge legacy soft-deleted/zombie records.
+   * POST /system/purge-legacy-deleted
+   */
+  async purgeLegacyDeleted(payload: {
+    confirm: string;
+    dry_run: boolean;
+  }): Promise<ApiResponse<{
+    dry_run: boolean;
+    zombie_users_found: number;
+    zombie_users_deleted: number;
+    vehicle_unbound_count: number;
+    fcm_tokens_deleted_count: number;
+    vehicles_deleted_count: number;
+    price_rules_deleted: number;
+    promotions_deleted: number;
+    ratings_deleted: number;
+  }>> {
+    if (DEMO_MODE) {
+      await new Promise(r => setTimeout(r, 400));
+      return {
+        code: API_CODES.SUCCESS,
+        msg: payload.dry_run ? 'Dry-run completed' : 'Cleanup completed',
+        data: {
+          dry_run: payload.dry_run,
+          zombie_users_found: 0,
+          zombie_users_deleted: 0,
+          vehicle_unbound_count: 0,
+          fcm_tokens_deleted_count: 0,
+          vehicles_deleted_count: 0,
+          price_rules_deleted: 0,
+          promotions_deleted: 0,
+          ratings_deleted: 0,
+        },
+      };
+    }
+
+    return this.request('/system/purge-legacy-deleted', {
+      method: 'POST',
+      body: payload,
     });
   }
 }

@@ -91,6 +91,30 @@ func (s *SystemConfigService) UpdateConfig(req *protocol.SystemConfigUpdateReque
 	if req.MaintenancePhone != nil {
 		updates["maintenance_phone"] = *req.MaintenancePhone
 	}
+	if req.UpdateNoticeEnabled != nil {
+		updates["update_notice_enabled"] = *req.UpdateNoticeEnabled
+	}
+	if req.UpdateNoticeTitle != nil {
+		updates["update_notice_title"] = *req.UpdateNoticeTitle
+	}
+	if req.UpdateNoticeMessage != nil {
+		updates["update_notice_message"] = *req.UpdateNoticeMessage
+	}
+	if req.ForceUpdateEnabled != nil {
+		updates["force_update_enabled"] = *req.ForceUpdateEnabled
+	}
+	if req.MinimumAppVersion != nil {
+		updates["minimum_app_version"] = *req.MinimumAppVersion
+	}
+	if req.LatestAppVersion != nil {
+		updates["latest_app_version"] = *req.LatestAppVersion
+	}
+	if req.AndroidStoreURL != nil {
+		updates["android_store_url"] = *req.AndroidStoreURL
+	}
+	if req.IOSStoreURL != nil {
+		updates["ios_store_url"] = *req.IOSStoreURL
+	}
 
 	updates["updated_by"] = adminID
 
@@ -105,6 +129,30 @@ func (s *SystemConfigService) UpdateConfig(req *protocol.SystemConfigUpdateReque
 		}
 		if req.MaintenancePhone != nil {
 			config.SetMaintenancePhone(*req.MaintenancePhone)
+		}
+		if req.UpdateNoticeEnabled != nil {
+			config.SetUpdateNoticeEnabled(*req.UpdateNoticeEnabled)
+		}
+		if req.UpdateNoticeTitle != nil {
+			config.SetUpdateNoticeTitle(*req.UpdateNoticeTitle)
+		}
+		if req.UpdateNoticeMessage != nil {
+			config.SetUpdateNoticeMessage(*req.UpdateNoticeMessage)
+		}
+		if req.ForceUpdateEnabled != nil {
+			config.SetForceUpdateEnabled(*req.ForceUpdateEnabled)
+		}
+		if req.MinimumAppVersion != nil {
+			config.SetMinimumAppVersion(*req.MinimumAppVersion)
+		}
+		if req.LatestAppVersion != nil {
+			config.SetLatestAppVersion(*req.LatestAppVersion)
+		}
+		if req.AndroidStoreURL != nil {
+			config.SetAndroidStoreURL(*req.AndroidStoreURL)
+		}
+		if req.IOSStoreURL != nil {
+			config.SetIOSStoreURL(*req.IOSStoreURL)
 		}
 		config.SetUpdatedBy(adminID)
 		dbErr = db.Create(&config).Error
@@ -124,9 +172,17 @@ func (s *SystemConfigService) UpdateConfig(req *protocol.SystemConfigUpdateReque
 
 func toSystemConfigResponse(config *models.SystemConfig) *protocol.SystemConfigResponse {
 	return &protocol.SystemConfigResponse{
-		MaintenanceMode:    config.GetMaintenanceMode(),
-		MaintenanceMessage: config.GetMaintenanceMessage(),
-		MaintenancePhone:   config.GetMaintenancePhone(),
-		MaintenanceStartAt: config.MaintenanceStartAt,
+		MaintenanceMode:     config.GetMaintenanceMode(),
+		MaintenanceMessage:  config.GetMaintenanceMessage(),
+		MaintenancePhone:    config.GetMaintenancePhone(),
+		MaintenanceStartAt:  config.MaintenanceStartAt,
+		UpdateNoticeEnabled: config.GetUpdateNoticeEnabled(),
+		UpdateNoticeTitle:   config.GetUpdateNoticeTitle(),
+		UpdateNoticeMessage: config.GetUpdateNoticeMessage(),
+		ForceUpdateEnabled:  config.GetForceUpdateEnabled(),
+		MinimumAppVersion:   config.GetMinimumAppVersion(),
+		LatestAppVersion:    config.GetLatestAppVersion(),
+		AndroidStoreURL:     config.GetAndroidStoreURL(),
+		IOSStoreURL:         config.GetIOSStoreURL(),
 	}
 }

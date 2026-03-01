@@ -12,7 +12,10 @@ import {
   CheckCircle,
   AlertTriangle,
   Wrench,
-  Phone
+  Phone,
+  Database,
+  Trash2,
+  Smartphone
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -101,10 +104,33 @@ export default function SettingsPage() {
   const [maintenanceMessage, setMaintenanceMessage] = useState('');
   const [maintenancePhone, setMaintenancePhone] = useState('6996');
   const [maintenanceStartedAt, setMaintenanceStartedAt] = useState(0);
+  const [updateNoticeEnabled, setUpdateNoticeEnabled] = useState(false);
+  const [forceUpdateEnabled, setForceUpdateEnabled] = useState(false);
+  const [updateNoticeTitle, setUpdateNoticeTitle] = useState('Update available');
+  const [updateNoticeMessage, setUpdateNoticeMessage] = useState('');
+  const [minimumAppVersion, setMinimumAppVersion] = useState('');
+  const [latestAppVersion, setLatestAppVersion] = useState('');
+  const [androidStoreUrl, setAndroidStoreUrl] = useState('');
+  const [iosStoreUrl, setIosStoreUrl] = useState('');
   const [isLoadingSystem, setIsLoadingSystem] = useState(true);
   const [isSavingSystem, setIsSavingSystem] = useState(false);
   const [showMaintenanceConfirm, setShowMaintenanceConfirm] = useState(false);
   const [confirmText, setConfirmText] = useState('');
+  const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
+  const [purgeConfirmText, setPurgeConfirmText] = useState('');
+  const [purgeDryRun, setPurgeDryRun] = useState(true);
+  const [isPurging, setIsPurging] = useState(false);
+  const [purgeResult, setPurgeResult] = useState<{
+    dry_run: boolean;
+    zombie_users_found: number;
+    zombie_users_deleted: number;
+    vehicle_unbound_count: number;
+    fcm_tokens_deleted_count: number;
+    vehicles_deleted_count: number;
+    price_rules_deleted: number;
+    promotions_deleted: number;
+    ratings_deleted: number;
+  } | null>(null);
 
   // Load support config on mount
   useEffect(() => {
@@ -140,6 +166,14 @@ export default function SettingsPage() {
           setMaintenanceMessage(response.data.maintenance_message || '');
           setMaintenancePhone(response.data.maintenance_phone || '6996');
           setMaintenanceStartedAt(response.data.maintenance_started_at || 0);
+          setUpdateNoticeEnabled(response.data.update_notice_enabled || false);
+          setForceUpdateEnabled(response.data.force_update_enabled || false);
+          setUpdateNoticeTitle(response.data.update_notice_title || 'Update available');
+          setUpdateNoticeMessage(response.data.update_notice_message || '');
+          setMinimumAppVersion(response.data.minimum_app_version || '');
+          setLatestAppVersion(response.data.latest_app_version || '');
+          setAndroidStoreUrl(response.data.android_store_url || '');
+          setIosStoreUrl(response.data.ios_store_url || '');
         }
       } catch (error) {
         console.error('Failed to load system config:', error);
@@ -163,7 +197,7 @@ export default function SettingsPage() {
       toast.success('General settings saved successfully!', {
         icon: <CheckCircle className="h-4 w-4 text-green-500" />,
       });
-    } catch (error) {
+    } catch {
       toast.error('Failed to save settings. Please try again.');
     } finally {
       setIsSavingGeneral(false);
@@ -218,10 +252,26 @@ export default function SettingsPage() {
         maintenance_mode: newMaintenanceMode,
         maintenance_message: maintenanceMessage,
         maintenance_phone: maintenancePhone,
+        update_notice_enabled: updateNoticeEnabled,
+        force_update_enabled: forceUpdateEnabled,
+        update_notice_title: updateNoticeTitle,
+        update_notice_message: updateNoticeMessage,
+        minimum_app_version: minimumAppVersion,
+        latest_app_version: latestAppVersion,
+        android_store_url: androidStoreUrl,
+        ios_store_url: iosStoreUrl,
       });
       if (response.data) {
         setMaintenanceMode(response.data.maintenance_mode);
         setMaintenanceStartedAt(response.data.maintenance_started_at || 0);
+        setUpdateNoticeEnabled(response.data.update_notice_enabled || false);
+        setForceUpdateEnabled(response.data.force_update_enabled || false);
+        setUpdateNoticeTitle(response.data.update_notice_title || 'Update available');
+        setUpdateNoticeMessage(response.data.update_notice_message || '');
+        setMinimumAppVersion(response.data.minimum_app_version || '');
+        setLatestAppVersion(response.data.latest_app_version || '');
+        setAndroidStoreUrl(response.data.android_store_url || '');
+        setIosStoreUrl(response.data.ios_store_url || '');
       }
       toast.success(
         newMaintenanceMode
@@ -233,7 +283,7 @@ export default function SettingsPage() {
             : <CheckCircle className="h-4 w-4 text-green-500" />,
         }
       );
-    } catch (error) {
+    } catch {
       toast.error('Failed to update system config. Please try again.');
     } finally {
       setIsSavingSystem(false);
@@ -248,18 +298,63 @@ export default function SettingsPage() {
         maintenance_mode: maintenanceMode,
         maintenance_message: maintenanceMessage,
         maintenance_phone: maintenancePhone,
+        update_notice_enabled: updateNoticeEnabled,
+        force_update_enabled: forceUpdateEnabled,
+        update_notice_title: updateNoticeTitle,
+        update_notice_message: updateNoticeMessage,
+        minimum_app_version: minimumAppVersion,
+        latest_app_version: latestAppVersion,
+        android_store_url: androidStoreUrl,
+        ios_store_url: iosStoreUrl,
       });
       if (response.data) {
         setMaintenanceMode(response.data.maintenance_mode);
         setMaintenanceStartedAt(response.data.maintenance_started_at || 0);
+        setUpdateNoticeEnabled(response.data.update_notice_enabled || false);
+        setForceUpdateEnabled(response.data.force_update_enabled || false);
+        setUpdateNoticeTitle(response.data.update_notice_title || 'Update available');
+        setUpdateNoticeMessage(response.data.update_notice_message || '');
+        setMinimumAppVersion(response.data.minimum_app_version || '');
+        setLatestAppVersion(response.data.latest_app_version || '');
+        setAndroidStoreUrl(response.data.android_store_url || '');
+        setIosStoreUrl(response.data.ios_store_url || '');
       }
       toast.success('System settings saved successfully!', {
         icon: <CheckCircle className="h-4 w-4 text-green-500" />,
       });
-    } catch (error) {
+    } catch {
       toast.error('Failed to save system settings. Please try again.');
     } finally {
       setIsSavingSystem(false);
+    }
+  };
+
+  const handleOpenPurgeDialog = (dryRun: boolean) => {
+    setPurgeDryRun(dryRun);
+    setPurgeConfirmText('');
+    setShowPurgeConfirm(true);
+  };
+
+  const handleRunPurgeCleanup = async () => {
+    setIsPurging(true);
+    try {
+      const response = await apiClient.purgeLegacyDeleted({
+        confirm: 'PURGE_LEGACY_DELETED',
+        dry_run: purgeDryRun,
+      });
+      setPurgeResult(response.data);
+      toast.success(
+        purgeDryRun
+          ? 'Dry-run completed successfully.'
+          : 'Legacy deleted cleanup completed.',
+        { icon: <CheckCircle className="h-4 w-4 text-green-500" /> }
+      );
+      setShowPurgeConfirm(false);
+      setPurgeConfirmText('');
+    } catch {
+      toast.error('Failed to run cleanup. Please try again.');
+    } finally {
+      setIsPurging(false);
     }
   };
 
@@ -839,6 +934,200 @@ export default function SettingsPage() {
                 )}
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Smartphone className="h-5 w-5" />
+                  App Update Notice
+                </CardTitle>
+                <CardDescription>
+                  Control in-app update notice payload for mobile clients via <code>/system/config</code>.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div
+                  className={`flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                    updateNoticeEnabled
+                      ? 'border-blue-300 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => setUpdateNoticeEnabled(!updateNoticeEnabled)}
+                >
+                  <div>
+                    <p className="font-medium">
+                      {updateNoticeEnabled ? 'Update Notice is ON' : 'Update Notice is OFF'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {updateNoticeEnabled
+                        ? 'Mobile app can show an update prompt based on this config.'
+                        : 'Enable to send update notice config to mobile app.'}
+                    </p>
+                  </div>
+                  <div
+                    className={`w-12 h-7 rounded-full transition-colors relative ${
+                      updateNoticeEnabled ? 'bg-blue-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${
+                        updateNoticeEnabled ? 'translate-x-5' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <p className="font-medium">Force Update</p>
+                    <p className="text-sm text-muted-foreground">
+                      If enabled, older app versions should be blocked by the mobile client.
+                    </p>
+                  </div>
+                  <Checkbox
+                    checked={forceUpdateEnabled}
+                    onCheckedChange={(checked) => setForceUpdateEnabled(checked === true)}
+                  />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="minimum-app-version">Minimum App Version</Label>
+                    <Input
+                      id="minimum-app-version"
+                      value={minimumAppVersion}
+                      onChange={(e) => setMinimumAppVersion(e.target.value)}
+                      placeholder="e.g. 1.5.6+84"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="latest-app-version">Latest App Version</Label>
+                    <Input
+                      id="latest-app-version"
+                      value={latestAppVersion}
+                      onChange={(e) => setLatestAppVersion(e.target.value)}
+                      placeholder="e.g. 1.5.7+85"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="update-notice-title">Notice Title</Label>
+                  <Input
+                    id="update-notice-title"
+                    value={updateNoticeTitle}
+                    onChange={(e) => setUpdateNoticeTitle(e.target.value)}
+                    placeholder="Update available"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="update-notice-message">Notice Message</Label>
+                  <Textarea
+                    id="update-notice-message"
+                    value={updateNoticeMessage}
+                    onChange={(e) => setUpdateNoticeMessage(e.target.value)}
+                    placeholder="A new version of Green Ride is available. Please update for the best experience."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="android-store-url">Android Store URL</Label>
+                    <Input
+                      id="android-store-url"
+                      value={androidStoreUrl}
+                      onChange={(e) => setAndroidStoreUrl(e.target.value)}
+                      placeholder="https://play.google.com/store/apps/details?id=..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ios-store-url">iOS Store URL</Label>
+                    <Input
+                      id="ios-store-url"
+                      value={iosStoreUrl}
+                      onChange={(e) => setIosStoreUrl(e.target.value)}
+                      placeholder="https://apps.apple.com/app/id..."
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    className="gap-2"
+                    onClick={handleSaveSystemSettings}
+                    disabled={isSavingSystem}
+                  >
+                    {isSavingSystem ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    {isSavingSystem ? 'Saving...' : 'Save Update Notice'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Legacy Deleted Cleanup
+                </CardTitle>
+                <CardDescription>
+                  Use this tool to purge old soft-deleted/zombie records from the database.
+                  Run a dry-run first, then apply.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleOpenPurgeDialog(true)}
+                    disabled={isPurging}
+                  >
+                    {isPurging && purgeDryRun ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Database className="mr-2 h-4 w-4" />
+                    )}
+                    Run Dry-Run
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => handleOpenPurgeDialog(false)}
+                    disabled={isPurging}
+                  >
+                    {isPurging && !purgeDryRun ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-2 h-4 w-4" />
+                    )}
+                    Apply Cleanup
+                  </Button>
+                </div>
+
+                {purgeResult && (
+                  <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+                    <p className="mb-2 font-medium">
+                      Last result ({purgeResult.dry_run ? 'Dry-Run' : 'Applied'}):
+                    </p>
+                    <div className="grid gap-1 md:grid-cols-2">
+                      <p>Zombie users found: {purgeResult.zombie_users_found}</p>
+                      <p>Zombie users deleted: {purgeResult.zombie_users_deleted}</p>
+                      <p>Vehicle unbound count: {purgeResult.vehicle_unbound_count}</p>
+                      <p>FCM tokens deleted: {purgeResult.fcm_tokens_deleted_count}</p>
+                      <p>Vehicles deleted: {purgeResult.vehicles_deleted_count}</p>
+                      <p>Price rules deleted: {purgeResult.price_rules_deleted}</p>
+                      <p>Promotions deleted: {purgeResult.promotions_deleted}</p>
+                      <p>Ratings deleted: {purgeResult.ratings_deleted}</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Confirmation Dialog for enabling maintenance mode */}
@@ -879,6 +1168,55 @@ export default function SettingsPage() {
                   className="bg-red-600 hover:bg-red-700 disabled:opacity-50"
                 >
                   Enable Maintenance Mode
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <AlertDialog open={showPurgeConfirm} onOpenChange={setShowPurgeConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+                  <AlertTriangle className="h-5 w-5" />
+                  {purgeDryRun ? 'Run Cleanup Dry-Run?' : 'Apply Permanent Cleanup?'}
+                </AlertDialogTitle>
+                <AlertDialogDescription className="space-y-3">
+                  {purgeDryRun ? (
+                    <p>
+                      This will only preview how many records would be cleaned.
+                      No data will be deleted.
+                    </p>
+                  ) : (
+                    <p>
+                      This will permanently delete legacy soft-deleted/zombie records.
+                      This action cannot be undone.
+                    </p>
+                  )}
+                  <div className="space-y-2 pt-2">
+                    <Label htmlFor="purge-confirm-text" className="text-sm font-medium">
+                      Type <span className="font-mono text-red-600">PURGE_LEGACY_DELETED</span> to confirm:
+                    </Label>
+                    <Input
+                      id="purge-confirm-text"
+                      value={purgeConfirmText}
+                      onChange={(e) => setPurgeConfirmText(e.target.value)}
+                      placeholder="PURGE_LEGACY_DELETED"
+                      className="font-mono"
+                    />
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setPurgeConfirmText('')}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleRunPurgeCleanup}
+                  disabled={purgeConfirmText !== 'PURGE_LEGACY_DELETED' || isPurging}
+                  className="bg-red-600 hover:bg-red-700 disabled:opacity-50"
+                >
+                  {isPurging ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  {purgeDryRun ? 'Run Dry-Run' : 'Apply Cleanup'}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
