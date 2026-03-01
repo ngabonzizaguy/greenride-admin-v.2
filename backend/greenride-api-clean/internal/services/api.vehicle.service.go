@@ -117,13 +117,13 @@ func (s *VehicleService) UpdateVehicle(vehicle *models.Vehicle, values *models.V
 	return nil
 }
 
-// DeleteVehicle 删除车辆（软删除）
+// DeleteVehicle 删除车辆（硬删除）
 func (s *VehicleService) DeleteVehicle(vehicleID string) error {
 	if vehicleID == "" {
 		return errors.New("vehicle_id is required")
 	}
 
-	return s.db.Where("vehicle_id = ?", vehicleID).Delete(&models.Vehicle{}).Error
+	return s.db.Unscoped().Where("vehicle_id = ?", vehicleID).Delete(&models.Vehicle{}).Error
 }
 
 // GetActiveVehicles 获取激活状态的车辆列表

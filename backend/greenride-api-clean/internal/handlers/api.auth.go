@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -102,36 +101,8 @@ func (a *Api) Register(c *gin.Context) {
 		c.JSON(http.StatusOK, protocol.NewErrorResult(protocol.InvalidVerificationCode, lang))
 		return
 	}
-	var user *models.User
-	switch verifiedMethod {
-	case "email":
-		user = models.GetUserByEmailAndType(fmt.Sprintf("deleted_%s", req.Email), req.UserType)
-	case "phone":
-		user = models.GetUserByPhoneAndType(fmt.Sprintf("deleted_%s", req.Phone), req.UserType)
-	}
-	if user != nil {
-		// 用户存在且已删除，恢复用户
-		user.SetStatus(protocol.StatusActive).
-			SetOnlineStatus(protocol.StatusOnline).
-			SetDeletedAt(0).
-			SetUsername(req.Username).
-			SetPhone(strings.TrimPrefix(user.GetPhone(), "deleted_")).
-			SetEmail(strings.TrimPrefix(user.GetEmail(), "deleted_"))
-		if err := services.GetUserService().UpdateUser(user, user.UserValues); err != protocol.Success {
-			c.JSON(http.StatusOK, protocol.NewErrorResult(err, lang))
-			return
-		}
-
-		c.JSON(http.StatusOK, protocol.NewSuccessResultWithLang(RegisterResponse{
-			UserID:   user.UserID,
-			Email:    user.GetEmail(),
-			Phone:    user.GetPhone(),
-			UserType: user.GetUserType(),
-		}, lang))
-		return
-	}
-	// 创建用户
-	user = models.NewUser()
+	// 创建全新用户（不再自动恢复 deleted_ 前缀历史账号，避免“僵尸账号”复活）
+	user := models.NewUser()
 	values := &models.UserValues{}
 	values.SetUserType(req.UserType).
 		SetUsername(req.Username).
@@ -293,8 +264,11 @@ func (a *Api) Login(c *gin.Context) {
 		}
 	}
 
-	// 检查用户状态
-	if user.GetStatus() != protocol.StatusActive {
+	// 检查用户状态，阻止软删除残留账号登录（防止“僵尸账号”）
+	if user.GetStatus() != protocol.StatusActive ||
+		user.IsDeleted() ||
+		strings.HasPrefix(user.GetPhone(), "deleted_") ||
+		strings.HasPrefix(user.GetEmail(), "deleted_") {
 		c.JSON(http.StatusOK, protocol.NewErrorResult(protocol.AccountDisabled, lang))
 		return
 	}

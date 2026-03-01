@@ -431,6 +431,10 @@ func (a *Api) GetNearbyOrders(c *gin.Context) {
 		c.JSON(http.StatusOK, protocol.NewErrorResult(protocol.PermissionDenied, lang))
 		return
 	}
+	if user.GetStatus() != protocol.StatusActive || user.IsDeleted() {
+		c.JSON(http.StatusOK, protocol.NewErrorResult(protocol.AccountDisabled, lang))
+		return
+	}
 	if req.Limit <= 0 {
 		req.Limit = 10
 	}

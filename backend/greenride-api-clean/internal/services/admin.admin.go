@@ -285,7 +285,7 @@ func (s *AdminAdminService) IsEmailExists(email string) bool {
 	return admin != nil
 }
 
-// DeleteAdmin 删除管理员（软删除）
+// DeleteAdmin 删除管理员（硬删除）
 func (s *AdminAdminService) DeleteAdmin(adminID, operatorID string) protocol.ErrorCode {
 	admin := s.GetAdminByID(adminID)
 	if admin == nil {
@@ -297,12 +297,12 @@ func (s *AdminAdminService) DeleteAdmin(adminID, operatorID string) protocol.Err
 		return protocol.InvalidParams
 	}
 
-	// 软删除：设置状态为inactive
-	values := &models.AdminValues{}
-	values.SetStatus(models.AdminStatusInactive)
-	values.LastUpdatedBy = &operatorID
-
-	return s.UpdateAdmin(admin, values)
+	// 硬删除管理员记录
+	if err := models.GetDB().Where("admin_id = ?", adminID).Delete(&models.Admin{}).Error; err != nil {
+		log.Printf("failed to hard delete admin %s: %v", adminID, err)
+		return protocol.DatabaseError
+	}
+	return protocol.Success
 }
 
 // EnsureDefaultAdmin 确保至少有一个管理员，如果没有则创建一个默认的

@@ -488,18 +488,21 @@ export default function VehiclesPage() {
 
   // Export to CSV
   const handleExportCSV = () => {
-    const headers = ['Brand', 'Model', 'Plate Number', 'Category', 'Level', 'Status', 'Driver', 'Year'];
+    const headers = ['vehicle_id', 'driver_id', 'brand', 'model', 'plate_number', 'category', 'level', 'status', 'year', 'color', 'seat_capacity'];
     const csvContent = [
       headers.join(','),
       ...vehicles.map(vehicle => [
-        `"${vehicle.brand || ''}"`,
-        `"${vehicle.model || ''}"`,
-        `"${vehicle.plate_number || ''}"`,
+        vehicle.vehicle_id || '',
+        vehicle.driver_id || '',
+        vehicle.brand || '',
+        vehicle.model || '',
+        vehicle.plate_number || '',
         vehicle.category || '',
         vehicle.level || '',
         vehicle.status,
-        `"${vehicle.driver_name || 'N/A'}"`,
         vehicle.year || '',
+        vehicle.color || '',
+        vehicle.seat_capacity || '',
       ].join(','))
     ].join('\n');
 

@@ -597,7 +597,7 @@ func (s *AdminVehicleService) CreateVehicle(req *protocol.VehicleCreateRequest) 
 	return vehicle, protocol.Success
 }
 
-// DeleteVehicle 删除车辆（软删除）
+// DeleteVehicle 删除车辆（硬删除）
 func (s *AdminVehicleService) DeleteVehicle(vehicleID string) protocol.ErrorCode {
 	vehicle := s.GetVehicleByID(vehicleID)
 	if vehicle == nil {
@@ -609,8 +609,8 @@ func (s *AdminVehicleService) DeleteVehicle(vehicleID string) protocol.ErrorCode
 		return protocol.VehicleInUse
 	}
 
-	// 执行软删除
-	if err := models.GetDB().Where("vehicle_id = ?", vehicleID).Delete(&models.Vehicle{}).Error; err != nil {
+	// 执行硬删除
+	if err := models.GetDB().Unscoped().Where("vehicle_id = ?", vehicleID).Delete(&models.Vehicle{}).Error; err != nil {
 		log.Printf("Failed to delete vehicle %s: %v", vehicleID, err)
 		return protocol.VehicleDeleteFailed
 	}

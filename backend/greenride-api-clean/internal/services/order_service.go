@@ -1015,6 +1015,9 @@ func (s *OrderService) AcceptOrder(req *protocol.OrderActionRequest) protocol.Er
 	if !user.IsDriver() {
 		return protocol.PermissionDenied
 	}
+	if user.GetStatus() != protocol.StatusActive || user.IsDeleted() {
+		return protocol.AccountDisabled
+	}
 	if user.GetOnlineStatus() != protocol.StatusOnline {
 		return protocol.DriverOffline // 司机未上线，无法接单
 	}

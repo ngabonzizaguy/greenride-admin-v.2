@@ -237,7 +237,7 @@ func (s *OrderRatingService) UpdateRating(req *protocol.UpdateOrderRatingRequest
 	return protocol.Success
 }
 
-// DeleteRating 删除评价（软删除）
+// DeleteRating 删除评价（硬删除）
 func (s *OrderRatingService) DeleteRating(req *protocol.RatingIDRequest) protocol.ErrorCode {
 	// 验证评价者权限
 	var rating models.OrderRating
@@ -249,8 +249,8 @@ func (s *OrderRatingService) DeleteRating(req *protocol.RatingIDRequest) protoco
 		return protocol.DatabaseError
 	}
 
-	// 软删除
-	if err := s.db.Delete(&rating).Error; err != nil {
+	// 硬删除
+	if err := s.db.Unscoped().Delete(&rating).Error; err != nil {
 		return protocol.DatabaseError
 	}
 

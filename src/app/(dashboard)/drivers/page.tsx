@@ -63,6 +63,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiClient, ApiError } from '@/lib/api-client';
 import type { Driver, PageResult, UserStatus } from '@/types';
+import * as XLSX from 'xlsx';
 
 const getStatusBadge = (status: string, onlineStatus?: string) => {
   if (onlineStatus === 'online') {
@@ -479,17 +480,35 @@ export default function DriversPage() {
 
   // Export to CSV
   const handleExportCSV = () => {
-    const headers = ['Name', 'Email', 'Phone', 'Status', 'Vehicle', 'Total Rides', 'Joined'];
+    const headers = [
+      'first_name',
+      'last_name',
+      'email',
+      'phone',
+      'license_number',
+      'status',
+      'vehicle_id',
+      'vehicle_plate_number',
+      'vehicle_brand',
+      'vehicle_model',
+      'vehicle_category',
+      'vehicle_level',
+    ];
     const csvContent = [
       headers.join(','),
       ...drivers.map(driver => [
-        `"${getDisplayName(driver)}"`,
+        `"${driver.first_name || ''}"`,
+        `"${driver.last_name || ''}"`,
         driver.email || '',
         driver.phone || '',
+        driver.license_number || '',
         driver.status,
-        `"${getDriverVehicleLabel(driver)}"`,
-        driver.total_rides || 0,
-        driver.created_at ? new Date(driver.created_at).toLocaleDateString() : '',
+        driver.vehicle?.vehicle_id || '',
+        driver.vehicle?.plate_number || '',
+        driver.vehicle?.brand || '',
+        driver.vehicle?.model || '',
+        driver.vehicle?.category || '',
+        driver.vehicle?.level || '',
       ].join(','))
     ].join('\n');
 
@@ -573,11 +592,19 @@ export default function DriversPage() {
   };
 
   // Parse CSV file - handles various formats including the Excel format with Name, Phone, Plate
+  const normalizeHeader = (header: string) =>
+    header
+      .trim()
+      .toLowerCase()
+      .replace(/["']/g, '')
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
   const parseCSV = (text: string): Array<Record<string, string>> => {
     const lines = text.split('\n').filter(line => line.trim());
     if (lines.length < 2) return [];
 
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/["']/g, ''));
+    const headers = lines[0].split(',').map(normalizeHeader);
     const rows: Array<Record<string, string>> = [];
 
     // Check if this is the dual-driver format (Names/1st Driver, Names/2nd Driver)
@@ -593,18 +620,18 @@ export default function DriversPage() {
         
         headers.forEach((header, index) => {
           const value = values[index] || '';
-          if (header.includes('1st') || (header === 'phone number' && index === 1)) {
+          if (header.includes('1st') || (header === 'phone_number' && index === 1)) {
             // First driver columns
             if (header.includes('driver') || header.includes('name')) {
               row1['name'] = value;
-            } else if (header.includes('phone') || header === 'phone number') {
+            } else if (header.includes('phone') || header === 'phone_number') {
               row1['phone'] = value;
             }
-          } else if (header.includes('2nd') || (header === 'phone number' && index === 3)) {
+          } else if (header.includes('2nd') || (header === 'phone_number' && index === 3)) {
             // Second driver columns  
             if (header.includes('driver') || header.includes('name')) {
               row2['name'] = value;
-            } else if (header.includes('phone') || header === 'phone number') {
+            } else if (header.includes('phone') || header === 'phone_number') {
               row2['phone'] = value;
             }
           } else if (header.includes('plate')) {
@@ -628,6 +655,28 @@ export default function DriversPage() {
     }
 
     return rows;
+  };
+
+  const parseSpreadsheetFile = async (file: File): Promise<Array<Record<string, string>>> => {
+    const lowerName = file.name.toLowerCase();
+    if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) return [];
+      const sheet = workbook.Sheets[firstSheetName];
+      const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+      return rawRows.map((row) => {
+        const normalized: Record<string, string> = {};
+        Object.entries(row).forEach(([key, value]) => {
+          normalized[normalizeHeader(key)] = String(value ?? '').trim();
+        });
+        return normalized;
+      });
+    }
+
+    const text = await file.text();
+    return parseCSV(text);
   };
 
   // Format phone number with +250 prefix if needed
@@ -668,21 +717,20 @@ export default function DriversPage() {
       return;
     }
 
-    // Validate file type
-    const validTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-    if (!validTypes.includes(file.type) && !file.name.endsWith('.csv')) {
-      setUploadError('Please upload a CSV file');
+    // Validate file extension (CSV or Excel)
+    const lowerName = file.name.toLowerCase();
+    const isSupported = lowerName.endsWith('.csv') || lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
+    if (!isSupported) {
+      setUploadError('Please upload a CSV or Excel file (.csv, .xlsx, .xls).');
       return;
     }
 
     setUploadFile(file);
 
     // Read and preview the file
-    const reader = new FileReader();
-    reader.onload = (event) => {
+    (async () => {
       try {
-        const text = event.target?.result as string;
-        const parsed = parseCSV(text);
+        const parsed = await parseSpreadsheetFile(file);
         if (parsed.length === 0) {
           setUploadError('No valid data found in file');
           return;
@@ -691,8 +739,7 @@ export default function DriversPage() {
       } catch {
         setUploadError('Failed to parse file');
       }
-    };
-    reader.readAsText(file);
+    })();
   };
 
   // Handle CSV Upload - supports various formats including Excel driver list
@@ -703,109 +750,118 @@ export default function DriversPage() {
     setUploadError(null);
 
     try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          const text = event.target?.result as string;
-          const rows = parseCSV(text);
+      try {
+        const rows = await parseSpreadsheetFile(uploadFile);
 
-          if (rows.length === 0) {
-            setUploadError('No valid data found in file');
-            setIsUploading(false);
-            return;
-          }
+        if (rows.length === 0) {
+          setUploadError('No valid data found in file');
+          setIsUploading(false);
+          return;
+        }
 
-          // Track created vehicles for plate numbers
-          const plateToVehicleId: Record<string, string> = {};
+        // Track created vehicles for plate numbers
+        const plateToVehicleId: Record<string, string> = {};
 
-          // Process each row - create drivers and optionally vehicles
-          const results = await Promise.allSettled(
-            rows.map(async (row) => {
+        // Process each row - create drivers and optionally vehicles
+        const results = await Promise.allSettled(
+          rows.map(async (row) => {
               // Get name - try various column formats
-              const fullName = row['name'] || row['names/1st driver'] || row['names/2nd driver'] || 
-                             row['first name'] || row['first_name'] || row['firstname'] || '';
+              const fullName = row['name'] || row['names_1st_driver'] || row['names_2nd_driver'] ||
+                row['full_name'] || row['display_name'] || '';
+              const csvFirstName = row['first_name'] || row['firstname'] || '';
+              const csvLastName = row['last_name'] || row['lastname'] || '';
               const { firstName, lastName } = splitName(fullName);
               
               // Get phone - format with +250 prefix if needed
-              const rawPhone = row['phone'] || row['phone number'] || row['phone_number'] || '';
+              const rawPhone = row['phone'] || row['phone_number'] || '';
               const phone = formatPhoneNumber(rawPhone);
               
-              // Get plate number if available
-              const plateNumber = row['plate_number'] || row['plate number'] || row['plate'] || '';
+              // Vehicle fields (compatible with export + legacy templates)
+              const vehicleId = row['vehicle_id'] || '';
+              const plateNumber = row['vehicle_plate_number'] || row['plate_number'] || row['plate'] || '';
+              const vehicleBrand = row['vehicle_brand'] || row['brand'] || 'Unknown';
+              const vehicleModel = row['vehicle_model'] || row['model'] || 'Unknown';
+              const vehicleCategory = row['vehicle_category'] || row['category'] || 'sedan';
+              const vehicleLevel = row['vehicle_level'] || row['level'] || 'economy';
               
               // Skip rows without name or phone
-              if (!firstName && !phone) {
+              if (!csvFirstName && !csvLastName && !firstName && !phone) {
                 return Promise.reject(new Error('Missing name and phone'));
               }
               
               // Create the driver
               const driverResponse = await apiClient.createUser({
                 user_type: 'driver',
-                first_name: firstName,
-                last_name: lastName,
+                first_name: csvFirstName || firstName,
+                last_name: csvLastName || lastName,
                 email: row['email'] || '',
                 phone: phone,
-                license_number: row['license'] || row['license number'] || row['license_number'] || '',
-                status: 'active',
+                license_number: row['license'] || row['license_number'] || '',
+                status: row['status'] || 'active',
               });
               
-              // If plate number exists, create or link vehicle
-              if (plateNumber && driverResponse.code === '0000') {
+              // Link or create vehicle using exported/imported vehicle fields
+              if ((vehicleId || plateNumber) && driverResponse.code === '0000') {
                 const driverData = driverResponse.data as { user_id?: string };
                 const driverId = driverData?.user_id;
                 
-                // Check if we already created this vehicle
-                if (!plateToVehicleId[plateNumber] && driverId) {
+                if (vehicleId && driverId) {
                   try {
-                    // Create vehicle with the plate number
-                    const vehicleResponse = await apiClient.createVehicle({
-                      plate_number: plateNumber,
-                      brand: 'Unknown', // Can be updated later
-                      model: 'Unknown',
-                      category: 'sedan',
-                      level: 'economy',
-                      driver_id: driverId,
-                      status: 'active',
-                    });
-                    
-                    if (vehicleResponse.code === '0000') {
-                      const vehicleData = vehicleResponse.data as { vehicle_id?: string };
-                      if (vehicleData?.vehicle_id) {
-                        plateToVehicleId[plateNumber] = vehicleData.vehicle_id;
-                      }
-                    }
+                    await apiClient.updateVehicle(vehicleId, { driver_id: driverId });
                   } catch (e) {
-                    // Vehicle creation failed, but driver was created successfully
-                    console.error('Failed to create vehicle for plate:', plateNumber, e);
+                    console.error('Failed to assign vehicle by vehicle_id:', vehicleId, e);
+                  }
+                } else if (plateNumber && driverId) {
+                  // Check if we already created this vehicle in the same import batch
+                  if (!plateToVehicleId[plateNumber]) {
+                    try {
+                      const vehicleResponse = await apiClient.createVehicle({
+                        plate_number: plateNumber,
+                        brand: vehicleBrand,
+                        model: vehicleModel,
+                        category: vehicleCategory,
+                        level: vehicleLevel,
+                        driver_id: driverId,
+                        status: 'active',
+                      });
+                      
+                      if (vehicleResponse.code === '0000') {
+                        const vehicleData = vehicleResponse.data as { vehicle_id?: string };
+                        if (vehicleData?.vehicle_id) {
+                          plateToVehicleId[plateNumber] = vehicleData.vehicle_id;
+                        }
+                      }
+                    } catch (e) {
+                      // Vehicle creation failed, but driver was created successfully
+                      console.error('Failed to create vehicle for plate:', plateNumber, e);
+                    }
                   }
                 }
               }
               
-              return driverResponse;
-            })
-          );
+            return driverResponse;
+          })
+        );
 
-          const successCount = results.filter(r => r.status === 'fulfilled').length;
-          const failCount = results.filter(r => r.status === 'rejected').length;
-          const vehiclesCreated = Object.keys(plateToVehicleId).length;
+        const successCount = results.filter(r => r.status === 'fulfilled').length;
+        const failCount = results.filter(r => r.status === 'rejected').length;
+        const vehiclesCreated = Object.keys(plateToVehicleId).length;
 
-          if (failCount > 0) {
-            setError(`${failCount} driver(s) failed to import. ${successCount} imported successfully.${vehiclesCreated > 0 ? ` ${vehiclesCreated} vehicle(s) created.` : ''}`);
-          } else {
-            setSuccessMessage(`${successCount} driver(s) imported successfully!${vehiclesCreated > 0 ? ` ${vehiclesCreated} vehicle(s) created.` : ''}`);
-          }
-
-          setIsUploadModalOpen(false);
-          setUploadFile(null);
-          setUploadPreview([]);
-          fetchDrivers();
-        } catch {
-          setUploadError('Failed to process file');
-        } finally {
-          setIsUploading(false);
+        if (failCount > 0) {
+          setError(`${failCount} driver(s) failed to import. ${successCount} imported successfully.${vehiclesCreated > 0 ? ` ${vehiclesCreated} vehicle(s) created.` : ''}`);
+        } else {
+          setSuccessMessage(`${successCount} driver(s) imported successfully!${vehiclesCreated > 0 ? ` ${vehiclesCreated} vehicle(s) created.` : ''}`);
         }
-      };
-      reader.readAsText(uploadFile);
+
+        setIsUploadModalOpen(false);
+        setUploadFile(null);
+        setUploadPreview([]);
+        fetchDrivers();
+      } catch {
+        setUploadError('Failed to process file');
+      } finally {
+        setIsUploading(false);
+      }
     } catch {
       setUploadError('Failed to upload file');
       setIsUploading(false);
@@ -814,13 +870,11 @@ export default function DriversPage() {
 
   // Download CSV template - supports multiple formats
   const handleDownloadTemplate = () => {
-    // Template with simpler format matching user's Excel structure
-    const template = `Name,Phone,Plate Number
-Serge Ntwali,784871704,RAJ746C
-Benimana Christiane,784149020,RAJ748C
-Nkurunziza Aloys,788268767,RAJ745C
-Rutayisire Bosco,785040266,RAJ783C
-Nyamuvugwa Jesus,788438122,RAJ835C`;
+    // Template mirrors export fields so admins can edit and re-import directly.
+    const template = `first_name,last_name,email,phone,license_number,status,vehicle_id,vehicle_plate_number,vehicle_brand,vehicle_model,vehicle_category,vehicle_level
+Serge,Ntwali,serge@example.com,784871704,LIC-001,active,,RAJ746C,Toyota,Corolla,sedan,economy
+Benimana,Christiane,christiane@example.com,784149020,LIC-002,active,,RAJ748C,Toyota,Yaris,sedan,economy
+Nkurunziza,Aloys,aloys@example.com,788268767,LIC-003,active,,RAJ745C,Hyundai,Tucson,suv,comfort`;
     const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);

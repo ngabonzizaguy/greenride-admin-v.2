@@ -233,7 +233,7 @@ func (t *Admin) CreateVehicle(c *gin.Context) {
 
 // DeleteVehicle 删除车辆
 // @Summary 删除车辆
-// @Description 管理员删除车辆（软删除）
+// @Description 管理员删除车辆（硬删除）
 // @Tags Admin,管理员-车辆
 // @Accept json
 // @Produce json

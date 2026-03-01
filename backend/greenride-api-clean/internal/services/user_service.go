@@ -118,13 +118,32 @@ func (s *UserService) GetUserByPhoneAndType(phone, userType string) *models.User
 }
 
 func (s *UserService) UserOnline(req protocol.UserOnlineRequest) protocol.ErrorCode {
+	user := s.GetUserByID(req.UserID)
+	if user == nil {
+		return protocol.UserNotFound
+	}
+	if !user.IsDriver() || user.GetStatus() != protocol.StatusActive || user.IsDeleted() {
+		return protocol.PermissionDenied
+	}
+
 	vehicle := models.GetVehicleByID(req.VehicleID) // 预加载车辆缓存
 	if vehicle == nil {
 		log.Printf("No vehicle found %s", req.VehicleID)
 		return protocol.VehicleNotFound
 	}
+	if !vehicle.IsAvailable() {
+		return protocol.VehicleNotAssigned
+	}
+	if vehicle.GetDriverID() != "" && vehicle.GetDriverID() != req.UserID {
+		return protocol.VehicleInUse
+	}
+
+	now := utils.TimeNowMilli()
 	values := &models.UserValues{}
-	values.SetActiveStatus(protocol.StatusOnline)
+	values.SetActiveStatus(protocol.StatusOnline).
+		SetLatitude(req.Latitude).
+		SetLongitude(req.Longitude).
+		SetLocationUpdatedAt(now)
 
 	err := models.GetDB().Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.User{}).Where("user_id = ?", req.UserID).Updates(values).Error; err != nil {
@@ -284,17 +303,57 @@ func (s *UserService) SearchUsers(req *protocol.SearchRequest) ([]*models.User, 
 	var users []*models.User
 	var total int64
 
-	query := s.db.Model(&models.User{})
+	query := s.db.Model(&models.User{}).
+		Where("(deleted_at IS NULL OR deleted_at = 0)")
 
 	// 用户类型过滤
 	if req.UserType != "" {
 		query = query.Where("user_type = ?", req.UserType)
 	}
 
-	// 关键字搜索（只搜索用户名和手机号）
+	// 状态过滤：默认不返回 deleted
+	if req.Status != "" {
+		query = query.Where("status = ?", req.Status)
+	} else {
+		query = query.Where("status <> ?", protocol.StatusDeleted)
+	}
+
+	// 司机/用户扩展过滤
+	if req.OnlineStatus != "" {
+		query = query.Where("online_status = ?", req.OnlineStatus)
+	}
+	if req.IsEmailVerified != nil {
+		query = query.Where("is_email_verified = ?", *req.IsEmailVerified)
+	}
+	if req.IsPhoneVerified != nil {
+		query = query.Where("is_phone_verified = ?", *req.IsPhoneVerified)
+	}
+	if req.MinDriverScore != nil {
+		query = query.Where("score >= ?", *req.MinDriverScore)
+	}
+	if req.MaxDriverScore != nil {
+		query = query.Where("score <= ?", *req.MaxDriverScore)
+	}
+	if req.MinTotalRides != nil {
+		query = query.Where("total_rides >= ?", *req.MinTotalRides)
+	}
+
+	// 关键字搜索（支持姓名/邮箱/手机号的宽松匹配）
 	if req.Keyword != "" {
-		searchTerm := "%" + req.Keyword + "%"
-		query = query.Where("username LIKE ? OR phone LIKE ?", searchTerm, searchTerm)
+		kw := strings.TrimSpace(req.Keyword)
+		searchTerm := "%" + kw + "%"
+		phoneDigits := strings.NewReplacer("+", "", "-", "", " ", "", "(", "", ")", "").Replace(kw)
+		phoneTerm := "%" + phoneDigits + "%"
+		query = query.Where(`
+			username LIKE ?
+			OR display_name LIKE ?
+			OR first_name LIKE ?
+			OR last_name LIKE ?
+			OR CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, '')) LIKE ?
+			OR email LIKE ?
+			OR phone LIKE ?
+			OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, 'deleted_', ''), '+', ''), '-', ''), ' ', ''), '(', ''), ')', '') LIKE ?
+		`, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, phoneTerm)
 	}
 
 	// 获取总数
@@ -443,7 +502,7 @@ func (s *UserService) GetDriverRuntime(driverID string) (data *protocol.DriverRu
 		DriverID: driverID,
 	}
 	if err := models.GetObjectCache(data.GetCacheKey(), data); err == nil {
-		log.Printf("Failed to get driver runtime from Redis: %v", err)
+		// Cache hit
 		return data
 	}
 	return s.RefreshDriverRuntimeCache(driverID)
@@ -696,7 +755,7 @@ func (s *UserService) UploadAvatar(ctx context.Context, req *UploadAvatarRequest
 	}
 }
 
-// DeleteUserByID 删除用户（软删除）
+// DeleteUserByID 删除用户（硬删除）
 // 参数：
 //   - userID: 要删除的用户ID
 //   - reason: 删除原因（可选）
@@ -721,36 +780,34 @@ func (s *UserService) DeleteUserByID(userID string, reason string, isPassengerOn
 		return protocol.UserHasUnCompletedOrders
 	}
 
-	// 生成删除时间戳（毫秒）
-	timestamp := utils.TimeNowMilli()
+	// 硬删除用户，并清理与司机关联的车辆绑定、FCM token。
+	// 注意：订单历史等业务记录保留，通过 provider_id / user_id 继续可追溯。
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if user.IsDriver() {
+			vehicleValues := &models.VehicleValues{}
+			vehicleValues.SetDriver("")
+			if err := tx.Model(&models.Vehicle{}).
+				Where("driver_id = ?", user.UserID).
+				Updates(vehicleValues).Error; err != nil {
+				return err
+			}
+		}
 
-	// 更新用户信息，添加删除标记
-	values := &models.UserValues{}
-	values.SetStatus(protocol.StatusDeleted).
-		SetDeletedAt(timestamp)
+		if err := tx.Where("user_id = ?", user.UserID).Delete(&models.User{}).Error; err != nil {
+			return err
+		}
 
-	// 添加删除前缀和时间戳后缀
-	if user.GetEmail() != "" && !strings.HasPrefix(user.GetEmail(), "deleted_") {
-		deletedEmail := "deleted_" + user.GetEmail()
-		values.SetEmail(deletedEmail)
-	}
-	if user.GetPhone() != "" && !strings.HasPrefix(user.GetPhone(), "deleted_") {
-		deletedPhone := "deleted_" + user.GetPhone()
-		values.SetPhone(deletedPhone)
-	}
+		if err := tx.Where("user_id = ?", user.UserID).Delete(&models.FCMToken{}).Error; err != nil {
+			return err
+		}
 
-	// 先更新 UserValues 字段
-	if errCode := s.UpdateUser(user, values); errCode != protocol.Success {
-		return errCode
-	}
-
-	// 禁用用户促销信息
-	if err := models.DisabledUserPromotionByUserID(s.db, user.UserID); err != nil {
-		log.Printf("Failed to disable user promotions - user_id: %s, error: %s", user.UserID, err.Error())
-		// 这里不返回错误，因为主要的删除操作已经完成
+		return nil
+	}); err != nil {
+		log.Printf("Failed to hard delete user - user_id: %s, reason: %s, error: %v", user.UserID, reason, err)
+		return protocol.DatabaseError
 	}
 
-	log.Printf("User deleted successfully - user_id: %s, user_type: %s, reason: %s", user.UserID, user.GetUserType(), reason)
+	log.Printf("User hard deleted successfully - user_id: %s, user_type: %s, reason: %s", user.UserID, user.GetUserType(), reason)
 	return protocol.Success
 }
 

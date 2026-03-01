@@ -1955,7 +1955,7 @@ func (s *PriceRuleService) UpdatePriceRule(req *protocol.UpdatePriceRuleRequest)
 	return updatedRule, protocol.Success
 }
 
-// DeletePriceRule 删除价格规则（软删除）
+// DeletePriceRule 删除价格规则（硬删除）
 func (s *PriceRuleService) DeletePriceRule(ruleID string) protocol.ErrorCode {
 	if ruleID == "" {
 		return protocol.InvalidParams
@@ -1981,13 +1981,10 @@ func (s *PriceRuleService) DeletePriceRule(ruleID string) protocol.ErrorCode {
 	//     return protocol.InvalidParams
 	// }
 
-	// 执行软删除（将状态改为deleted）
-	result := models.GetDB().Model(&models.PriceRule{}).
+	// 执行硬删除
+	result := models.GetDB().
 		Where("rule_id = ?", ruleID).
-		Updates(map[string]interface{}{
-			"status":     protocol.StatusDeleted,
-			"updated_at": time.Now().UnixMilli(),
-		})
+		Delete(&models.PriceRule{})
 
 	if result.Error != nil {
 		log.Printf("Failed to delete price rule: %v", result.Error)
@@ -1998,7 +1995,7 @@ func (s *PriceRuleService) DeletePriceRule(ruleID string) protocol.ErrorCode {
 		return protocol.PriceIDNotFound
 	}
 
-	log.Printf("Price rule soft deleted: %v", ruleID)
+	log.Printf("Price rule hard deleted: %v", ruleID)
 	return protocol.Success
 }
 

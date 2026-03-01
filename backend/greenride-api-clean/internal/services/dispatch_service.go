@@ -111,9 +111,25 @@ func (s *DispatchService) StartAutoDispatch(order *protocol.Order) (result *prot
 
 // FindEligibleDrivers 查找符合条件的司机（广播模式：只要求有车辆，不按车型筛选；在线+无当前订单在 EvaluateDriverForOrder 中过滤）
 func (s *DispatchService) FindEligibleDrivers(order *protocol.Order) []string {
-	// Broadcast: include all drivers who have a vehicle. Eligibility (online, no active ride) is enforced in EvaluateDriverForOrder.
-	// Vehicle category/level are not required to match — order goes to all such drivers; first to accept wins.
-	driverList := models.FindDriversByVehicle("", "")
+	// Broadcast: include only active, non-deleted, online drivers with active vehicles bound.
+	// Vehicle category/level are intentionally not required to match in broadcast mode.
+	var driverList []string
+	err := models.GetDB().
+		Table("t_vehicles v").
+		Select("DISTINCT v.driver_id").
+		Joins("JOIN t_users u ON u.user_id = v.driver_id").
+		Where("v.driver_id IS NOT NULL AND v.driver_id <> ''").
+		Where("v.status = ?", protocol.StatusActive).
+		Where("u.user_type = ?", protocol.UserTypeDriver).
+		Where("u.status = ?", protocol.StatusActive).
+		Where("u.online_status = ?", protocol.StatusOnline).
+		Where("(u.deleted_at IS NULL OR u.deleted_at = 0)").
+		Pluck("v.driver_id", &driverList).Error
+	if err != nil {
+		log.Get().Warnf("[Dispatch] failed optimized eligible driver query: %v", err)
+		// Fallback to legacy behavior to avoid missing dispatches due to query/runtime drift.
+		driverList = models.FindDriversByVehicle("", "")
+	}
 	return driverList
 }
 
@@ -140,7 +156,8 @@ func (s *DispatchService) EvaluateDriverForOrder(rt *protocol.DriverRuntime, ord
 	}
 
 	driver.Distance = 0
-	if order.Details != nil {
+	hasDriverLocation := rt.Latitude != 0 && rt.Longitude != 0
+	if order.Details != nil && hasDriverLocation {
 		driver.Distance = utils.CalculateDistanceHaversine(
 			rt.Latitude,
 			rt.Longitude,
@@ -148,8 +165,9 @@ func (s *DispatchService) EvaluateDriverForOrder(rt *protocol.DriverRuntime, ord
 			order.Details.PickupLongitude,
 		)
 	}
-	// 4. Optional: distance filter only when MaxDistance > 0
-	if s.config.MaxDistance > 0 && driver.Distance > s.config.MaxDistance {
+	// 4. Optional distance filter:
+	// If driver location is unavailable, skip strict distance rejection to avoid starving drivers.
+	if hasDriverLocation && s.config.MaxDistance > 0 && driver.Distance > s.config.MaxDistance {
 		driver.RejectReason = "Distance too far"
 		return
 	}

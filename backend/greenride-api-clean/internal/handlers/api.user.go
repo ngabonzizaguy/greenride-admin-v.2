@@ -322,7 +322,7 @@ type DeleteAccountRequest struct {
 
 // DeleteAccount 删除账户
 // @Summary 删除账户
-// @Description 软删除用户账户，添加删除标记和时间戳，保留数据但标记为已删除状态
+// @Description 硬删除用户账户，彻底移除用户主数据
 // @Tags Api,用户
 // @Accept json
 // @Produce json

@@ -129,7 +129,7 @@ func (t *Admin) registerAuthedRoutes(adminAPI *gin.RouterGroup) {
 			userAPI.POST("/status", t.UpdateUserStatus) // 统一的状态更新接口
 			userAPI.POST("/verify", t.VerifyUser)       // 审核用户认证（替代VerifyDriver）
 			userAPI.POST("/rides", t.GetUserRides)      // 获取用户行程历史
-			userAPI.POST("/delete", t.DeleteUser)       // 删除用户（软删除）
+			userAPI.POST("/delete", t.DeleteUser)       // 删除用户（硬删除）
 		}
 
 		// 司机位置管理相关 (用于Live Map)
@@ -184,6 +184,7 @@ func (t *Admin) registerAuthedRoutes(adminAPI *gin.RouterGroup) {
 		{
 			systemAPI.GET("/config", t.AdminGetSystemConfig)     // 获取系统配置
 			systemAPI.POST("/config", t.AdminUpdateSystemConfig) // 更新系统配置
+			systemAPI.POST("/purge-legacy-deleted", t.AdminPurgeLegacyDeleted)
 		}
 
 		// 通知管理相关

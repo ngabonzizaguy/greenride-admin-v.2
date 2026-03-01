@@ -65,3 +65,36 @@ func (a *Admin) AdminUpdateSystemConfig(c *gin.Context) {
 	config := services.GetSystemConfigService().GetConfig()
 	c.JSON(http.StatusOK, protocol.NewSuccessResult(config))
 }
+
+type HardDeleteCleanupRequest struct {
+	Confirm string `json:"confirm"` // must be PURGE_LEGACY_DELETED
+	DryRun  bool   `json:"dry_run"`
+}
+
+// AdminPurgeLegacyDeleted performs hard-delete cleanup for legacy soft-deleted rows.
+// Admin auth is required; current deployment uses admin role only (no super_admin split).
+func (a *Admin) AdminPurgeLegacyDeleted(c *gin.Context) {
+	admin := a.GetUserFromContext(c)
+	if admin == nil {
+		c.JSON(http.StatusUnauthorized, protocol.NewAuthErrorResult())
+		return
+	}
+
+	var req HardDeleteCleanupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, protocol.NewErrorResult(protocol.InvalidParams, "", err.Error()))
+		return
+	}
+	if req.Confirm != "PURGE_LEGACY_DELETED" {
+		c.JSON(http.StatusOK, protocol.NewErrorResult(protocol.InvalidParams, "", "invalid confirmation token"))
+		return
+	}
+
+	summary, errCode := services.RunHardDeleteCleanupWithOptions(req.DryRun)
+	if errCode != protocol.Success {
+		c.JSON(http.StatusOK, protocol.NewErrorResult(errCode, ""))
+		return
+	}
+
+	c.JSON(http.StatusOK, protocol.NewSuccessResult(summary))
+}
